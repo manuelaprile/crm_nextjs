@@ -58,6 +58,26 @@ function pick<T>(arr: T[], i: number): T {
 
 async function main() {
   await client.connect()
+
+  // Las tablas tienen que existir. Sin este chequeo el fallo salía como un
+  // stack trace de pg que no dice qué hacer.
+  const listo = await client.query(`
+    select exists (
+      select 1 from information_schema.tables
+       where table_schema = 'public' and table_name = 'tenants'
+    ) as ok
+  `)
+  if (!listo.rows[0].ok) {
+    console.error(`
+  Las tablas todavía no existen.
+  Corré primero las migraciones:
+
+    node --experimental-strip-types scripts/migrate.ts
+`)
+    await client.end()
+    process.exit(1)
+  }
+
   await client.query('begin')
 
   // ---- Consultorio ----

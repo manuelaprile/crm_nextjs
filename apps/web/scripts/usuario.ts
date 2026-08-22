@@ -64,6 +64,23 @@ async function main() {
   if (!comando || comando === 'ayuda' || comando === '--help') ayuda()
   await client.connect()
 
+  const listo = await client.query(`
+    select exists (
+      select 1 from information_schema.tables
+       where table_schema = 'public' and table_name = 'users'
+    ) as ok
+  `)
+  if (!listo.rows[0].ok) {
+    console.error(`
+  Las tablas todavía no existen.
+  Corré primero las migraciones:
+
+    node --experimental-strip-types scripts/migrate.ts
+`)
+    await client.end()
+    process.exit(1)
+  }
+
   switch (comando) {
     case 'crear': {
       const [email, nombre, pass] = args
