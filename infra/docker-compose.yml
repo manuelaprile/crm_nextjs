@@ -1,0 +1,122 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?falta APP_DB_PASSWORD}
+      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD:?falta WORKER_DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    # Las contraseñas de los roles se leen desde acá en el primer arranque.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_owner -d crm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # No se publica el puerto: solo se llega desde la red interna de Docker.
+    expose:
+      - "5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --appendonly no
+    volumes:
+      - redis_data:/data
+    expose:
+      - "6379"
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://crm_app:${APP_DB_PASSWORD:?falta APP_DB_PASSWORD}@db:5432/crm
+      SYSTEM_DATABASE_URL: postgres://crm_worker:${WORKER_DB_PASSWORD:?falta WORKER_DB_PASSWORD}@db:5432/crm
+      REDIS_URL: redis://redis:6379
+      AUTH_SECRET: ${AUTH_SECRET:?falta AUTH_SECRET}
+      # Claves de plataforma: se usan solo si el consultorio no cargó la suya
+      # desde el panel. Pueden ir vacías.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Cifra las claves de API que cargan los clientes desde el panel.
+      SESSION_ENC_KEY: ${SESSION_ENC_KEY:?falta SESSION_ENC_KEY}
+      WORKER_URL: http://wa-worker:4000
+      WORKER_SECRET: ${WORKER_SECRET:?falta WORKER_SECRET}
+      INGEST_SECRET: ${INGEST_SECRET:?falta INGEST_SECRET}
+      # NO fijar APP_BASE_URL: el host sale del request. Una URL mal puesta
+      # hace que nada conteste, sin un solo error visible.
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    expose:
+      - "3000"
+
+  wa-worker:
+    build:
+      context: ..
+      dockerfile: apps/wa-worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      WORKER_DATABASE_URL: postgres://crm_worker:${WORKER_DB_PASSWORD:?falta WORKER_DB_PASSWORD}@db:5432/crm
+      WORKER_PORT: "4000"
+      WORKER_SECRET: ${WORKER_SECRET:?falta WORKER_SECRET}
+      INGEST_URL: http://web:3000/api/ingest/baileys
+      INGEST_SECRET: ${INGEST_SECRET:?falta INGEST_SECRET}
+      SESSION_ENC_KEY: ${SESSION_ENC_KEY:?falta SESSION_ENC_KEY}
+      LOG_LEVEL: info
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "4000"
+    # Baileys mantiene una sesión por cliente en memoria: ~80MB cada una.
+    # El límite es para que un leak no se lleve puesto a Postgres.
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+  # Backup diario a object storage. Sin esto, el VPS es un punto único de
+  # falla con los datos de todos los clientes adentro.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

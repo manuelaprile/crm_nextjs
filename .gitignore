@@ -1,0 +1,169 @@
+# =====================================================================
+#  .gitignore
+# ---------------------------------------------------------------------
+#  Regla general: si un archivo contiene una contraseña, una clave, una
+#  sesión o datos de un cliente, no entra al repositorio.
+#
+#  Recordá que .gitignore NO borra lo que ya está versionado. Si algo
+#  sensible llegó a un commit, hay que sacarlo del historial y considerar
+#  esa credencial como comprometida.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+#  SECRETOS  —  lo más importante de este archivo
+# ---------------------------------------------------------------------
+
+# Variables de entorno de todos los niveles (raíz, apps/web, apps/wa-worker…).
+.env
+.env.*
+**/.env
+**/.env.*
+
+# La plantilla SÍ se versiona: no tiene valores reales y es lo que se copia
+# en el servidor para armar el .env de verdad.
+!.env.example
+!**/.env.example
+
+# Clave que cifra las sesiones de WhatsApp y las claves de API de los
+# clientes. Si se filtra, hay que rotarla y todos vuelven a escanear el QR.
+.session-key-dev
+*.key.txt
+
+# Certificados y claves privadas de cualquier tipo.
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+
+# Credenciales de servicios en la nube.
+.aws/
+.gcloud/
+*credentials*.json
+!package.json
+
+
+# ---------------------------------------------------------------------
+#  DATOS DE CLIENTES
+# ---------------------------------------------------------------------
+
+# Volcados de base: contienen conversaciones, teléfonos y notas de pacientes.
+# En Argentina algunos de esos datos son sensibles por ley (25.326).
+*.sql.gz
+*.dump
+*.backup
+backup*.sql
+backups/
+dumps/
+
+# Material de sesión de WhatsApp que alguna librería pueda escribir a disco.
+# Nosotros lo guardamos cifrado en Postgres, pero por si acaso.
+auth_info*/
+.wwebjs_auth/
+.wwebjs_cache/
+sessions/
+baileys_auth*/
+
+# Archivos subidos por los pacientes.
+uploads/
+media/
+
+
+# ---------------------------------------------------------------------
+#  DOCUMENTACIÓN INTERNA
+# ---------------------------------------------------------------------
+# Excluida a pedido. Ojo: acá viven los manuales de puesta en marcha, y
+# varios contienen las contraseñas de desarrollo y la SESSION_ENC_KEY.
+# Si algún día querés versionarlos, primero hay que sacarles los secretos.
+docs/
+
+
+# ---------------------------------------------------------------------
+#  DEPENDENCIAS Y COMPILADOS
+# ---------------------------------------------------------------------
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+
+# Next.js
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Archivos que Next regenera solo en cada `next dev`.
+apps/web/AGENTS.md
+apps/web/CLAUDE.md
+
+
+# ---------------------------------------------------------------------
+#  REGISTROS Y TEMPORALES
+# ---------------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.cache/
+tmp/
+temp/
+*.tmp
+*.pid
+*.seed
+
+
+# ---------------------------------------------------------------------
+#  PRUEBAS Y HERRAMIENTAS
+# ---------------------------------------------------------------------
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+
+# ---------------------------------------------------------------------
+#  EDITORES Y SISTEMA OPERATIVO
+# ---------------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Windows
+Thumbs.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+._*
+
+# Linux
+.directory
+.Trash-*
+
+
+# ---------------------------------------------------------------------
+#  DOCKER
+# ---------------------------------------------------------------------
+# Los volúmenes viven en Docker, no en el repo. Esto es por si alguien
+# monta un bind mount en la carpeta del proyecto.
+infra/db_data/
+infra/caddy_data/
+infra/caddy_config/
+infra/redis_data/

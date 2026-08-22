@@ -1,0 +1,6 @@
+{$DOMAIN:localhost} {
+	encode gzip zstd
+	# Solo la app se expone. El worker NO tiene ruta pública: se habla
+	# únicamente por la red interna de Docker.
+	reverse_proxy web:3000
+}

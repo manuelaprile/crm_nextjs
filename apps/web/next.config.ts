@@ -1,0 +1,58 @@
+import type { NextConfig } from 'next'
+
+const enDesarrollo = process.env.NODE_ENV !== 'production'
+
+/**
+ * Política de seguridad de contenido.
+ *
+ * En DESARROLLO se agrega `'unsafe-eval'` porque React lo necesita para sus
+ * herramientas de depuración (reconstruir stacks, fast refresh). Sin eso el
+ * JavaScript del cliente queda roto y los formularios interactivos —el de la
+ * clave de API, el tablero de arrastrar y soltar— dejan de funcionar sin un
+ * error visible en pantalla.
+ *
+ * En PRODUCCIÓN no se agrega: React no usa eval() ahí, y permitirlo abriría
+ * la puerta a ejecutar strings como código si alguna vez entra contenido
+ * ajeno a la página.
+ */
+const csp = [
+  "default-src 'self'",
+  // El QR llega como data URL desde el worker.
+  "img-src 'self' data: blob:",
+  `script-src 'self' 'unsafe-inline'${enDesarrollo ? " 'unsafe-eval'" : ''}`,
+  "style-src 'self' 'unsafe-inline'",
+  // En desarrollo el websocket de recarga en caliente necesita ws:.
+  `connect-src 'self'${enDesarrollo ? ' ws: wss:' : ''}`,
+  "font-src 'self' data:",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join('; ')
+
+const config: NextConfig = {
+  // Empaqueta solo lo necesario en la imagen de Docker.
+  output: 'standalone',
+  // `pg` es nativo: no puede pasar por el bundler del servidor.
+  serverExternalPackages: ['pg'],
+  poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
+          },
+          { key: 'Content-Security-Policy', value: csp },
+        ],
+      },
+    ]
+  },
+}
+
+export default config
