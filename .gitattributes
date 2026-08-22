@@ -1,0 +1,9 @@
+# Los scripts de shell SIEMPRE con finales de línea Unix, sin importar en qué
+# sistema se clone. Con finales de Windows (CRLF), el intérprete de Linux lee
+# el retorno de carro como parte del comando y falla con errores raros del
+# tipo "illegal option -" o "command not found".
+*.sh text eol=lf
+*.sql text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+Caddyfile text eol=lf
