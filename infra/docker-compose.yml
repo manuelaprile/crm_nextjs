@@ -87,6 +87,13 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    environment:
+      # El Caddyfile usa {$DOMAIN}, que es una variable DE ADENTRO del
+      # contenedor. Definirla en el .env alcanza para que Compose la
+      # interpole, pero NO la mete en el contenedor: hay que pasarla acá.
+      # Sin esto Caddy cae al valor por defecto (localhost), pide un
+      # certificado para "localhost" y el dominio real nunca responde.
+      DOMAIN: ${DOMAIN:?falta DOMAIN}
     ports:
       - "80:80"
       - "443:443"
