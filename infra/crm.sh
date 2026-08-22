@@ -152,7 +152,14 @@ case "${1:-ayuda}" in
     ;;
 
   reiniciar)
-    docker compose restart
+    # `up -d` y NO `restart`: restart reinicia el proceso pero NO vuelve a
+    # leer el docker-compose.yml, así que los cambios de configuración
+    # (puertos, variables de entorno, volúmenes) no se aplican. Los
+    # contenedores siguen con la configuración vieja y uno se vuelve loco
+    # buscando por qué un cambio no surte efecto.
+    # `up -d` recrea solo lo que cambió y deja el resto intacto.
+    info "Aplicando configuración y reiniciando"
+    docker compose up -d
     sleep 5
     docker compose ps --format '  {{.Service}}\t{{.State}}'
     ;;
