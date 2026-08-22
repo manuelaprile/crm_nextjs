@@ -27,9 +27,13 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# Migraciones y scripts, para poder correrlos con `docker compose exec`.
+# Migraciones y scripts, para correrlos con `docker compose exec`.
+#
+# NO se copia tsx: el atajo de node_modules/.bin no sirve sin el paquete
+# completo y sus dependencias, y arrastrarlas todas engorda la imagen.
+# Node 22 lee TypeScript de forma nativa con --experimental-strip-types,
+# que es lo que usan los comandos documentados. Cero dependencias extra.
 COPY --from=builder /app/scripts ./scripts
-COPY --from=builder /app/node_modules/.bin/tsx ./node_modules/.bin/tsx
 COPY packages/db/migrations /packages/db/migrations
 USER nextjs
 EXPOSE 3000

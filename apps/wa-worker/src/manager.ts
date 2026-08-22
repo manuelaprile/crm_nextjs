@@ -27,14 +27,34 @@ export class SessionManager {
    * necesitan intervención humana y reintentarlas es sospechoso.
    */
   async restoreAll(): Promise<void> {
-    const { rows } = await this.pool.query(
-      `select ca.id, ca.tenant_id
-         from channel_accounts ca
-         join tenants t on t.id = ca.tenant_id
-        where ca.provider = 'baileys'
-          and ca.status in ('connected','connecting','disconnected')
-          and t.status in ('trial','active')`,
-    )
+    let rows: { id: string; tenant_id: string }[]
+    try {
+      const res = await this.pool.query(
+        `select ca.id, ca.tenant_id
+           from channel_accounts ca
+           join tenants t on t.id = ca.tenant_id
+          where ca.provider = 'baileys'
+            and ca.status in ('connected','connecting','disconnected')
+            and t.status in ('trial','active')`,
+      )
+      rows = res.rows
+    } catch (err) {
+      // 42P01 = la tabla no existe. Pasa siempre en un despliegue nuevo: el
+      // worker arranca junto con la base, antes de que se corran las
+      // migraciones. Antes esto tiraba el proceso y quedaba en bucle de
+      // reinicio, con un stack trace que parecía una falla grave.
+      // Ahora avisa qué falta y sigue vivo: cuando el operador corra las
+      // migraciones, alcanza con reiniciar el contenedor.
+      if ((err as { code?: string }).code === '42P01') {
+        log.warn(
+          'Las tablas todavía no existen. Corré las migraciones y después ' +
+            'reiniciá este servicio: docker compose restart wa-worker',
+        )
+        return
+      }
+      throw err
+    }
+
     log.info({ count: rows.length }, 'restaurando sesiones')
     for (const row of rows) {
       await this.ensure(row.id, row.tenant_id)
