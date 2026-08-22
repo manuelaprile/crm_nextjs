@@ -1,6 +1,26 @@
+# =====================================================================
+#  Caddy — entrada HTTPS del sistema
+# ---------------------------------------------------------------------
+#  Saca y renueva el certificado de Let's Encrypt solo. Para lograrlo, el
+#  dominio TIENE que resolver a la IP de este servidor antes de arrancar:
+#  si no, Let's Encrypt no puede validar que es tuyo y Caddy queda
+#  reintentando.
+#
+#  Solo se expone el panel. El worker de WhatsApp y PostgreSQL no tienen
+#  ruta pública: se hablan por la red interna de Docker.
+# =====================================================================
+
 {$DOMAIN:localhost} {
 	encode gzip zstd
-	# Solo la app se expone. El worker NO tiene ruta pública: se habla
-	# únicamente por la red interna de Docker.
 	reverse_proxy web:3000
+}
+
+# Redirección de www al dominio principal.
+#
+# Solo se activa si DOMAIN es un dominio raíz (misticacrm.online) y existe
+# el registro DNS de www. Si usás un subdominio (crm.ejemplo.com) o no
+# creaste el registro www, comentá este bloque: Caddy va a intentar sacarle
+# un certificado y va a llenar el registro de errores.
+www.{$DOMAIN:localhost} {
+	redir https://{$DOMAIN}{uri} permanent
 }
