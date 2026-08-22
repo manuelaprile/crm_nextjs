@@ -1,0 +1,5 @@
+Esta carpeta va vacía por ahora, pero tiene que existir: el Dockerfile la
+copia a la imagen y git no versiona directorios vacíos. Sin este archivo el
+build falla en un clon limpio con "/app/public: not found".
+
+Acá van los archivos estáticos que se sirven tal cual: favicon, logo, etc.
