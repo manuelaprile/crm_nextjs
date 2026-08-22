@@ -31,6 +31,9 @@ const csp = [
 ].join('; ')
 
 const config: NextConfig = {
+  // La "N" flotante que Next muestra en desarrollo. Los errores de
+  // compilación se siguen viendo igual: esto solo saca el indicador.
+  devIndicators: false,
   // Empaqueta solo lo necesario en la imagen de Docker.
   output: 'standalone',
   // `pg` es nativo: no puede pasar por el bundler del servidor.

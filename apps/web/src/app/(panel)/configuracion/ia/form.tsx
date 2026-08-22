@@ -34,7 +34,7 @@ export function FormIA({
   }
 
   return (
-    <form action={guardarAjustesIA} style={{ display: 'grid', gap: 16, maxWidth: 680 }}>
+    <form action={guardarAjustesIA} style={{ display: 'grid', gap: 16 }}>
       {aviso && (
         <div className={`alert ${aviso.tipo === 'ok' ? 'alert-green' : 'alert-red'}`}>
           {aviso.texto}

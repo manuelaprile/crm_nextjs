@@ -22,7 +22,7 @@ export default async function PruebasPage() {
         <span className="badge b-amber badge-dot">Modo prueba</span>
       </div>
 
-      <div className="content" style={{ maxWidth: 820 }}>
+      <div className="content">
         <div className="page-head">
           <p style={{ marginTop: 0 }}>
             Probá el circuito completo sin vincular un celular

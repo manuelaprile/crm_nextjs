@@ -59,7 +59,7 @@ export default async function UsuariosPage({
         <span className="badge b-gray mono">{datos.total}</span>
       </div>
 
-      <div className="content" style={{ maxWidth: 900 }}>
+      <div className="content">
         {r && m && (
           <div
             className={`alert ${r === 'ok' ? 'alert-green' : 'alert-red'}`}

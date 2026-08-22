@@ -67,7 +67,7 @@ export default async function IAPage({
             avisoPrueba={avisos.prueba}
           />
         ) : (
-          <div className="alert alert-amber" style={{ maxWidth: 680 }}>
+          <div className="alert alert-amber">
             Este consultorio todavía no tiene configuración de asistente.
             Ejecutá <code>seed_vertical_medico()</code> para crearla.
           </div>

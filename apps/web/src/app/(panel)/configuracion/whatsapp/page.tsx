@@ -30,7 +30,7 @@ export default async function WhatsAppPage() {
         <h2>WhatsApp</h2>
       </div>
 
-      <div className="content" style={{ maxWidth: 720 }}>
+      <div className="content">
         <div className="page-head">
           <p style={{ marginTop: 0 }}>
             Conectá el número del consultorio escaneando un código QR

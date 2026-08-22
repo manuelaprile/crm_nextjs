@@ -53,7 +53,7 @@ export default async function ContactoPage({
       </div>
 
       <div className="content">
-        <div className="cols2b" style={{ maxWidth: 1000 }}>
+        <div className="cols2b">
           <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
             <div className="panel-box">
               <div className="panel-box-head">
