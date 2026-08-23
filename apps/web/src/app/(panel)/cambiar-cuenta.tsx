@@ -1,33 +1,39 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { cambiarConsultorio, volverAPlataforma } from '@/lib/usuarios'
+import { cambiarDeCuenta, volverAPlataforma } from '@/lib/usuarios'
 import { IconShield } from '@/components/icons'
 
 /**
- * Selector de consultorio activo, en la cabecera del menú.
+ * Selector de cuenta activa, en la cabecera del menú.
  *
  * Aparece en dos situaciones:
  *
- *  - El usuario pertenece a más de un consultorio (una secretaria que atiende
- *    a dos médicos, por ejemplo). Cambia entre los suyos.
- *  - Es superadmin y entró a dar soporte. Puede saltar a otro o volver a la
+ *  - El usuario pertenece a más de una cuenta (una secretaria que atiende a
+ *    dos médicos, por ejemplo). Cambia entre las suyas.
+ *  - Es superadmin y entró a dar soporte. Puede saltar a otra o volver a la
  *    vista de plataforma.
  *
- * Con un solo consultorio y sin ser superadmin no se muestra nada: no tendría
- * a dónde ir.
+ * Con una sola cuenta y sin ser superadmin no se muestra nada: no tendría a
+ * dónde ir.
+ *
+ * El rótulo lo pone quien lo usa: adentro de un consultorio dice «Cambiar de
+ * consultorio», adentro de una inmobiliaria dice «Cambiar de inmobiliaria».
  */
-export function CambiarConsultorio({
+export function CambiarCuenta({
   actual,
   opciones,
   esSuperadmin,
   esVisita,
+  rubro,
 }: {
   actual: string
-  opciones: { id: string; nombre: string }[]
+  opciones: { id: string; nombre: string; rubro?: string }[]
   esSuperadmin: boolean
-  /** El superadmin está adentro de un consultorio del que no es miembro. */
+  /** El superadmin está adentro de una cuenta de la que no es miembro. */
   esVisita: boolean
+  /** Cómo se llama esta cuenta: "Consultorio", "Inmobiliaria"… */
+  rubro: string
 }) {
   const [abierto, setAbierto] = useState(false)
   const caja = useRef<HTMLDivElement>(null)
@@ -61,7 +67,7 @@ export function CambiarConsultorio({
         onClick={() => setAbierto((v) => !v)}
         style={{ width: '100%', fontSize: 12.5, justifyContent: 'space-between' }}
       >
-        <span>Cambiar de consultorio</span>
+        <span>Cambiar de {rubro.toLowerCase()}</span>
         <span aria-hidden style={{ opacity: 0.5 }}>
           {abierto ? '▴' : '▾'}
         </span>
@@ -99,7 +105,7 @@ export function CambiarConsultorio({
           ) : null}
 
           {otros.map((o) => (
-            <form key={o.id} action={cambiarConsultorio}>
+            <form key={o.id} action={cambiarDeCuenta}>
               <input type="hidden" name="tenantId" value={o.id} />
               <button
                 type="submit"
@@ -114,6 +120,13 @@ export function CambiarConsultorio({
                   }}
                 >
                   {o.nombre}
+                  {/* Con rubros mezclados —un consultorio y una inmobiliaria—
+                      el solo nombre no siempre alcanza para saber cuál es. */}
+                  {o.rubro ? (
+                    <span className="tiny muted" style={{ marginLeft: 6 }}>
+                      {o.rubro}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             </form>
@@ -121,7 +134,7 @@ export function CambiarConsultorio({
 
           {esSuperadmin && otros.length === 0 ? (
             <div className="tiny muted" style={{ padding: '6px 10px' }}>
-              Para entrar a otro consultorio, andá a Plataforma.
+              Para entrar a otra cuenta, andá a Plataforma.
             </div>
           ) : null}
         </div>

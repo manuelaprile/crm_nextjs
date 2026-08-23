@@ -3,7 +3,8 @@ import { sql } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { withTenant } from '@/lib/db/client'
 import { modoPruebaActivo } from '@/lib/pruebas'
-import { misConsultorios, volverAPlataforma } from '@/lib/usuarios'
+import { misCuentas, volverAPlataforma } from '@/lib/usuarios'
+import { etiquetaDe } from '@/lib/etiquetas'
 import { Sidebar } from './sidebar'
 
 export const dynamic = 'force-dynamic'
@@ -13,15 +14,15 @@ export const dynamic = 'force-dynamic'
  *
  * Hay dos formas legítimas de estar acá adentro:
  *
- *  - **Con consultorio.** El caso normal: bandeja, contactos, reportes y
- *    configuración de ESE consultorio.
+ *  - **Con cuenta activa.** El caso normal: bandeja, contactos, reportes y
+ *    configuración de ESA cuenta.
  *
- *  - **Superadmin sin consultorio.** Solo ve Plataforma: cuántos clientes
- *    hay, cuántos contactos y conversaciones tiene cada uno, y cuánto gastó
- *    de IA. Números agregados, nunca datos de pacientes.
+ *  - **Superadmin sin cuenta.** Solo ve Plataforma: cuántos clientes hay,
+ *    cuántos contactos y conversaciones tiene cada uno, y cuánto gastó de IA.
+ *    Números agregados, nunca datos de pacientes.
  *
- * Que un superadmin NO pertenezca a ningún consultorio es lo deseable. Cuando
- * necesita entrar a uno lo hace desde Plataforma → «Entrar»: eso NO lo agrega
+ * Que un superadmin NO pertenezca a ninguna cuenta es lo deseable. Cuando
+ * necesita entrar a una lo hace desde Plataforma → «Entrar»: eso NO lo agrega
  * a `tenant_users` (sigue sin ser miembro), pero escribe una fila en
  * `audit_log` y le deja una franja visible arriba mientras dure la visita.
  * No hay forma de mirar los datos de un paciente sin dejar rastro.
@@ -34,19 +35,20 @@ export default async function PanelLayout({
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const sinConsultorio = !session.tenantId || !session.role
+  const sinCuenta = !session.tenantId || !session.role
+  const etiqueta = etiquetaDe(session)
 
-  // Un superadmin sin consultorio no está roto: tiene su propia vista.
-  if (sinConsultorio && !session.isSuperadmin) {
+  // Un superadmin sin cuenta no está roto: tiene su propia vista.
+  if (sinCuenta && !session.isSuperadmin) {
     return (
       <main className="login-wrap">
         <div className="login-card" style={{ textAlign: 'center' }}>
           <h1 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.02em' }}>
-            Sin consultorio asignado
+            Sin acceso asignado
           </h1>
           <p className="muted tiny" style={{ marginTop: 8 }}>
-            Tu usuario todavía no está vinculado a ningún consultorio. Pedile
-            a quien administra el sistema que te dé acceso.
+            Tu usuario existe, pero todavía no está vinculado a ninguna cuenta.
+            Pedile a quien administra el sistema que te dé acceso.
           </p>
         </div>
       </main>
@@ -55,7 +57,7 @@ export default async function PanelLayout({
 
   // El contador de no leídos sale de una columna, no de un COUNT por fila.
   const unread =
-    sinConsultorio || !session.tenantId || !session.role
+    sinCuenta || !session.tenantId || !session.role
       ? 0
       : await withTenant(
           {
@@ -74,15 +76,15 @@ export default async function PanelLayout({
 
   const pruebas = await modoPruebaActivo()
 
-  // Consultorios propios: los que el usuario tiene en `tenant_users`.
-  const propios = await misConsultorios()
+  // Cuentas propias: las que el usuario tiene en `tenant_users`.
+  const propias = await misCuentas()
 
-  // Una VISITA es un superadmin parado adentro de un consultorio del que no es
+  // Una VISITA es un superadmin parado adentro de una cuenta de la que no es
   // miembro. Es legítimo —entró a dar soporte— pero tiene que verse.
   const esVisita =
     session.isSuperadmin &&
     !!session.tenantId &&
-    !propios.some((c) => c.id === session.tenantId)
+    !propias.some((c) => c.id === session.tenantId)
 
   return (
     <div id="panel">
@@ -91,11 +93,16 @@ export default async function PanelLayout({
         userName={session.name}
         role={session.role ?? 'agent'}
         unread={unread}
-        modoPrueba={pruebas && !sinConsultorio && session.role !== 'agent'}
+        modoPrueba={pruebas && !sinCuenta && session.role !== 'agent'}
         esSuperadmin={session.isSuperadmin}
-        sinConsultorio={sinConsultorio}
-        consultorios={propios.map((c) => ({ id: c.id, nombre: c.nombre }))}
+        sinCuenta={sinCuenta}
+        cuentas={propias.map((c) => ({
+          id: c.id,
+          nombre: c.nombre,
+          rubro: c.rubro,
+        }))}
         esVisita={esVisita}
+        rubro={etiqueta.singular}
       />
       <div className="main">
         {esVisita ? (

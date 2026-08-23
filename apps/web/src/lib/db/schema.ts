@@ -20,9 +20,6 @@ import {
 export const tenantStatus = pgEnum('tenant_status', [
   'trial', 'active', 'past_due', 'suspended', 'cancelled',
 ])
-export const tenantVertical = pgEnum('tenant_vertical', [
-  'medico', 'ecommerce', 'colegio', 'generico',
-])
 export const tenantRole = pgEnum('tenant_role', ['owner', 'admin', 'agent'])
 export const waConnStatus = pgEnum('wa_conn_status', [
   'disconnected', 'qr_pending', 'connecting', 'connected', 'logged_out', 'banned',
@@ -53,11 +50,26 @@ export const users = pgTable('users', {
 // El rol de la app no tiene permiso de lectura sobre esa columna; el login
 // pasa por la función verify_login(). Ver 0002_rls.sql.
 
+// Catálogo de rubros: consultorio, inmobiliaria, estudio contable…
+// Es una tabla y no un enum para poder sumar rubros sin migración, y porque
+// el rótulo que ve el usuario (singular, plural y género) vive acá.
+export const verticals = pgTable('verticals', {
+  code: text('code').primaryKey(),
+  singular: text('singular').notNull(),
+  plural: text('plural').notNull(),
+  articulo: text('articulo').notNull().default('el'),
+  position: integer('position').notNull().default(50),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
-  vertical: tenantVertical('vertical').notNull().default('generico'),
+  // El rubro dejó de ser un enum: ahora es una clave al catálogo `verticals`,
+  // para poder dar de alta rubros nuevos sin migración. Ver 0013_rubros.sql.
+  vertical: text('vertical').notNull().default('generico'),
   status: tenantStatus('status').notNull().default('trial'),
   plan: text('plan').notNull().default('starter'),
   timezone: text('timezone').notNull().default('America/Argentina/Buenos_Aires'),

@@ -72,7 +72,7 @@ export async function runAgentForConversation(
     await handoff(
       ctx,
       'Palabra clave de derivación detectada',
-      'Gracias por escribir. Te paso con alguien del consultorio para que te ' +
+      'Gracias por escribir. Te paso con una persona del equipo para que te ' +
         'responda personalmente. Aguardame un momento.',
     )
     return
@@ -84,7 +84,7 @@ export async function runAgentForConversation(
     await handoff(
       ctx,
       'Tope mensual de IA alcanzado',
-      'Gracias por escribir. En un momento te responde alguien del consultorio.',
+      'Gracias por escribir. En un momento te responde una persona del equipo.',
     )
     return
   }
@@ -540,7 +540,7 @@ async function run(ctx: AgentContext): Promise<void> {
     await handoff(
       ctx,
       'El asistente tuvo un error técnico',
-      'Gracias por escribir. En un momento te responde alguien del consultorio.',
+      'Gracias por escribir. En un momento te responde una persona del equipo.',
     )
   }
 

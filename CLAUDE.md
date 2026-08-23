@@ -47,6 +47,17 @@ Si se rompe acá, no se arregla después.
    pedidos de una tienda son la misma tabla `stages` + `stage_history`. Eso da el
    reporte de conversión gratis en los tres nichos. NUNCA hardcodear etapas.
 
+5. **El RUBRO es un rótulo, no una rama de código.**
+   Consultorio, inmobiliaria, estudio contable: el sistema es el mismo. El rubro
+   vive en la tabla `verticals` (código, singular, plural, género) y `tenants.vertical`
+   lo referencia. En la interfaz el rótulo sale de la sesión (`etiquetaDe()` en
+   `lib/etiquetas.ts`), NUNCA escrito a mano. No decir "consultorio" en una
+   pantalla: para una inmobiliaria queda mal y para el próximo rubro, peor.
+   Lo mismo con los reportes: los rótulos salen de las etapas del cliente
+   (`is_won`, posición), no de una lista fija. En la vista de plataforma, donde
+   conviven rubros distintos, el término neutro es **cuenta**.
+   Sumar un rubro NO es una migración: es el alta desde el panel.
+
 ## Reglas duras
 
 Romper cualquiera de estas no produce un error: produce mensajes que se pierden en

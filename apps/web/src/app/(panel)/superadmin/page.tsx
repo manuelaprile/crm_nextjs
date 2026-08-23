@@ -1,6 +1,7 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { listarConsultorios, entrarAConsultorio } from '@/lib/usuarios'
+import { listarCuentas, entrarACuenta } from '@/lib/usuarios'
 import { IconSearch } from '@/components/icons'
 import { Paginacion } from '@/components/paginacion'
 
@@ -9,30 +10,35 @@ export const dynamic = 'force-dynamic'
 /**
  * Vista global de la plataforma. Solo superadmin.
  *
+ * Acá conviven rubros distintos —un consultorio, una inmobiliaria, un estudio
+ * contable— así que la pantalla habla de «cuentas», que es lo neutro. El
+ * rótulo propio de cada una aparece en la columna Rubro y, adentro, en todo
+ * el panel.
+ *
  * Muestra NÚMEROS, no datos. El superadmin ve cuántos contactos tiene cada
- * consultorio y cuánto gastó de IA, pero no puede leer un solo mensaje ni un
+ * cuenta y cuánto gastó de IA, pero no puede leer un solo mensaje ni un
  * nombre de paciente: eso lo garantiza RLS, no esta pantalla. Ver el
  * comentario de 0010_superadmin.sql.
  */
 export default async function SuperadminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; p?: string; pp?: string }>
+  searchParams: Promise<{ q?: string; p?: string; pp?: string; r?: string; m?: string }>
 }) {
   const session = await getSession()
   if (!session?.isSuperadmin) notFound()
 
-  const { q, p, pp } = await searchParams
+  const { q, p, pp, r, m } = await searchParams
   const porPagina = Number(pp) || 25
-  const datos = await listarConsultorios({
+  const datos = await listarCuentas({
     pagina: Number(p) || 1,
     porPagina,
     buscar: q,
   })
-  const consultorios = datos.filas
+  const cuentas = datos.filas
   // El total de IA es de la página visible, no de toda la plataforma: dejarlo
   // ambiguo sería peor que decirlo.
-  const totalIa = consultorios.reduce((a, c) => a + Number(c.costoIaMes), 0)
+  const totalIa = cuentas.reduce((a, c) => a + Number(c.costoIaMes), 0)
 
   const link = (n: number) => {
     const sp = new URLSearchParams({ p: String(n) })
@@ -46,24 +52,38 @@ export default async function SuperadminPage({
       <div className="topnav">
         <h2>Plataforma</h2>
         <span className="badge b-dark">Superadmin</span>
+        <div style={{ marginLeft: 'auto' }}>
+          <Link href="/superadmin/nueva" className="btn btn-primary btn-sm">
+            Nueva cuenta
+          </Link>
+        </div>
       </div>
 
       <div className="content">
+        {m ? (
+          <div
+            className={`alert ${r === 'ok' ? 'alert-green' : 'alert-red'}`}
+            style={{ marginBottom: 16 }}
+          >
+            <span>{m}</span>
+          </div>
+        ) : null}
+
         <div className="stats">
           <div className="stat">
-            <div className="lbl">Consultorios</div>
+            <div className="lbl">Cuentas</div>
             <div className="val mono">{datos.total}</div>
           </div>
           <div className="stat">
-            <div className="lbl">Activos</div>
+            <div className="lbl">Activas</div>
             <div className="val mono">
-              {consultorios.filter((c) => c.status === 'active').length}
+              {cuentas.filter((c) => c.status === 'active').length}
             </div>
           </div>
           <div className="stat">
             <div className="lbl">Contactos totales</div>
             <div className="val mono">
-              {consultorios.reduce((a, c) => a + c.contactos, 0)}
+              {cuentas.reduce((a, c) => a + c.contactos, 0)}
             </div>
           </div>
           <div className="stat">
@@ -85,7 +105,7 @@ export default async function SuperadminPage({
             defaultValue={String(porPagina)}
             className="select"
             style={{ width: 'auto' }}
-            aria-label="Consultorios por página"
+            aria-label="Cuentas por página"
           >
             {[10, 25, 50, 100].map((n) => (
               <option key={n} value={n}>{n} por página</option>
@@ -96,14 +116,14 @@ export default async function SuperadminPage({
 
         <div className="panel-box">
           <div className="panel-box-head">
-            <h3>Consultorios</h3>
+            <h3>Cuentas</h3>
           </div>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Consultorio</th>
-                  <th>Vertical</th>
+                  <th>Cuenta</th>
+                  <th>Rubro</th>
                   <th>Estado</th>
                   <th style={{ textAlign: 'right' }}>Usuarios</th>
                   <th style={{ textAlign: 'right' }}>Contactos</th>
@@ -113,7 +133,7 @@ export default async function SuperadminPage({
                 </tr>
               </thead>
               <tbody>
-                {consultorios.map((c) => {
+                {cuentas.map((c) => {
                   const gasto = Number(c.costoIaMes)
                   const tope = Number(c.topeIa)
                   const cerca = tope > 0 && gasto / tope > 0.8
@@ -125,7 +145,7 @@ export default async function SuperadminPage({
                         </span>
                         <span className="tiny muted mono">{c.slug}</span>
                       </td>
-                      <td className="muted">{c.vertical}</td>
+                      <td className="muted">{c.rubro}</td>
                       <td>
                         <span
                           className={`badge ${
@@ -155,7 +175,7 @@ export default async function SuperadminPage({
                         {gasto.toFixed(2)} / {tope.toFixed(0)}
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <form action={entrarAConsultorio}>
+                        <form action={entrarACuenta}>
                           <input type="hidden" name="tenantId" value={c.id} />
                           <button type="submit" className="btn btn-ghost btn-sm">
                             Entrar
@@ -181,7 +201,7 @@ export default async function SuperadminPage({
           <span>
             Esta pantalla muestra solo números agregados: ningún nombre de
             paciente, ningún mensaje. <strong>«Entrar»</strong> te lleva
-            adentro de un consultorio para dar soporte, y{' '}
+            adentro de una cuenta para dar soporte, y{' '}
             <strong>queda registrado en la auditoría</strong> con tu usuario y
             la fecha. Mientras estés adentro vas a ver un aviso permanente.
           </span>

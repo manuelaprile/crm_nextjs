@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { requireTenant } from '@/lib/auth'
+import { etiquetaDe, delRubro } from '@/lib/etiquetas'
 import { listConversations, getStages } from '@/lib/queries'
 import { IconSearch } from '@/components/icons'
 import { Paginacion } from '@/components/paginacion'
@@ -18,6 +19,7 @@ export default async function BandejaPage({
   }>
 }) {
   const session = await requireTenant()
+  const etiqueta = etiquetaDe(session)
   const { q, etapa, p, pp, filtro } = await searchParams
 
   const porPagina = Number(pp) || 25
@@ -120,7 +122,7 @@ export default async function BandejaPage({
                 'Probá con otro filtro.'
               ) : (
                 <>
-                  Cuando alguien escriba al WhatsApp del consultorio, la
+                  Cuando alguien escriba al WhatsApp {delRubro(etiqueta)}, la
                   conversación aparece acá.
                   <div style={{ marginTop: 16 }}>
                     <Link

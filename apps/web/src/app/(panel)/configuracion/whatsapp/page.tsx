@@ -1,4 +1,5 @@
 import { requireTenant } from '@/lib/auth'
+import { etiquetaDe, delRubro, alRubro } from '@/lib/etiquetas'
 import { getWhatsAppAccounts } from '@/lib/queries'
 import { connectWhatsApp, disconnectWhatsApp } from '@/lib/actions'
 import { AutoRefresh } from './auto-refresh'
@@ -16,6 +17,7 @@ const ESTADOS: Record<string, { label: string; badge: string }> = {
 
 export default async function WhatsAppPage() {
   const session = await requireTenant()
+  const etiqueta = etiquetaDe(session)
   const accounts = await getWhatsAppAccounts(session)
   const puedeGestionar = session.role !== 'agent'
   // Mientras negocia, la pantalla se refresca sola para que aparezca el QR.
@@ -33,7 +35,7 @@ export default async function WhatsAppPage() {
       <div className="content">
         <div className="page-head">
           <p style={{ marginTop: 0 }}>
-            Conectá el número del consultorio escaneando un código QR
+            Conectá el número {delRubro(etiqueta)} escaneando un código QR
           </p>
         </div>
 
@@ -41,8 +43,8 @@ export default async function WhatsAppPage() {
           <div className="panel-box">
             <div className="empty">
               <b>Todavía no hay ningún número conectado</b>
-              Al conectar vas a ver un código QR. Escanealo desde el celular del
-              consultorio con WhatsApp → Dispositivos vinculados.
+              Al conectar vas a ver un código QR. Escanealo desde el celular{' '}
+              {delRubro(etiqueta)} con WhatsApp → Dispositivos vinculados.
               {puedeGestionar ? (
                 <form action={connectWhatsApp} style={{ marginTop: 18 }}>
                   <button type="submit" className="btn btn-primary">
@@ -162,7 +164,7 @@ export default async function WhatsAppPage() {
                         textAlign: 'center',
                       }}
                     >
-                      <li>1. Abrí WhatsApp en el celular del consultorio</li>
+                      <li>1. Abrí WhatsApp en el celular {delRubro(etiqueta)}</li>
                       <li>2. Menú → Dispositivos vinculados</li>
                       <li>3. Vincular un dispositivo</li>
                       <li>4. Escaneá este código</li>
@@ -180,8 +182,8 @@ export default async function WhatsAppPage() {
         <div className="alert alert-gray" style={{display: 'none'}}>
           <span>
             <b style={{ fontWeight: 600 }}>Importante:</b> la vinculación por QR
-            no es una integración oficial de Meta. Usá un número dedicado al
-            consultorio y no el personal. El sistema solo responde a quien
+            no es una integración oficial de Meta. Usá un número dedicado{' '}
+            {alRubro(etiqueta)} y no el personal. El sistema solo responde a quien
             escribe primero y nunca hace envíos masivos.
           </span>
         </div>

@@ -7,8 +7,8 @@
 #      ./crm.sh instalar     despliegue nuevo, de cero a funcionando
 #      ./crm.sh actualizar   traer cambios y aplicarlos
 #      ./crm.sh migrar       solo las migraciones
-#      ./crm.sh demo         cargar el consultorio de demostración
-#      ./crm.sh consultorio   dar de alta un cliente nuevo
+#      ./crm.sh demo         cargar la cuenta de demostración
+#      ./crm.sh cuenta ...   dar de alta un cliente nuevo
 #      ./crm.sh usuario ...  gestión de usuarios
 #      ./crm.sh estado       qué está corriendo
 #      ./crm.sh logs [srv]   ver los registros
@@ -90,7 +90,7 @@ case "${1:-ayuda}" in
     verde ""
     verde "Listo."
     echo "  Cargar datos de demostración : ./crm.sh demo"
-    echo "  Crear el consultorio real    : ./crm.sh usuario --help"
+    echo "  Crear la cuenta real         : ./crm.sh cuenta --help"
     echo "  Ver los registros            : ./crm.sh logs"
     ;;
 
@@ -123,10 +123,10 @@ case "${1:-ayuda}" in
     en_web scripts/seed.ts
     ;;
 
-  consultorio)
+  cuenta|consultorio)
     shift
     esperar_base
-    en_web scripts/consultorio.ts "$@"
+    en_web scripts/cuenta.ts "$@"
     ;;
 
   usuario)
@@ -154,9 +154,9 @@ case "${1:-ayuda}" in
 
   db)
     # Consola interactiva. Se conecta como crm_owner: ve todo, sin las
-    # restricciones por consultorio que tiene el panel. Útil para mirar,
+    # restricciones por cuenta que tiene el panel. Útil para mirar,
     # peligroso para escribir sin pensar.
-    echo "  Conectado como crm_owner (ve todos los consultorios)."
+    echo "  Conectado como crm_owner (ve todas las cuentas)."
     echo "  \dt = tablas   \d tabla = columnas   \x = formato vertical   \q = salir"
     echo ""
     docker compose exec db psql -U crm_owner -d crm

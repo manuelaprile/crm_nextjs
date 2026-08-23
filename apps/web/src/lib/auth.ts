@@ -37,7 +37,13 @@ export type Session = {
   tenantId: string | null
   role: TenantRole | null
   tenantName: string | null
+  /** Código del rubro: 'medico', 'inmobiliaria', … Ver 0013_rubros.sql. */
   tenantVertical: string | null
+  /** Cómo se llama la cuenta en la interfaz: "Consultorio", "Inmobiliaria". */
+  tenantSingular: string | null
+  tenantPlural: string | null
+  /** 'el' | 'la', para poder escribir "del consultorio" / "de la tienda". */
+  tenantArticulo: string | null
 }
 
 function hashToken(token: string): string {
@@ -92,7 +98,7 @@ export async function login(
 
     if (!user) return { ok: false as const, error: 'credenciales' as const }
 
-    // Primer consultorio del usuario. Si tiene varios, después puede cambiar.
+    // Primera cuenta del usuario. Si tiene varias, después puede cambiar.
     // Va por función security definer: `tenant_users` tiene RLS que exige un
     // app.tenant_id que todavía no podemos saber. Ver 0005_session_context.sql.
     const memberships = await tx.execute(
@@ -174,16 +180,19 @@ export async function getSession(): Promise<Session | null> {
       role: (row.role as TenantRole | null) ?? null,
       tenantName: row.tenant_name ? String(row.tenant_name) : null,
       tenantVertical: row.tenant_vertical ? String(row.tenant_vertical) : null,
+      tenantSingular: row.tenant_singular ? String(row.tenant_singular) : null,
+      tenantPlural: row.tenant_plural ? String(row.tenant_plural) : null,
+      tenantArticulo: row.tenant_articulo ? String(row.tenant_articulo) : null,
     }
   })
 }
 
 /**
- * Sesión con consultorio activo. Es lo que consumen las páginas del panel:
+ * Sesión con cuenta activa. Es lo que consumen las páginas del panel:
  * devuelve el contexto listo para pasarle a `withTenant()`.
  *
- * Un superadmin sin consultorio activo NO es un error: es el estado normal
- * cuando recién entra. Se lo manda a Plataforma, donde elige a cuál entrar.
+ * Un superadmin sin cuenta activa NO es un error: es el estado normal cuando
+ * recién entra. Se lo manda a Plataforma, donde elige a cuál entrar.
  */
 export async function requireTenant(): Promise<
   Session & { tenantId: string; role: TenantRole }
@@ -192,7 +201,7 @@ export async function requireTenant(): Promise<
   if (!session) throw new AuthError('sin-sesion')
   if (!session.tenantId || !session.role) {
     if (session.isSuperadmin) redirect('/superadmin')
-    throw new AuthError('sin-consultorio')
+    throw new AuthError('sin-cuenta')
   }
   return session as Session & { tenantId: string; role: TenantRole }
 }
@@ -210,7 +219,7 @@ export async function requireAdmin() {
 }
 
 export class AuthError extends Error {
-  constructor(public readonly kind: 'sin-sesion' | 'sin-consultorio' | 'sin-permiso') {
+  constructor(public readonly kind: 'sin-sesion' | 'sin-cuenta' | 'sin-permiso') {
     super(kind)
   }
 }

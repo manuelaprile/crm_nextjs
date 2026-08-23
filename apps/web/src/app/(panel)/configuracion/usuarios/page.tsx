@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { requireTenant } from '@/lib/auth'
+import { etiquetaDe, delRubro } from '@/lib/etiquetas'
 import { IconSearch } from '@/components/icons'
 import { Paginacion } from '@/components/paginacion'
 import {
@@ -33,6 +34,7 @@ export default async function UsuariosPage({
   }>
 }) {
   const session = await requireTenant()
+  const etiqueta = etiquetaDe(session)
   if (session.role === 'agent') notFound()
 
   const { r, m, q, p, pp } = await searchParams
@@ -213,7 +215,7 @@ export default async function UsuariosPage({
                                 className="btn btn-ghost btn-sm"
                                 style={{ color: 'var(--c-danger)' }}
                               >
-                                Quitar del consultorio
+                                Quitar {delRubro(etiqueta)}
                               </button>
                             </form>
                           </div>

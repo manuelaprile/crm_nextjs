@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { signOut } from '@/lib/actions'
-import { CambiarConsultorio } from './cambiar-consultorio'
+import { CambiarCuenta } from './cambiar-cuenta'
 import {
   IconInbox,
   IconUsers,
@@ -34,9 +34,10 @@ export function Sidebar({
   unread,
   modoPrueba,
   esSuperadmin,
-  sinConsultorio,
-  consultorios,
+  sinCuenta,
+  cuentas,
   esVisita,
+  rubro,
 }: {
   tenantName: string
   userName: string
@@ -44,20 +45,22 @@ export function Sidebar({
   unread: number
   modoPrueba: boolean
   esSuperadmin: boolean
-  /** Superadmin que no pertenece a ningún consultorio: solo ve Plataforma. */
-  sinConsultorio: boolean
-  /** Los consultorios propios del usuario, para el selector. */
-  consultorios: { id: string; nombre: string }[]
-  /** Superadmin parado adentro de un consultorio ajeno. */
+  /** Superadmin que no pertenece a ninguna cuenta: solo ve Plataforma. */
+  sinCuenta: boolean
+  /** Las cuentas propias del usuario, para el selector. */
+  cuentas: { id: string; nombre: string; rubro?: string }[]
+  /** Superadmin parado adentro de una cuenta ajena. */
   esVisita: boolean
+  /** Cómo se llama esta cuenta: "Consultorio", "Inmobiliaria"… */
+  rubro: string
 }) {
   const pathname = usePathname()
   const [abierto, setAbierto] = useState(false)
 
   const grupos: { grp: string; items: Item[] }[] = []
 
-  // Las secciones de un consultorio solo tienen sentido si hay uno.
-  if (!sinConsultorio) {
+  // Las secciones de una cuenta solo tienen sentido si hay una.
+  if (!sinCuenta) {
     grupos.push(
       {
         grp: 'Atención',
@@ -76,7 +79,7 @@ export function Sidebar({
   // Un operador no configura nada: no tiene sentido mostrarle las pantallas
   // que después le van a decir que no. Los permisos igual se verifican del
   // lado del servidor — esto es prolijidad, no seguridad.
-  if (!sinConsultorio && role !== 'agent') {
+  if (!sinCuenta && role !== 'agent') {
     grupos.push({
       grp: 'Configuración',
       items: [
@@ -90,7 +93,7 @@ export function Sidebar({
   if (esSuperadmin) {
     grupos.push({
       grp: 'Plataforma',
-      items: [{ href: '/superadmin', label: 'Consultorios', icon: <IconShield /> }],
+      items: [{ href: '/superadmin', label: 'Cuentas', icon: <IconShield /> }],
     })
   }
 
@@ -102,7 +105,7 @@ export function Sidebar({
     })
   }
 
-  const rolLabel = sinConsultorio
+  const rolLabel = sinCuenta
     ? 'Superadministrador'
     : role === 'owner'
       ? 'Dueño'
@@ -147,18 +150,19 @@ export function Sidebar({
             </span>
           </div>
           <div className="tiny muted" style={{ marginTop: 4, paddingLeft: 2 }}>
-            {sinConsultorio
+            {sinCuenta
               ? 'Administración'
               : esVisita
                 ? 'Visita de soporte'
-                : 'CRM de consultas'}
+                : rubro}
           </div>
-          {sinConsultorio ? null : (
-            <CambiarConsultorio
+          {sinCuenta ? null : (
+            <CambiarCuenta
               actual={tenantName}
-              opciones={consultorios}
+              opciones={cuentas}
               esSuperadmin={esSuperadmin}
               esVisita={esVisita}
+              rubro={rubro}
             />
           )}
         </div>

@@ -68,8 +68,8 @@ export default async function IAPage({
           />
         ) : (
           <div className="alert alert-amber">
-            Este consultorio todavía no tiene configuración de asistente.
-            Ejecutá <code>seed_vertical_medico()</code> para crearla.
+            Esta cuenta todavía no tiene configuración de asistente. Ejecutá{' '}
+            <code>seed_vertical(tenant_id, rubro)</code> para crearla.
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { requireTenant } from '@/lib/auth'
+import { etiquetaDe, delRubro, type Etiqueta } from '@/lib/etiquetas'
 import { getPipeline, getStages, listContacts } from '@/lib/queries'
 import { IconSearch } from '@/components/icons'
 import { Board } from './board'
@@ -31,6 +32,7 @@ export default async function ContactosPage({
   }>
 }) {
   const session = await requireTenant()
+  const etiqueta = etiquetaDe(session)
   const { ver, vista, q, etapa, p, pp } = await searchParams
   const archivados = ver === 'archivados'
 
@@ -108,7 +110,11 @@ export default async function ContactosPage({
             porPagina={Number(pp) || 25}
           />
         ) : (
-          <TableroContactos session={session} archivados={archivados} />
+          <TableroContactos
+            session={session}
+            archivados={archivados}
+            etiqueta={etiqueta}
+          />
         )}
       </div>
     </>
@@ -120,9 +126,11 @@ export default async function ContactosPage({
 async function TableroContactos({
   session,
   archivados,
+  etiqueta,
 }: {
   session: Parameters<typeof getPipeline>[0]
   archivados: boolean
+  etiqueta: Etiqueta
 }) {
   const columns = await getPipeline(session, { archivados })
   const total = columns.reduce((a, c) => a + c.total, 0)
@@ -139,7 +147,7 @@ async function TableroContactos({
           </b>
           {archivados
             ? 'Cuando archives a alguien desde su ficha, va a aparecer acá.'
-            : 'Cuando alguien escriba al WhatsApp del consultorio, aparece acá.'}
+            : `Cuando alguien escriba al WhatsApp ${delRubro(etiqueta)}, aparece acá.`}
         </div>
       </div>
     )

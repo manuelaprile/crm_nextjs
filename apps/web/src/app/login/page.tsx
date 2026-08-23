@@ -18,8 +18,8 @@ export default async function LoginPage({
     const password = String(formData.get('password') ?? '')
     const result = await login(email, password)
     if (!result.ok) redirect(`/login?error=${result.error}`)
-    // Un superadmin sin consultorio arranca en Plataforma, no en una bandeja
-    // que no existe.
+    // Un superadmin sin cuenta arranca en Plataforma, no en una bandeja que
+    // no existe.
     const nueva = await getSession()
     redirect(nueva ? destinoInicial(nueva) : '/bandeja')
   }
@@ -38,7 +38,7 @@ export default async function LoginPage({
             Ingresar al panel
           </h1>
           <p className="muted tiny" style={{ marginTop: 4 }}>
-            Gestión de consultas y pacientes
+            Gestión de consultas y contactos
           </p>
         </div>
 
