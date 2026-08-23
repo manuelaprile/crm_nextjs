@@ -12,6 +12,7 @@ import { Pool } from 'pg'
 import pino from 'pino'
 import { SessionManager } from './manager.js'
 import { assertEncryptionReady, safeEqual } from './crypto.js'
+import { verificarCanario } from './canario.js'
 
 // Carga el .env de la carpeta del worker, si existe. `loadEnvFile` viene con
 // Node 20.12+: no hace falta la dependencia `dotenv`.
@@ -132,6 +133,19 @@ log.info('cifrado de sesiones verificado')
 
 server.listen(PORT, async () => {
   log.info({ port: PORT }, 'wa-worker escuchando')
+
+  // Antes de tocar ninguna sesión: confirmar que la clave configurada es la
+  // que cifró lo que ya está guardado. Ver canario.ts.
+  try {
+    await verificarCanario(pool, log)
+  } catch (err) {
+    // Si la tabla todavía no existe (base sin migrar), no es un problema:
+    // restoreAll ya avisa que faltan las migraciones.
+    if ((err as { code?: string }).code !== '42P01') {
+      log.error({ err }, 'no se pudo verificar el canario de cifrado')
+    }
+  }
+
   await manager.restoreAll()
 })
 

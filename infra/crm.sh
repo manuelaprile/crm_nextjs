@@ -12,6 +12,8 @@
 #      ./crm.sh estado       qué está corriendo
 #      ./crm.sh logs [srv]   ver los registros
 #      ./crm.sh backup       copia de la base ahora mismo
+#      ./crm.sh clave        ver la clave de cifrado y verificarla
+#      ./crm.sh rotar-clave  cambiar la clave sin que nadie re-escanee el QR
 #      ./crm.sh reiniciar    reiniciar todo
 #
 #  La contraseña de la base sale del .env: nunca hay que pegarla a mano.
@@ -149,6 +151,64 @@ case "${1:-ayuda}" in
     verde "  Guardado: $(pwd)/$archivo  ($(du -h "$archivo" | cut -f1))"
     echo "  Bajalo a tu máquina con:"
     echo "    scp root@$(hostname -I | awk '{print $1}'):$(pwd)/$archivo ."
+    ;;
+
+  clave)
+    echo ""
+    echo "  Clave de cifrado actual (SESSION_ENC_KEY):"
+    echo ""
+    grep '^SESSION_ENC_KEY=' .env | cut -d= -f2- | sed 's/^/    /'
+    echo ""
+    if grep -q '^SESSION_ENC_KEY_PREV=.\+' .env 2>/dev/null; then
+      echo "  Hay una clave ANTERIOR configurada: rotación en curso."
+      echo "  Cuando el registro del worker deje de mencionarla, sacala del .env."
+      echo ""
+    fi
+    rojo "  GUARDALA EN TU GESTOR DE CONTRASEÑAS, FUERA DEL SERVIDOR."
+    echo ""
+    echo "  Cifra las sesiones de WhatsApp y las claves de API de los clientes."
+    echo "  Si la perdés: los contactos, conversaciones y mensajes NO se pierden"
+    echo "  (no están cifrados), pero cada cliente tiene que volver a vincular"
+    echo "  su WhatsApp y a cargar su clave de API."
+    echo ""
+    echo "  Verificación contra los datos guardados:"
+    docker compose logs wa-worker 2>/dev/null |
+      grep -iE "Clave de cifrado verificada|NO CORRESPONDE|Rotación de clave|Canario de cifrado creado" |
+      tail -1 | sed 's/.*"msg":"//;s/".*//' | sed 's/^/    /' ||
+      echo "    (sin datos: reiniciá el worker con ./crm.sh reiniciar)"
+    echo ""
+    ;;
+
+  rotar-clave)
+    info "Rotación de la clave de cifrado"
+    echo "  La clave actual pasa a SESSION_ENC_KEY_PREV y se genera una nueva."
+    echo "  Nadie tiene que re-escanear el QR: los datos se re-cifran solos"
+    echo "  a medida que se usan."
+    echo ""
+    printf "  ¿Continuar? (escribí SI) "
+    read -r resp
+    [ "$resp" = "SI" ] || { echo "  Cancelado."; exit 0; }
+
+    cp .env ".env.antes-de-rotar-$(date +%Y%m%d-%H%M%S)"
+    ACTUAL=$(grep '^SESSION_ENC_KEY=' .env | cut -d= -f2-)
+    NUEVA=$(openssl rand -base64 32)
+    grep -v '^SESSION_ENC_KEY_PREV=' .env > .env.tmp
+    sed -i "s|^SESSION_ENC_KEY=.*|SESSION_ENC_KEY=${NUEVA}|" .env.tmp
+    echo "SESSION_ENC_KEY_PREV=${ACTUAL}" >> .env.tmp
+    mv .env.tmp .env
+    chmod 600 .env
+
+    docker compose up -d
+    sleep 6
+    verde ""
+    verde "  Clave rotada. La nueva:"
+    echo "    ${NUEVA}"
+    echo ""
+    rojo "  GUARDALA. Y guardá también la anterior hasta terminar la rotación."
+    echo ""
+    echo "  Copia del .env anterior en: .env.antes-de-rotar-*"
+    echo "  Cuando el worker deje de mencionar la rotación, borrá la línea"
+    echo "  SESSION_ENC_KEY_PREV del .env y corré ./crm.sh reiniciar"
     ;;
 
   reiniciar)
