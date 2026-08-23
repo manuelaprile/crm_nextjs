@@ -8,6 +8,7 @@
 #      ./crm.sh actualizar   traer cambios y aplicarlos
 #      ./crm.sh migrar       solo las migraciones
 #      ./crm.sh demo         cargar el consultorio de demostración
+#      ./crm.sh consultorio   dar de alta un cliente nuevo
 #      ./crm.sh usuario ...  gestión de usuarios
 #      ./crm.sh estado       qué está corriendo
 #      ./crm.sh logs [srv]   ver los registros
@@ -118,6 +119,12 @@ case "${1:-ayuda}" in
   demo)
     esperar_base
     en_web scripts/seed.ts
+    ;;
+
+  consultorio)
+    shift
+    esperar_base
+    en_web scripts/consultorio.ts "$@"
     ;;
 
   usuario)
