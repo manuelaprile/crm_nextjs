@@ -13,6 +13,8 @@
 #      ./crm.sh estado       qué está corriendo
 #      ./crm.sh logs [srv]   ver los registros
 #      ./crm.sh backup       copia de la base ahora mismo
+#      ./crm.sh db           abrir la consola de PostgreSQL
+#      ./crm.sh sql "..."    correr una consulta suelta
 #      ./crm.sh reiniciar    reiniciar todo
 #
 #  La contraseña de la base sale del .env: nunca hay que pegarla a mano.
@@ -148,6 +150,25 @@ case "${1:-ayuda}" in
     else
       docker compose logs -f --tail 40
     fi
+    ;;
+
+  db)
+    # Consola interactiva. Se conecta como crm_owner: ve todo, sin las
+    # restricciones por consultorio que tiene el panel. Útil para mirar,
+    # peligroso para escribir sin pensar.
+    echo "  Conectado como crm_owner (ve todos los consultorios)."
+    echo "  \dt = tablas   \d tabla = columnas   \x = formato vertical   \q = salir"
+    echo ""
+    docker compose exec db psql -U crm_owner -d crm
+    ;;
+
+  sql)
+    if [ -z "$2" ]; then
+      rojo "  Falta la consulta."
+      echo "  Ejemplo: ./crm.sh sql \"select slug, name from tenants\""
+      exit 1
+    fi
+    docker compose exec -T db psql -U crm_owner -d crm -c "$2"
     ;;
 
   backup)
