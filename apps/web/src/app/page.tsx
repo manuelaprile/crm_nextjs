@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
+import { destinoInicial, getSession } from '@/lib/auth'
 
 export default async function Home() {
   const session = await getSession()
-  redirect(session ? '/bandeja' : '/login')
+  redirect(session ? destinoInicial(session) : '/login')
 }

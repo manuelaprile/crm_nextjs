@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { listarConsultorios } from '@/lib/usuarios'
+import { listarConsultorios, entrarAConsultorio } from '@/lib/usuarios'
 import { IconSearch } from '@/components/icons'
 import { Paginacion } from '@/components/paginacion'
 
@@ -109,6 +109,7 @@ export default async function SuperadminPage({
                   <th style={{ textAlign: 'right' }}>Contactos</th>
                   <th style={{ textAlign: 'right' }}>Conversaciones</th>
                   <th style={{ textAlign: 'right' }}>IA mes</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -153,6 +154,14 @@ export default async function SuperadminPage({
                       >
                         {gasto.toFixed(2)} / {tope.toFixed(0)}
                       </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <form action={entrarAConsultorio}>
+                          <input type="hidden" name="tenantId" value={c.id} />
+                          <button type="submit" className="btn btn-ghost btn-sm">
+                            Entrar
+                          </button>
+                        </form>
+                      </td>
                     </tr>
                   )
                 })}
@@ -170,10 +179,11 @@ export default async function SuperadminPage({
 
         <div className="alert alert-gray" style={{ marginTop: 16 }}>
           <span>
-            Esta pantalla muestra solo números agregados. Para entrar a un
-            consultorio y dar soporte, hay que asignarse como usuario de ese
-            consultorio — y eso queda registrado. No hay puerta trasera a los
-            datos de los pacientes.
+            Esta pantalla muestra solo números agregados: ningún nombre de
+            paciente, ningún mensaje. <strong>«Entrar»</strong> te lleva
+            adentro de un consultorio para dar soporte, y{' '}
+            <strong>queda registrado en la auditoría</strong> con tu usuario y
+            la fecha. Mientras estés adentro vas a ver un aviso permanente.
           </span>
         </div>
       </div>

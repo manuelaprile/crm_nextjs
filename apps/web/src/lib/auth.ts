@@ -20,6 +20,7 @@
 import 'server-only'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { cookies, headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { sql } from 'drizzle-orm'
 import { withoutTenant, type TenantRole } from './db/client'
 
@@ -180,14 +181,25 @@ export async function getSession(): Promise<Session | null> {
 /**
  * Sesión con consultorio activo. Es lo que consumen las páginas del panel:
  * devuelve el contexto listo para pasarle a `withTenant()`.
+ *
+ * Un superadmin sin consultorio activo NO es un error: es el estado normal
+ * cuando recién entra. Se lo manda a Plataforma, donde elige a cuál entrar.
  */
 export async function requireTenant(): Promise<
   Session & { tenantId: string; role: TenantRole }
 > {
   const session = await getSession()
   if (!session) throw new AuthError('sin-sesion')
-  if (!session.tenantId || !session.role) throw new AuthError('sin-consultorio')
+  if (!session.tenantId || !session.role) {
+    if (session.isSuperadmin) redirect('/superadmin')
+    throw new AuthError('sin-consultorio')
+  }
   return session as Session & { tenantId: string; role: TenantRole }
+}
+
+/** A dónde mandar a alguien que acaba de entrar. */
+export function destinoInicial(session: Session): string {
+  return session.tenantId ? '/bandeja' : '/superadmin'
 }
 
 /** Para acciones que solo puede hacer el dueño o un administrador. */

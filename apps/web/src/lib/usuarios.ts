@@ -14,10 +14,17 @@
  */
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
+import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { requireAdmin, getSession } from './auth'
 import type { TenantRole } from './db/client'
 import { withTenant, withoutTenant } from './db/client'
+
+/** El mismo hash que usa auth.ts: en la base vive el hash, no el token. */
+function hashCookie(token: string): string {
+  return createHash('sha256').update(token).digest('hex')
+}
 
 export type UsuarioDelConsultorio = {
   userId: string
@@ -352,5 +359,94 @@ export async function listarConsultorios(
       porPagina,
       paginas: Math.max(1, Math.ceil(total / porPagina)),
     }
+  })
+}
+
+// =====================================================================
+// CAMBIO DE CONSULTORIO ACTIVO
+// =====================================================================
+
+/**
+ * Un superadmin entra a un consultorio para dar soporte.
+ *
+ * No lo agrega a `tenant_users`: sigue sin ser miembro, así que no aparece
+ * en la lista de usuarios del consultorio. Es una visita, no un alta
+ * encubierta. Y queda registrada en `audit_log`.
+ */
+export async function entrarAConsultorio(formData: FormData): Promise<void> {
+  const session = await getSession()
+  if (!session?.isSuperadmin) throw new Error('no autorizado')
+
+  const tenantId = String(formData.get('tenantId') ?? '')
+  if (!tenantId) return
+
+  const jar = await cookies()
+  const token = jar.get('crm_session')?.value
+  if (!token) return
+
+  const ok = await withoutTenant(async (tx) => {
+    const r = await tx.execute(
+      sql`select superadmin_entrar(${hashCookie(token)}, ${tenantId}) as ok`,
+    )
+    return Boolean(r.rows[0]?.ok)
+  })
+  if (!ok) return
+
+  revalidatePath('/', 'layout')
+  redirect('/bandeja')
+}
+
+/** Vuelve a la vista de plataforma, sin consultorio activo. */
+export async function volverAPlataforma(): Promise<void> {
+  const session = await getSession()
+  if (!session?.isSuperadmin) throw new Error('no autorizado')
+
+  const jar = await cookies()
+  const token = jar.get('crm_session')?.value
+  if (!token) return
+
+  await withoutTenant((tx) =>
+    tx.execute(sql`select superadmin_salir(${hashCookie(token)})`),
+  )
+  revalidatePath('/', 'layout')
+  redirect('/superadmin')
+}
+
+/** Cambia entre los consultorios a los que el usuario SÍ pertenece. */
+export async function cambiarConsultorio(formData: FormData): Promise<void> {
+  const session = await getSession()
+  if (!session) throw new Error('no autorizado')
+
+  const tenantId = String(formData.get('tenantId') ?? '')
+  if (!tenantId) return
+
+  const jar = await cookies()
+  const token = jar.get('crm_session')?.value
+  if (!token) return
+
+  // La función valida la membresía del lado del servidor: mandar un id al
+  // que no pertenecés no hace nada.
+  await withoutTenant((tx) =>
+    tx.execute(sql`select switch_tenant(${hashCookie(token)}, ${tenantId})`),
+  )
+  revalidatePath('/', 'layout')
+  redirect('/bandeja')
+}
+
+/** Los consultorios a los que pertenece el usuario, para el selector. */
+export async function misConsultorios(): Promise<
+  { id: string; nombre: string; rol: string }[]
+> {
+  const session = await getSession()
+  if (!session) return []
+  return withoutTenant(async (tx) => {
+    const res = await tx.execute(
+      sql`select * from user_tenants(${session.userId})`,
+    )
+    return (res.rows as Record<string, unknown>[]).map((r) => ({
+      id: String(r.tenant_id),
+      nombre: String(r.name),
+      rol: String(r.role),
+    }))
   })
 }

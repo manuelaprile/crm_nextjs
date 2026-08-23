@@ -862,6 +862,30 @@ tbody tr.clickable {
   color: var(--c-muted);
 }
 
+/* Franja de visita de soporte: un superadmin metido adentro de un
+   consultorio ajeno. Ámbar y pegada arriba a propósito — la idea es que sea
+   imposible olvidarse de que uno está mirando datos de otro. */
+.visita-banner {
+  position: sticky;
+  top: 0;
+  z-index: 400;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 9px 22px;
+  font-size: 12.5px;
+  background: rgba(217, 119, 6, 0.12);
+  color: #92400e;
+  border-bottom: 1px solid rgba(217, 119, 6, 0.25);
+}
+.visita-banner .btn {
+  background: #92400e;
+  color: #fff;
+  border-color: #92400e;
+}
+
 /* ===================== LOGIN ===================== */
 .login-wrap {
   min-height: 100vh;

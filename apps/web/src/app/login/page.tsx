@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getSession, login } from '@/lib/auth'
+import { destinoInicial, getSession, login } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +8,8 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string }>
 }) {
-  if (await getSession()) redirect('/bandeja')
+  const yaEntro = await getSession()
+  if (yaEntro) redirect(destinoInicial(yaEntro))
   const { error } = await searchParams
 
   async function action(formData: FormData) {
@@ -17,7 +18,10 @@ export default async function LoginPage({
     const password = String(formData.get('password') ?? '')
     const result = await login(email, password)
     if (!result.ok) redirect(`/login?error=${result.error}`)
-    redirect('/bandeja')
+    // Un superadmin sin consultorio arranca en Plataforma, no en una bandeja
+    // que no existe.
+    const nueva = await getSession()
+    redirect(nueva ? destinoInicial(nueva) : '/bandeja')
   }
 
   return (

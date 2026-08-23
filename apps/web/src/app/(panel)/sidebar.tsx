@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { signOut } from '@/lib/actions'
+import { CambiarConsultorio } from './cambiar-consultorio'
 import {
   IconInbox,
   IconUsers,
@@ -33,6 +34,9 @@ export function Sidebar({
   unread,
   modoPrueba,
   esSuperadmin,
+  sinConsultorio,
+  consultorios,
+  esVisita,
 }: {
   tenantName: string
   userName: string
@@ -40,28 +44,39 @@ export function Sidebar({
   unread: number
   modoPrueba: boolean
   esSuperadmin: boolean
+  /** Superadmin que no pertenece a ningún consultorio: solo ve Plataforma. */
+  sinConsultorio: boolean
+  /** Los consultorios propios del usuario, para el selector. */
+  consultorios: { id: string; nombre: string }[]
+  /** Superadmin parado adentro de un consultorio ajeno. */
+  esVisita: boolean
 }) {
   const pathname = usePathname()
   const [abierto, setAbierto] = useState(false)
 
-  const grupos: { grp: string; items: Item[] }[] = [
-    {
-      grp: 'Atención',
-      items: [
-        { href: '/bandeja', label: 'Bandeja', icon: <IconInbox />, badge: unread },
-        { href: '/contactos', label: 'Contactos', icon: <IconUsers /> },
-      ],
-    },
-    {
-      grp: 'Análisis',
-      items: [{ href: '/reportes', label: 'Reportes', icon: <IconChart /> }],
-    },
-  ]
+  const grupos: { grp: string; items: Item[] }[] = []
+
+  // Las secciones de un consultorio solo tienen sentido si hay uno.
+  if (!sinConsultorio) {
+    grupos.push(
+      {
+        grp: 'Atención',
+        items: [
+          { href: '/bandeja', label: 'Bandeja', icon: <IconInbox />, badge: unread },
+          { href: '/contactos', label: 'Contactos', icon: <IconUsers /> },
+        ],
+      },
+      {
+        grp: 'Análisis',
+        items: [{ href: '/reportes', label: 'Reportes', icon: <IconChart /> }],
+      },
+    )
+  }
 
   // Un operador no configura nada: no tiene sentido mostrarle las pantallas
   // que después le van a decir que no. Los permisos igual se verifican del
   // lado del servidor — esto es prolijidad, no seguridad.
-  if (role !== 'agent') {
+  if (!sinConsultorio && role !== 'agent') {
     grupos.push({
       grp: 'Configuración',
       items: [
@@ -87,8 +102,13 @@ export function Sidebar({
     })
   }
 
-  const rolLabel =
-    role === 'owner' ? 'Dueño' : role === 'admin' ? 'Administrador' : 'Operador'
+  const rolLabel = sinConsultorio
+    ? 'Superadministrador'
+    : role === 'owner'
+      ? 'Dueño'
+      : role === 'admin'
+        ? 'Administrador'
+        : 'Operador'
 
   return (
     <>
@@ -127,8 +147,20 @@ export function Sidebar({
             </span>
           </div>
           <div className="tiny muted" style={{ marginTop: 4, paddingLeft: 2 }}>
-            CRM de consultas
+            {sinConsultorio
+              ? 'Administración'
+              : esVisita
+                ? 'Visita de soporte'
+                : 'CRM de consultas'}
           </div>
+          {sinConsultorio ? null : (
+            <CambiarConsultorio
+              actual={tenantName}
+              opciones={consultorios}
+              esSuperadmin={esSuperadmin}
+              esVisita={esVisita}
+            />
+          )}
         </div>
 
         <nav className="side-nav">
