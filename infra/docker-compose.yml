@@ -46,8 +46,6 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Cifra las claves de API que cargan los clientes desde el panel.
       SESSION_ENC_KEY: ${SESSION_ENC_KEY:?falta SESSION_ENC_KEY}
-      # Clave anterior, solo durante una rotación. Vacía el resto del tiempo.
-      SESSION_ENC_KEY_PREV: ${SESSION_ENC_KEY_PREV:-}
       WORKER_URL: http://wa-worker:4000
       WORKER_SECRET: ${WORKER_SECRET:?falta WORKER_SECRET}
       INGEST_SECRET: ${INGEST_SECRET:?falta INGEST_SECRET}
@@ -73,7 +71,6 @@ services:
       INGEST_URL: http://web:3000/api/ingest/baileys
       INGEST_SECRET: ${INGEST_SECRET:?falta INGEST_SECRET}
       SESSION_ENC_KEY: ${SESSION_ENC_KEY:?falta SESSION_ENC_KEY}
-      SESSION_ENC_KEY_PREV: ${SESSION_ENC_KEY_PREV:-}
       LOG_LEVEL: info
     depends_on:
       db:

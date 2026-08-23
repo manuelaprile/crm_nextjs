@@ -21,37 +21,22 @@ const VERSION = 1
 
 export type SealedValue = { v: number; iv: string; tag: string; ct: string }
 
-let claveActual: Buffer | null = null
-let clavePrevia: Buffer | null | undefined
+let cachedKey: Buffer | null = null
 
-function leerClave(nombre: string, obligatoria: boolean): Buffer | null {
-  const raw = process.env[nombre]
+function key(): Buffer {
+  if (cachedKey) return cachedKey
+  const raw = process.env.SESSION_ENC_KEY
   if (!raw) {
-    if (!obligatoria) return null
-    throw new Error(`Falta ${nombre}. Generala con: openssl rand -base64 32`)
+    throw new Error('Falta SESSION_ENC_KEY. Generala con: openssl rand -base64 32')
   }
   const buf = Buffer.from(raw, 'base64')
   if (buf.length !== 32) {
-    throw new Error(`${nombre} debe ser de 32 bytes en base64 (son ${buf.length}).`)
+    throw new Error(
+      `SESSION_ENC_KEY debe ser de 32 bytes en base64 (son ${buf.length}).`,
+    )
   }
+  cachedKey = buf
   return buf
-}
-
-function key(): Buffer {
-  if (!claveActual) claveActual = leerClave('SESSION_ENC_KEY', true)!
-  return claveActual
-}
-
-/**
- * Clave anterior, solo para descifrar. Permite rotar SESSION_ENC_KEY sin que
- * los clientes tengan que volver a cargar su clave de API. Ver el comentario
- * extenso en apps/wa-worker/src/crypto.ts.
- */
-function keyPrevia(): Buffer | null {
-  if (clavePrevia === undefined) {
-    clavePrevia = leerClave('SESSION_ENC_KEY_PREV', false)
-  }
-  return clavePrevia
 }
 
 export function seal(value: string): SealedValue {
@@ -66,31 +51,14 @@ export function seal(value: string): SealedValue {
   }
 }
 
-function abrirCon(sealed: SealedValue, clave: Buffer): string {
-  const decipher = createDecipheriv(ALGO, clave, Buffer.from(sealed.iv, 'base64'))
+export function open(sealed: SealedValue): string {
+  if (sealed.v !== VERSION) throw new Error(`Versión de cifrado desconocida: ${sealed.v}`)
+  const decipher = createDecipheriv(ALGO, key(), Buffer.from(sealed.iv, 'base64'))
   decipher.setAuthTag(Buffer.from(sealed.tag, 'base64'))
   return Buffer.concat([
     decipher.update(Buffer.from(sealed.ct, 'base64')),
     decipher.final(),
   ]).toString('utf8')
-}
-
-export function open(sealed: SealedValue): string {
-  if (sealed.v !== VERSION) throw new Error(`Versión de cifrado desconocida: ${sealed.v}`)
-  try {
-    return abrirCon(sealed, key())
-  } catch (err) {
-    // Puede ser un dato cifrado antes de una rotación.
-    const previa = keyPrevia()
-    if (previa) {
-      try {
-        return abrirCon(sealed, previa)
-      } catch {
-        /* tampoco: se propaga el error original */
-      }
-    }
-    throw err
-  }
 }
 
 export function isSealed(value: unknown): value is SealedValue {
