@@ -9,6 +9,7 @@
 #      ./crm.sh migrar       solo las migraciones
 #      ./crm.sh demo         cargar la cuenta de demostración
 #      ./crm.sh cuenta ...   dar de alta un cliente nuevo
+#      ./crm.sh borrar ...   dar de baja una cuenta o un usuario
 #      ./crm.sh usuario ...  gestión de usuarios
 #      ./crm.sh estado       qué está corriendo
 #      ./crm.sh logs [srv]   ver los registros
@@ -30,7 +31,7 @@ info()  { printf '\033[36m\n== %s\033[0m\n' "$1"; }
 if [ ! -f .env ]; then
   rojo "No existe el archivo .env en $(pwd)"
   echo "  Docker Compose lo busca acá, al lado del docker-compose.yml."
-  echo "  Ver docs/PUESTA-EN-MARCHA.md, sección 2.5."
+  echo "  Ver docs/SERVIDOR.md, sección 1.5."
   exit 1
 fi
 
@@ -135,6 +136,12 @@ case "${1:-ayuda}" in
     en_web scripts/usuario.ts "$@"
     ;;
 
+  borrar|baja)
+    shift
+    esperar_base
+    en_web scripts/borrar.ts "$@"
+    ;;
+
   estado)
     docker compose ps --format '  {{.Service}}\t{{.State}}\t{{.Status}}'
     echo ""
@@ -193,6 +200,6 @@ case "${1:-ayuda}" in
     ;;
 
   *)
-    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 esac
