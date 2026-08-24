@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm'
 import { withSystem } from '@/lib/db/client'
 import { safeEqual } from '@/lib/auth'
 import { procesarEntrante, type InboundPayload } from '@/lib/ingest'
+import { procesarHistorial, type HistorialPayload } from '@/lib/historial'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -31,9 +32,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'no autorizado' }, { status: 401 })
   }
 
-  let payload: InboundPayload
+  let payload: InboundPayload | HistorialPayload
   try {
-    payload = (await req.json()) as InboundPayload
+    payload = (await req.json()) as InboundPayload | HistorialPayload
   } catch {
     return NextResponse.json({ error: 'json inválido' }, { status: 400 })
   }
@@ -43,7 +44,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const res = await procesarEntrante(payload)
+    // El historial que replica el teléfono al vincular va por otro camino:
+    // no suma no leídos y, sobre todo, NO despierta al agente. Ver
+    // `lib/historial.ts` y la regla en CLAUDE.md.
+    if (payload.kind === 'history.messages' || payload.kind === 'history.contacts') {
+      const res = await procesarHistorial(payload as HistorialPayload)
+      return NextResponse.json({ ok: true, ...res })
+    }
+
+    const res = await procesarEntrante(payload as InboundPayload)
     if (res.estado === 'duplicado') {
       return NextResponse.json({ ok: true, duplicate: true })
     }

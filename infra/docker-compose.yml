@@ -71,6 +71,9 @@ services:
       INGEST_URL: http://web:3000/api/ingest/baileys
       INGEST_SECRET: ${INGEST_SECRET:?falta INGEST_SECRET}
       SESSION_ENC_KEY: ${SESSION_ENC_KEY:?falta SESSION_ENC_KEY}
+      # Traer el historial viejo al vincular un número. Poner "false" si un
+      # cliente tiene años de conversaciones y el primer sync tarda demasiado.
+      WA_SYNC_FULL_HISTORY: ${WA_SYNC_FULL_HISTORY:-true}
       LOG_LEVEL: info
     depends_on:
       db:

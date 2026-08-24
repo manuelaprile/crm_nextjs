@@ -22,10 +22,49 @@ export type InboundPayload = {
 }
 
 export type WaMessage = {
-  key: { id?: string | null; remoteJid?: string | null; fromMe?: boolean | null }
+  key: {
+    id?: string | null
+    remoteJid?: string | null
+    fromMe?: boolean | null
+    /**
+     * El JID con el número real, que el worker resuelve antes de mandarlo.
+     * Puede faltar: ver `identidadDe`.
+     */
+    phoneJid?: string | null
+    /** El JID anónimo (@lid), cuando la conversación viene direccionada así. */
+    lidJid?: string | null
+  }
   pushName?: string | null
   messageTimestamp?: number | string | null
   message?: Record<string, unknown> | null
+}
+
+/**
+ * Quién es el del otro lado, para este sistema.
+ *
+ * WhatsApp está pasando las conversaciones a LID: en vez de
+ * `5493511234567@s.whatsapp.net` el chat llega como `184736251902847@lid`, un
+ * identificador anónimo que no es un teléfono de nadie. Guardarlo en la
+ * columna `phone` deja la ficha del contacto con quince dígitos que no se
+ * pueden llamar — que es exactamente lo que se ve hoy en la bandeja.
+ *
+ * El JID del chat NO cambia: es la dirección a la que hay que contestar y es
+ * la identidad del contacto (ver CLAUDE.md). Lo que se corrige es el teléfono
+ * que se guarda y se muestra. Cuando WhatsApp no manda el número —pasa— se
+ * devuelve `null`: un contacto sin teléfono es mejor que uno con un teléfono
+ * falso, porque el falso lleva a llamar a un desconocido.
+ *
+ * `lid` sale aparte para poder reconocer los teléfonos inventados que ya
+ * quedaron guardados antes de este arreglo y pisarlos.
+ */
+export function identidadDe(msg: WaMessage): { lid: string | null; phone: string | null } {
+  const chat = msg.key.remoteJid ?? ''
+  const esLid = chat.endsWith('@lid')
+  const phoneJid = msg.key.phoneJid ?? (esLid ? null : chat)
+  return {
+    lid: msg.key.lidJid ?? (esLid ? chat : null),
+    phone: phoneJid ? (phoneJid.split('@')[0]?.split(':')[0] ?? null) : null,
+  }
 }
 
 export type ResultadoIngesta =
@@ -121,6 +160,13 @@ async function ingest(payload: InboundPayload) {
     const channel = account.channel
     const provider = account.provider
 
+    // El teléfono de verdad, que puede no ser el que está en el JID del chat.
+    //
+    // La IDENTIDAD sigue siendo el JID tal cual lo manda WhatsApp: es la
+    // dirección a la que después hay que contestarle, y cambiarla rompería el
+    // envío. Lo que se corrige es el teléfono que se muestra y se guarda.
+    const { lid, phone } = identidadDe(msg)
+
     // ---- 4a. Resolver el contacto por identidad --------------------
     // La identidad es (canal, external_id), NO el teléfono. Ver CLAUDE.md.
     let contactId: string | null = null
@@ -137,7 +183,6 @@ async function ingest(payload: InboundPayload) {
           select id from stages where tenant_id = ${tenantId} and is_initial limit 1
         `)
         const stageId = (stageRes.rows[0]?.id as string) ?? null
-        const phone = jid.split('@')[0]?.split(':')[0] ?? null
         const name = msg.pushName?.trim() || phone || 'Sin nombre'
 
         const contactRes = await tx.execute(sql`
@@ -163,9 +208,19 @@ async function ingest(payload: InboundPayload) {
         // Si estaba archivado y vuelve a escribir, reaparece. Archivar es
         // "sacarlo de la vista", no "ignorarlo para siempre": que una
         // consulta nueva quede escondida sería perder un paciente.
+        //
+        // El teléfono se completa si faltaba, o si lo que hay guardado son los
+        // dígitos del LID. Lo que el cliente haya escrito a mano no se toca.
         await tx.execute(sql`
           update contacts
-             set last_activity_at = now(), archived_at = null
+             set last_activity_at = now(), archived_at = null,
+                 phone = case
+                   when ${phone}::text is null then phone
+                   when phone is null then ${phone}
+                   when ${lid}::text is not null
+                    and phone = split_part(${lid}::text, '@', 1) then ${phone}
+                   else phone
+                 end
            where id = ${contactId}
         `)
       }
@@ -180,7 +235,7 @@ async function ingest(payload: InboundPayload) {
         last_message_at, last_inbound_at, unread_count
       ) values (
         ${tenantId}, ${channel}, ${provider}, ${account.id}, ${jid}, ${contactId},
-        ${msg.pushName ?? null}, ${jid.split('@')[0]?.split(':')[0] ?? null}, ${isGroup},
+        ${msg.pushName ?? null}, ${phone}, ${isGroup},
         ${sentAt}, ${sentAt}, 1
       )
       on conflict (provider, external_id) do update set
@@ -189,6 +244,7 @@ async function ingest(payload: InboundPayload) {
         last_inbound_at = excluded.last_inbound_at,
         unread_count = conversations.unread_count + 1,
         participant_name = coalesce(excluded.participant_name, conversations.participant_name),
+        participant_phone = coalesce(excluded.participant_phone, conversations.participant_phone),
         contact_id = coalesce(conversations.contact_id, excluded.contact_id)
       returning id, ai_enabled
     `)
@@ -220,7 +276,7 @@ async function ingest(payload: InboundPayload) {
   })
 }
 
-function extractText(msg: WaMessage): string | null {
+export function extractText(msg: WaMessage): string | null {
   const m = msg.message
   if (!m) return null
   const candidates = [
@@ -237,7 +293,7 @@ function extractText(msg: WaMessage): string | null {
   return null
 }
 
-function messageType(msg: WaMessage): string {
+export function messageType(msg: WaMessage): string {
   const m = msg.message
   if (!m) return 'unknown'
   if (m.imageMessage) return 'image'
@@ -249,7 +305,7 @@ function messageType(msg: WaMessage): string {
   return 'text'
 }
 
-function timestampToDate(ts: number | string | null | undefined): Date {
+export function timestampToDate(ts: number | string | null | undefined): Date {
   if (!ts) return new Date()
   const n = typeof ts === 'string' ? Number(ts) : ts
   if (!Number.isFinite(n)) return new Date()

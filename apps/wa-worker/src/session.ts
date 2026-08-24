@@ -11,7 +11,11 @@
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  isLidUser,
+  jidNormalizedUser,
   makeCacheableSignalKeyStore,
+  type Contact,
+  type WAMessageKey,
   type WASocket,
   type proto,
 } from '@whiskeysockets/baileys'
@@ -37,6 +41,23 @@ const QR_TTL_MS = 75_000
 const SEND_MIN_MS = 3_000
 const SEND_MAX_MS = 8_000
 
+/**
+ * Pedirle al teléfono el historial viejo al vincular.
+ *
+ * Con esto en `false` WhatsApp manda solo lo más reciente y la bandeja arranca
+ * casi vacía. En `true` replica lo que el teléfono tenga guardado, que es lo
+ * que el cliente espera ver el primer día. Cuesta varios megabytes y unos
+ * minutos, y llega SOLO en la primera conexión después de escanear el QR.
+ */
+const SYNC_FULL_HISTORY = process.env.WA_SYNC_FULL_HISTORY !== 'false'
+
+/**
+ * Mensajes por POST al ingestar historial. El sync llega en tandas que pueden
+ * ser de miles: mandarlas enteras es un JSON de decenas de MB que se cae por
+ * timeout y se pierde el lote completo.
+ */
+const HISTORY_CHUNK = 200
+
 export type OutboundJob = {
   to: string
   text: string
@@ -61,6 +82,13 @@ export class WhatsAppSession {
   private queue: OutboundJob[] = []
   private draining = false
   private lastSentAt = 0
+  /**
+   * Cola de escrituras de credenciales. Baileys emite `creds.update` varias
+   * veces durante el pairing y cada una tiene que pisar a la anterior EN
+   * ORDEN. Sin esta cadena, dos escrituras concurrentes pueden dejar en
+   * Postgres una credencial vieja y la sesión muere al primer reinicio.
+   */
+  private guardando: Promise<void> = Promise.resolve()
 
   constructor(private readonly deps: SessionDeps) {}
 
@@ -68,8 +96,14 @@ export class WhatsAppSession {
     return this.deps.accountId
   }
 
+  /** Una sesión frenada (logout, baneo, o parada a mano) no revive sola. */
+  get detenida() {
+    return this.stopped
+  }
+
   async start(): Promise<void> {
     this.stopped = false
+    this.attempt = 0
     await this.connect()
   }
 
@@ -92,6 +126,7 @@ export class WhatsAppSession {
       /* si el socket no responde igual limpiamos abajo */
     }
     await this.auth?.clear()
+    this.auth = undefined
     await this.setStatus('logged_out', { external_id: null, qr: null })
     this.sock = undefined
   }
@@ -108,38 +143,93 @@ export class WhatsAppSession {
   private async connect(): Promise<void> {
     if (this.stopped) return
 
-    this.auth = await usePostgresAuthState(this.deps.pool, this.deps.accountId)
-    await this.setStatus('connecting')
+    try {
+      // El auth state se crea UNA vez por sesión y se reusa en cada reconexión.
+      //
+      // Antes se releía de Postgres en cada `connect()`, y ahí estaba el bug
+      // que cerraba la sesión a los pocos minutos de escanear: al terminar el
+      // pairing, WhatsApp cierra con 515 (restartRequired) y hay que volver a
+      // conectar YA. La escritura de las credenciales nuevas todavía estaba en
+      // vuelo, así que la relectura traía las viejas, el socket se registraba
+      // con credenciales a medio negociar y WhatsApp lo echaba con `loggedOut`.
+      // Desde el panel se veía como "se desconectó solo y no vuelve".
+      if (!this.auth) {
+        this.auth = await usePostgresAuthState(this.deps.pool, this.deps.accountId)
+      }
 
-    this.sock = makeWASocket({
-      auth: {
-        creds: this.auth.state.creds,
-        // El cache de claves de firma baja muchísimo las lecturas a Postgres
-        // en el camino caliente de descifrado.
-        keys: makeCacheableSignalKeyStore(this.auth.state.keys, log),
-      },
-      // El QR lo publicamos nosotros al panel; no lo queremos en los logs.
-      printQRInTerminal: false,
-      browser: Browsers.ubuntu('Chrome'),
-      logger: log.child({ accountId: this.deps.accountId }),
-      // No marcamos en línea al conectar: si no, WhatsApp deja de mandar
-      // notificaciones push al celular del cliente y se queja.
-      markOnlineOnConnect: false,
-      syncFullHistory: false,
-      generateHighQualityLinkPreview: false,
-    })
+      await this.setStatus('connecting')
 
-    this.sock.ev.on('creds.update', () => {
-      void this.auth?.saveCreds()
-    })
+      this.sock = makeWASocket({
+        auth: {
+          creds: this.auth.state.creds,
+          // El cache de claves de firma baja muchísimo las lecturas a Postgres
+          // en el camino caliente de descifrado.
+          keys: makeCacheableSignalKeyStore(this.auth.state.keys, log),
+        },
+        // El QR lo publicamos nosotros al panel; no lo queremos en los logs.
+        printQRInTerminal: false,
+        // El navegador que decimos ser NO es cosmético: WhatsApp solo manda el
+        // historial completo a un cliente de escritorio. Baileys traduce esto
+        // a `webSubPlatform` y únicamente reconoce 'Mac OS' y 'Windows'
+        // (ver `Utils/validate-connection.js`); diciendo 'Ubuntu' el
+        // `syncFullHistory` de abajo se ignora en silencio y llegan solo los
+        // últimos días. En el teléfono, esto es el nombre que aparece en
+        // Dispositivos vinculados.
+        browser: SYNC_FULL_HISTORY
+          ? Browsers.macOS('Desktop')
+          : Browsers.ubuntu('Chrome'),
+        logger: log.child({ accountId: this.deps.accountId }),
+        // No marcamos en línea al conectar: si no, WhatsApp deja de mandar
+        // notificaciones push al celular del cliente y se queja.
+        markOnlineOnConnect: false,
+        syncFullHistory: SYNC_FULL_HISTORY,
+        generateHighQualityLinkPreview: false,
+      })
 
-    this.sock.ev.on('connection.update', (update) => {
-      void this.onConnectionUpdate(update)
-    })
+      this.sock.ev.on('creds.update', () => {
+        void this.guardarCreds()
+      })
 
-    this.sock.ev.on('messages.upsert', (payload) => {
-      void this.onMessages(payload)
-    })
+      this.sock.ev.on('connection.update', (update) => {
+        void this.onConnectionUpdate(update)
+      })
+
+      this.sock.ev.on('messages.upsert', (payload) => {
+        void this.onMessages(payload)
+      })
+
+      // El historial que replica el teléfono al vincular. Llega en tandas, a
+      // lo largo de varios minutos, y solo la primera vez.
+      this.sock.ev.on('messaging-history.set', (payload) => {
+        void this.onHistory(payload)
+      })
+    } catch (err) {
+      // Si esto queda sin catch, el estado se queda en `connecting` para
+      // siempre y el panel muestra "Conectando…" hasta que alguien reinicie el
+      // contenedor. Cualquier falla acá es reintentable: casi siempre es
+      // Postgres que todavía no está listo.
+      log.error({ err, accountId: this.deps.accountId }, 'no se pudo abrir el socket')
+      await this.scheduleReconnect()
+    }
+  }
+
+  /**
+   * Persiste las credenciales, una escritura por vez y en orden.
+   * Devuelve la promesa para poder esperarla antes de reconectar.
+   */
+  private guardarCreds(): Promise<void> {
+    this.guardando = this.guardando
+      .catch(() => {})
+      .then(() => this.auth?.saveCreds() ?? Promise.resolve())
+      .catch((err) => {
+        // Perder esta escritura significa perder la sesión en el próximo
+        // reinicio. Tiene que quedar en el log sí o sí.
+        log.error(
+          { err, accountId: this.deps.accountId },
+          'NO se pudieron guardar las credenciales de WhatsApp',
+        )
+      })
+    return this.guardando
   }
 
   private async onConnectionUpdate(
@@ -183,6 +273,7 @@ export class WhatsAppSession {
     // y encima sospechoso. Hay que avisarle que vuelva a escanear.
     if (status === DisconnectReason.loggedOut) {
       await this.auth?.clear()
+      this.auth = undefined
       await this.setStatus('logged_out', {
         external_id: null,
         qr: null,
@@ -203,13 +294,31 @@ export class WhatsAppSession {
       return
     }
 
-    // 515: Baileys pide reinicio del socket tras el pairing. Es normal y va sin espera.
+    // 515: Baileys pide reinicio del socket tras el pairing. Es normal, pero
+    // NO va sin esperar: primero se termina de escribir la credencial que
+    // acaba de negociarse, si no el socket nuevo levanta la anterior.
     if (status === DisconnectReason.restartRequired) {
+      await this.guardando
       void this.connect()
       return
     }
 
-    // El resto (428 cerrada, 408 timeout, 440 reemplazada, 503) sí se reintenta.
+    // 440: otra conexión tomó estas mismas credenciales. Reintentar acá es una
+    // guerra: cada reconexión expulsa a la otra punta y la otra punta expulsa
+    // a esta, para siempre. Se corta y se avisa.
+    if (status === DisconnectReason.connectionReplaced) {
+      await this.setStatus('disconnected', {
+        qr: null,
+        last_error:
+          'Otra sesión tomó el lugar de esta. Si el número quedó sin ' +
+          'atender, apretá Conectar de nuevo.',
+      })
+      this.stopped = true
+      log.warn({ accountId: this.deps.accountId }, 'conexión reemplazada')
+      return
+    }
+
+    // El resto (428 cerrada, 408 timeout, 503) sí se reintenta.
     await this.scheduleReconnect(status)
   }
 
@@ -242,28 +351,92 @@ export class WhatsAppSession {
 
     for (const msg of payload.messages) {
       if (msg.key.fromMe) continue
-      const jid = msg.key.remoteJid
-      if (!jid) continue
-      // Los estados y las difusiones no son conversaciones.
-      if (jid === 'status@broadcast' || jid.endsWith('@newsletter')) continue
-
+      if (!conversable(msg.key.remoteJid)) continue
       await this.pushToIngest(msg)
     }
+  }
+
+  /**
+   * El historial que el teléfono replica al vincular.
+   *
+   * Va por una ruta distinta a la de los mensajes nuevos y con otro `kind`,
+   * porque la app tiene que tratarlo distinto: sin contador de no leídos, sin
+   * despertar al agente, y sin pisar el estado de conversaciones que ya
+   * existen. Contestarle a un historial de dos años es el peor accidente
+   * posible de este sistema.
+   */
+  private async onHistory(payload: {
+    chats: unknown[]
+    contacts: Contact[]
+    messages: proto.IWebMessageInfo[]
+    isLatest?: boolean
+    progress?: number | null
+  }): Promise<void> {
+    const mensajes = payload.messages.filter((m) => conversable(m.key.remoteJid))
+
+    log.info(
+      {
+        accountId: this.deps.accountId,
+        chats: payload.chats?.length ?? 0,
+        contactos: payload.contacts?.length ?? 0,
+        mensajes: mensajes.length,
+        progreso: payload.progress ?? null,
+      },
+      'historial de WhatsApp',
+    )
+
+    const contactos = (payload.contacts ?? [])
+      .filter((c) => c.id && (c.name || c.notify || c.verifiedName))
+      .map((c) => ({
+        jid: c.id,
+        lid: c.lid ?? (isLidUser(c.id) ? c.id : undefined),
+        pn: c.jid ?? (isLidUser(c.id) ? undefined : c.id),
+        name: c.name ?? c.verifiedName ?? c.notify ?? null,
+      }))
+
+    for (let i = 0; i < mensajes.length; i += HISTORY_CHUNK) {
+      const tanda = mensajes.slice(i, i + HISTORY_CHUNK)
+      await this.post({
+        eventId: `hist:${this.deps.accountId}:${huella(
+          tanda.map((m) => m.key.id ?? ''),
+        )}`,
+        kind: 'history.messages',
+        tenantId: this.deps.tenantId,
+        accountId: this.deps.accountId,
+        accountJid: this.sock?.user?.id ?? null,
+        messages: tanda.map((m) => ({ ...m, key: conIdentidad(m.key) })),
+      })
+    }
+    // La agenda va DESPUÉS de los mensajes, no antes: solo puede ponerle
+    // nombre a contactos que ya existen, y los contactos los crea la tanda
+    // de mensajes de arriba. Mandándola primero no encontraba a nadie.
+    if (contactos.length) {
+      await this.post({
+        eventId: `hist-ag:${this.deps.accountId}:${huella(contactos.map((c) => c.jid))}`,
+        kind: 'history.contacts',
+        tenantId: this.deps.tenantId,
+        accountId: this.deps.accountId,
+        accountJid: this.sock?.user?.id ?? null,
+        contacts: contactos,
+      })
+    }
+
   }
 
   private async pushToIngest(msg: proto.IWebMessageInfo): Promise<void> {
     // El id del mensaje ES el id del evento: la idempotencia se resuelve del
     // otro lado con INSERT ... ON CONFLICT DO NOTHING sobre webhook_events.
-    const eventId = `baileys:${msg.key.id}`
-    const body = {
-      eventId,
+    await this.post({
+      eventId: `baileys:${msg.key.id}`,
       kind: 'message.inbound',
       tenantId: this.deps.tenantId,
       accountId: this.deps.accountId,
       accountJid: this.sock?.user?.id ?? null,
-      message: msg,
-    }
+      message: { ...msg, key: conIdentidad(msg.key) },
+    })
+  }
 
+  private async post(body: Record<string, unknown>): Promise<void> {
     try {
       const res = await fetch(this.deps.ingestUrl, {
         method: 'POST',
@@ -275,14 +448,18 @@ export class WhatsAppSession {
       })
       if (!res.ok) {
         log.error(
-          { accountId: this.deps.accountId, status: res.status, eventId },
+          {
+            accountId: this.deps.accountId,
+            status: res.status,
+            eventId: body.eventId,
+          },
           'la ingesta rechazó el evento',
         )
       }
     } catch (err) {
       // Si la app está caída, el mensaje ya está en el teléfono del cliente pero
       // no en la base. El barrido de recuperación lo levanta después.
-      log.error({ err, eventId }, 'no se pudo entregar a la ingesta')
+      log.error({ err, eventId: body.eventId }, 'no se pudo entregar a la ingesta')
     }
   }
 
@@ -359,6 +536,53 @@ const ALLOWED_STATUS_FIELDS = new Set([
   'last_error',
   'connected_at',
 ])
+
+/**
+ * Le agrega a la clave del mensaje el JID con el número real.
+ *
+ * WhatsApp está migrando las conversaciones a LID (`123456789012345@lid`), un
+ * identificador anónimo que NO es un teléfono. Si se lo guarda como si lo
+ * fuera, la ficha del contacto queda con quince dígitos inventados y nadie lo
+ * puede llamar. El número verdadero viaja aparte, en `senderPn`.
+ *
+ * `senderPn` no siempre viene. Cuando falta se manda `null` y la app se queda
+ * con lo que tenga: es mejor un contacto sin teléfono que uno con un teléfono
+ * falso.
+ */
+function conIdentidad(key: WAMessageKey) {
+  const chat = key.remoteJid ?? undefined
+  const pn = key.senderPn ?? (chat && !isLidUser(chat) ? chat : undefined)
+  return {
+    ...key,
+    // Normalizado: sin el sufijo de dispositivo (":12") que rompe la unicidad.
+    phoneJid: pn ? jidNormalizedUser(pn) : null,
+    lidJid: chat && isLidUser(chat) ? jidNormalizedUser(chat) : null,
+  }
+}
+
+/** Los estados, las difusiones y los canales no son conversaciones. */
+function conversable(jid: string | null | undefined): jid is string {
+  if (!jid) return false
+  if (jid === 'status@broadcast') return false
+  if (jid.endsWith('@newsletter') || jid.endsWith('@broadcast')) return false
+  return true
+}
+
+/**
+ * Huella estable de una tanda, para que un reenvío del mismo lote no se
+ * duplique. No necesita ser criptográfica: si dos tandas distintas colisionan,
+ * los mensajes igual se deduplican por `external_id` del otro lado.
+ */
+function huella(ids: string[]): string {
+  let h = 2166136261
+  for (const id of ids) {
+    for (let i = 0; i < id.length; i++) {
+      h ^= id.charCodeAt(i)
+      h = Math.imul(h, 16777619)
+    }
+  }
+  return (h >>> 0).toString(36) + '-' + ids.length
+}
 
 /** "5493511234567:12@s.whatsapp.net" → "5493511234567" */
 function phoneFromJid(jid: string): string | null {

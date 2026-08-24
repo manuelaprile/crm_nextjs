@@ -34,7 +34,7 @@ export class SessionManager {
            from channel_accounts ca
            join tenants t on t.id = ca.tenant_id
           where ca.provider = 'baileys'
-            and ca.status in ('connected','connecting','disconnected')
+            and ca.status in ('connected','connecting','qr_pending','disconnected')
             and t.status in ('trial','active')`,
       )
       rows = res.rows
@@ -61,9 +61,24 @@ export class SessionManager {
     }
   }
 
+  /**
+   * Devuelve la sesión de la cuenta, levantándola si hace falta.
+   *
+   * El `detenida` no es un detalle: una sesión que se cerró (logout desde el
+   * teléfono, baneo, reemplazo) sigue en el mapa pero con el socket muerto.
+   * Sin este chequeo, "Conectar" desde el panel encontraba ese cascarón, lo
+   * devolvía como si estuviera todo bien, y la pantalla se quedaba en
+   * "Conectando…" para siempre porque nadie volvía a abrir el socket. La única
+   * salida era reiniciar el contenedor.
+   */
   async ensure(accountId: string, tenantId: string): Promise<WhatsAppSession> {
     const existing = this.sessions.get(accountId)
-    if (existing) return existing
+    if (existing && !existing.detenida) return existing
+    if (existing) {
+      log.info({ accountId }, 'reviviendo sesión detenida')
+      await existing.stop()
+      this.sessions.delete(accountId)
+    }
 
     const session = new WhatsAppSession({
       pool: this.pool,
