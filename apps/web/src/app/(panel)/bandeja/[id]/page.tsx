@@ -5,6 +5,7 @@ import { getConversation, getContact, getStages } from '@/lib/queries'
 import { sendReply, toggleAi, setStage, addNote } from '@/lib/actions'
 import { IconSend } from '@/components/icons'
 import { ListaConversaciones, iniciales } from '../lista'
+import { AlFinal } from './al-final'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +117,11 @@ export default async function ChatPage({
                 </div>
               )
             })}
+            <AlFinal
+              marca={`${conversation.id}:${
+                conversation.messages[conversation.messages.length - 1]?.id ?? ''
+              }`}
+            />
           </div>
 
           <div style={{ background: 'var(--c-bg)' }}>

@@ -553,10 +553,34 @@ tbody tr.clickable {
 }
 
 /* ===================== WHATSAPP ===================== */
+/*
+ * La bandeja es la única pantalla que NO scrollea con la página: ocupa lo que
+ * hay y cada columna scrollea por dentro, como WhatsApp Web.
+ *
+ * Para eso hacen falta dos cosas que no son obvias:
+ *
+ *  1. `.main` tiene que tener una altura DEFINIDA. Con `min-height` no
+ *     alcanza: un hijo con `flex: 1` no tiene contra qué medirse y termina
+ *     tomando la altura de su contenido. El `:has()` deja el resto de las
+ *     pantallas scrolleando con la página, como estaban.
+ *  2. `min-height: 0` en cada columna. Los items de grid y de flex arrancan
+ *     con `min-height: auto`, o sea "nunca más chico que mi contenido": por
+ *     eso la lista de 50 conversaciones estiraba el alto de la fila y se
+ *     llevaba puesto el `overflow-y: auto`. El input de responder terminaba
+ *     a dos mil píxeles de scroll.
+ */
+.main:has(.wa) {
+  height: 100vh;
+  overflow: hidden;
+}
+.main:has(.wa) .topnav {
+  position: static;
+}
 .wa {
   display: grid;
   grid-template-columns: 300px 1fr 290px;
-  height: calc(100vh - 64px);
+  flex: 1;
+  min-height: 0;
   background: var(--c-bg);
 }
 .wa-list {
@@ -564,6 +588,7 @@ tbody tr.clickable {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 .wa-list-head {
   padding: 13px 14px;
@@ -670,6 +695,7 @@ tbody tr.clickable {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   background: var(--c-surface);
 }
 .wa-chat-head {
@@ -691,6 +717,7 @@ tbody tr.clickable {
 }
 .wa-msgs {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 20px;
   display: flex;
@@ -759,6 +786,7 @@ tbody tr.clickable {
 .wa-side {
   border-left: 1px solid var(--c-border);
   overflow-y: auto;
+  min-height: 0;
   padding: 20px;
   background: var(--c-bg);
 }
@@ -1149,6 +1177,15 @@ tbody tr.clickable {
   }
 }
 @media (max-width: 860px) {
+  /* Con el menú colapsado y una sola columna, encerrar la bandeja en 100vh
+     deja el chat de tres centímetros. Ahí vuelve a scrollear la página. */
+  .main:has(.wa) {
+    height: auto;
+    overflow: visible;
+  }
+  .wa {
+    min-height: calc(100vh - 64px);
+  }
   .stats {
     grid-template-columns: repeat(2, 1fr);
   }
