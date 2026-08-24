@@ -10,11 +10,10 @@ import {
   IconUsers,
   IconChart,
   IconWhatsApp,
-  IconBot,
   IconMenu,
   IconFlask,
   IconShield,
-  IconStore,
+  IconGear,
 } from '@/components/icons'
 
 /**
@@ -84,13 +83,14 @@ export function Sidebar({
   // que después le van a decir que no. Los permisos igual se verifican del
   // lado del servidor — esto es prolijidad, no seguridad.
   if (!sinCuenta && role !== 'agent') {
+    // Etapas y Asistente IA NO están acá a propósito: se llega por las
+    // solapas de Configuración. Un menú con nueve ítems es un menú que nadie
+    // lee.
     grupos.push({
-      grp: 'Configuración',
+      grp: 'General',
       items: [
-        { href: '/configuracion/general', label: 'General', icon: <IconStore /> },
-        { href: '/configuracion/etapas', label: 'Etapas', icon: <IconChart /> },
+        { href: '/configuracion/general', label: 'Configuración', icon: <IconGear /> },
         { href: '/configuracion/whatsapp', label: 'WhatsApp', icon: <IconWhatsApp /> },
-        { href: '/configuracion/ia', label: 'Asistente IA', icon: <IconBot /> },
         { href: '/configuracion/usuarios', label: 'Usuarios', icon: <IconUsers /> },
       ],
     })
