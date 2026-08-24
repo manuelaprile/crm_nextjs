@@ -72,7 +72,7 @@ export async function getComercio(): Promise<Comercio> {
 
 function volver(tipo: 'ok' | 'error', msg: string): never {
   redirect(
-    `/configuracion/comercio?r=${tipo}&m=${encodeURIComponent(msg.slice(0, 200))}`,
+    `/configuracion/general?r=${tipo}&m=${encodeURIComponent(msg.slice(0, 200))}`,
   )
 }
 

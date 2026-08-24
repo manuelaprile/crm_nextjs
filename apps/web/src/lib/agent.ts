@@ -223,7 +223,25 @@ async function overBudget(tenantId: string): Promise<boolean> {
 // Herramientas — el modelo solo puede tocar SU conversación
 // ---------------------------------------------------------------------
 
-const TOOLS: ToolSpec[] = [
+/**
+ * Las herramientas del agente, armadas PARA ESTE TENANT.
+ *
+ * `set_stage` tenía las cuatro etapas del consultorio escritas acá adentro.
+ * Eso rompía la regla del proyecto —las etapas no se hardcodean— y en cuanto
+ * apareció el segundo rubro dejó de funcionar: una inmobiliaria arranca con
+ * "nuevo / contactado / interesado / cerrado", así que el modelo pedía
+ * `consulta` y la herramienta contestaba "etapa desconocida". Lo mismo pasaba
+ * apenas el cliente renombraba una etapa desde el panel.
+ *
+ * Ahora el enum sale de la tabla. Las etapas de descarte quedan afuera a
+ * propósito: descartar a alguien es una decisión de la persona que atiende,
+ * no del modelo.
+ */
+function toolsFor(etapas: { key: string; name: string }[]): ToolSpec[] {
+  const claves = etapas.map((e) => e.key)
+  const listado = etapas.map((e) => `${e.key} = ${e.name}`).join('; ')
+
+  return [
   {
     name: 'set_stage',
     description:
@@ -234,8 +252,8 @@ const TOOLS: ToolSpec[] = [
       properties: {
         stage: {
           type: 'string',
-          enum: ['consulta', 'interesado', 'consultorio', 'operado'],
-          description: 'Clave de la etapa.',
+          enum: claves,
+          description: `Clave de la etapa. ${listado}`,
         },
         reason: { type: 'string', description: 'Por qué, en una línea.' },
       },
@@ -281,7 +299,8 @@ const TOOLS: ToolSpec[] = [
       additionalProperties: false,
     },
   },
-]
+  ]
+}
 
 async function executeTool(
   ctx: AgentContext,
@@ -461,10 +480,30 @@ async function handoff(
 // Loop
 // ---------------------------------------------------------------------
 
+/** Las etapas a las que el agente puede mover un contacto. */
+async function etapasDelTenant(
+  tenantId: string,
+): Promise<{ key: string; name: string }[]> {
+  return withSystem(async (tx) => {
+    const res = await tx.execute(sql`
+      select key, name from stages
+       where tenant_id = ${tenantId} and not is_lost
+       order by position
+    `)
+    return (res.rows as Record<string, unknown>[]).map((r) => ({
+      key: String(r.key),
+      name: String(r.name),
+    }))
+  })
+}
+
 async function run(ctx: AgentContext): Promise<void> {
   const started = Date.now()
   const messages = await loadHistory(ctx.conversationId)
   if (!messages.length) return
+
+  const etapas = await etapasDelTenant(ctx.tenantId)
+  const tools = toolsFor(etapas)
 
   let inputTokens = 0
   let outputTokens = 0
@@ -483,7 +522,7 @@ async function run(ctx: AgentContext): Promise<void> {
       const res = await modelo.complete({
         system: ctx.systemPrompt,
         messages,
-        tools: TOOLS,
+        tools,
         maxTokens: 1024,
       })
 

@@ -4,7 +4,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const SECCIONES = [
-  { href: '/configuracion/comercio', label: 'Comercio' },
+  // "General" y no "Comercio": el mismo panel lo usa un consultorio, una
+  // inmobiliaria y un estudio contable.
+  { href: '/configuracion/general', label: 'General' },
+  { href: '/configuracion/etapas', label: 'Etapas' },
   { href: '/configuracion/whatsapp', label: 'WhatsApp' },
   { href: '/configuracion/ia', label: 'Asistente IA' },
   { href: '/configuracion/usuarios', label: 'Usuarios' },

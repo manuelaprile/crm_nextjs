@@ -87,7 +87,8 @@ export function Sidebar({
     grupos.push({
       grp: 'Configuración',
       items: [
-        { href: '/configuracion/comercio', label: 'Comercio', icon: <IconStore /> },
+        { href: '/configuracion/general', label: 'General', icon: <IconStore /> },
+        { href: '/configuracion/etapas', label: 'Etapas', icon: <IconChart /> },
         { href: '/configuracion/whatsapp', label: 'WhatsApp', icon: <IconWhatsApp /> },
         { href: '/configuracion/ia', label: 'Asistente IA', icon: <IconBot /> },
         { href: '/configuracion/usuarios', label: 'Usuarios', icon: <IconUsers /> },
