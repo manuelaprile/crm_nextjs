@@ -5,6 +5,7 @@ import { withTenant } from '@/lib/db/client'
 import { modoPruebaActivo } from '@/lib/pruebas'
 import { misCuentas, volverAPlataforma } from '@/lib/usuarios'
 import { etiquetaDe } from '@/lib/etiquetas'
+import { getLogoVersion } from '@/lib/comercio'
 import { Sidebar } from './sidebar'
 
 export const dynamic = 'force-dynamic'
@@ -78,6 +79,7 @@ export default async function PanelLayout({
 
   // Cuentas propias: las que el usuario tiene en `tenant_users`.
   const propias = await misCuentas()
+  const logoVersion = sinCuenta ? null : await getLogoVersion()
 
   // Una VISITA es un superadmin parado adentro de una cuenta de la que no es
   // miembro. Es legítimo —entró a dar soporte— pero tiene que verse.
@@ -103,6 +105,7 @@ export default async function PanelLayout({
         }))}
         esVisita={esVisita}
         rubro={etiqueta.singular}
+        logoVersion={logoVersion}
       />
       <div className="main">
         {esVisita ? (

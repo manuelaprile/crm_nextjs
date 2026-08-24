@@ -14,6 +14,7 @@ import {
   IconMenu,
   IconFlask,
   IconShield,
+  IconStore,
 } from '@/components/icons'
 
 /**
@@ -38,6 +39,7 @@ export function Sidebar({
   cuentas,
   esVisita,
   rubro,
+  logoVersion,
 }: {
   tenantName: string
   userName: string
@@ -53,6 +55,8 @@ export function Sidebar({
   esVisita: boolean
   /** Cómo se llama esta cuenta: "Consultorio", "Inmobiliaria"… */
   rubro: string
+  /** Fecha de la última subida del logo, o null si no cargaron ninguno. */
+  logoVersion: string | null
 }) {
   const pathname = usePathname()
   const [abierto, setAbierto] = useState(false)
@@ -83,6 +87,7 @@ export function Sidebar({
     grupos.push({
       grp: 'Configuración',
       items: [
+        { href: '/configuracion/comercio', label: 'Comercio', icon: <IconStore /> },
         { href: '/configuracion/whatsapp', label: 'WhatsApp', icon: <IconWhatsApp /> },
         { href: '/configuracion/ia', label: 'Asistente IA', icon: <IconBot /> },
         { href: '/configuracion/usuarios', label: 'Usuarios', icon: <IconUsers /> },
@@ -138,7 +143,16 @@ export function Sidebar({
       <aside className={`side${abierto ? ' open' : ''}`}>
         <div className="side-head">
           <div className="logo">
-            <span className="logo-mark">{inicial(tenantName)}</span>
+            <span className="logo-mark">
+              {logoVersion ? (
+                // La versión rompe la caché: sin esto el menú sigue mostrando
+                // el logo viejo hasta que el navegador se digne a recargarlo.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`/api/marca/logo?v=${logoVersion}`} alt="" />
+              ) : (
+                inicial(tenantName)
+              )}
+            </span>
             <span
               style={{
                 overflow: 'hidden',

@@ -49,6 +49,11 @@ export type PaginaUsuarios = {
 /**
  * Usuarios de la cuenta, paginados.
  *
+ * Los superadministradores NO aparecen: son de la plataforma, no del negocio
+ * del cliente. Que el dueño de un consultorio vea en su lista de empleados al
+ * que le vendió el sistema es raro, y peor todavía es que pueda cambiarle el
+ * rol o borrarlo. Se ven en Plataforma, que es donde se gestionan.
+ *
  * Hoy son dos o tres y la paginación parece de más. Se hace igual porque
  * agregarla después, con la pantalla ya en uso, siempre cuesta más — y
  * porque una cuenta con varias sucursales puede llegar a veinte.
@@ -71,7 +76,8 @@ export async function listarUsuarios(
              count(*) over () as total
         from tenant_users tu
         join users u on u.id = tu.user_id
-       where (${buscar}::text is null
+       where u.is_superadmin = false
+         and (${buscar}::text is null
               or inmutable_unaccent(u.name) ilike inmutable_unaccent('%' || ${buscar} || '%')
               or u.email ilike '%' || ${buscar} || '%')
        order by tu.role, u.name
@@ -174,6 +180,26 @@ export async function crearUsuario(formData: FormData): Promise<void> {
   volver('ok', `${email} ya puede ingresar.`)
 }
 
+
+/**
+ * Un superadmin no es personal del cliente: no se lo edita desde el panel de
+ * la cuenta. Como no aparece en la lista, esto solo puede pasar armando el
+ * pedido a mano — pero que la pantalla no lo ofrezca no es una defensa.
+ */
+async function esSuperadminAjeno(
+  session: { tenantId: string; userId: string; role: TenantRole },
+  userId: string,
+): Promise<boolean> {
+  return withTenant(session, async (tx) => {
+    const r = await tx.execute(sql`
+      select 1 from users u
+        join tenant_users tu on tu.user_id = u.id
+       where u.id = ${userId} and u.is_superadmin
+    `)
+    return r.rows.length > 0
+  })
+}
+
 export async function cambiarRol(formData: FormData): Promise<void> {
   const session = await requireAdmin()
   const userId = String(formData.get('userId') ?? '')
@@ -185,6 +211,9 @@ export async function cambiarRol(formData: FormData): Promise<void> {
   }
   if (rol === 'owner' && session.role !== 'owner') {
     volver('error', 'Solo el dueño puede nombrar a otro dueño.')
+  }
+  if (await esSuperadminAjeno(session, userId)) {
+    volver('error', 'Ese usuario se gestiona desde Plataforma.')
   }
 
   await withTenant(session, async (tx) => {
@@ -209,6 +238,9 @@ export async function quitarUsuario(formData: FormData): Promise<void> {
 
   if (userId === session.userId) {
     volver('error', `No podés sacarte a vos mismo ${delRubro(etiquetaDe(session))}.`)
+  }
+  if (await esSuperadminAjeno(session, userId)) {
+    volver('error', 'Ese usuario se gestiona desde Plataforma.')
   }
 
   await withTenant(session, async (tx) => {
@@ -262,6 +294,9 @@ export async function resetearClave(formData: FormData): Promise<void> {
   })
   if (!pertenece) {
     volver('error', `Ese usuario no es ${delRubro(etiquetaDe(session))}.`)
+  }
+  if (await esSuperadminAjeno(session, userId)) {
+    volver('error', 'Ese usuario se gestiona desde Plataforma.')
   }
 
   await withoutTenant(async (tx) => {

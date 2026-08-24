@@ -28,19 +28,12 @@ export default async function IAPage({
 
   if (session.role === 'agent') {
     return (
-      <>
-        <div className="topnav">
-          <h2>Asistente de IA</h2>
+      <div className="panel-box">
+        <div className="empty">
+          <b>Sin permisos</b>
+          Solo el dueño o un administrador puede configurar el asistente.
         </div>
-        <div className="content">
-          <div className="panel-box">
-            <div className="empty">
-              <b>Sin permisos</b>
-              Solo el dueño o un administrador puede configurar el asistente.
-            </div>
-          </div>
-        </div>
-      </>
+      </div>
     )
   }
 
@@ -50,29 +43,24 @@ export default async function IAPage({
 
   return (
     <>
-      <div className="topnav">
-        <h2>Asistente de IA</h2>
+      <div className="page-head">
+        <p style={{ marginTop: 0 }}>
+          Responde el primer contacto, clasifica la consulta y deriva a la
+          secretaria
+        </p>
       </div>
-      <div className="content">
-        <div className="page-head">
-          <p style={{ marginTop: 0 }}>
-            Responde el primer contacto, clasifica la consulta y deriva a la
-            secretaria
-          </p>
+      {ajustes ? (
+        <FormIA
+          inicial={ajustes}
+          aviso={avisos.general}
+          avisoPrueba={avisos.prueba}
+        />
+      ) : (
+        <div className="alert alert-amber">
+          Esta cuenta todavía no tiene configuración de asistente. Ejecutá{' '}
+          <code>seed_vertical(tenant_id, rubro)</code> para crearla.
         </div>
-        {ajustes ? (
-          <FormIA
-            inicial={ajustes}
-            aviso={avisos.general}
-            avisoPrueba={avisos.prueba}
-          />
-        ) : (
-          <div className="alert alert-amber">
-            Esta cuenta todavía no tiene configuración de asistente. Ejecutá{' '}
-            <code>seed_vertical(tenant_id, rubro)</code> para crearla.
-          </div>
-        )}
-      </div>
+      )}
     </>
   )
 }

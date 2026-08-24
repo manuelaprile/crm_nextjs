@@ -154,3 +154,18 @@ export const IconShield = ({ className }: P) => (
     <path d="M9 12l2 2 4-4" />
   </svg>
 )
+
+export const IconStore = ({ className }: P) => (
+  <svg
+    {...base}
+    width="18"
+    height="18"
+    className={className}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M4 4h16l1 5a3 3 0 01-6 0 3 3 0 01-6 0 3 3 0 01-6 0z" />
+    <path d="M5 11v8a1 1 0 001 1h12a1 1 0 001-1v-8" />
+    <path d="M10 20v-5h4v5" />
+  </svg>
+)

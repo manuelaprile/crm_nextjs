@@ -72,12 +72,15 @@ export async function listConversations(
     pagina?: number
     porPagina?: number
     soloNoLeidas?: boolean
+    /** Quién está atendiendo el hilo: la IA o una persona. */
+    atiende?: 'ia' | 'humano'
   } = {},
 ): Promise<PaginaConversaciones> {
   const porPagina = Math.min(100, Math.max(10, opts.porPagina ?? 25))
   const pagina = Math.max(1, opts.pagina ?? 1)
   const offset = (pagina - 1) * porPagina
   const soloNoLeidas = Boolean(opts.soloNoLeidas)
+  const atiende = opts.atiende ?? null
 
   return withTenant(ctx, async (tx) => {
     const search = opts.search?.trim() || null
@@ -100,6 +103,9 @@ export async function listConversations(
               or c.participant_phone ilike '%' || ${search} || '%')
          and (${stageKey}::text is null or s.key = ${stageKey})
          and (${soloNoLeidas} = false or c.unread_count > 0)
+         and (${atiende}::text is null
+              or (${atiende} = 'ia' and c.ai_enabled)
+              or (${atiende} = 'humano' and not c.ai_enabled))
        order by c.last_message_at desc nulls last
        limit ${porPagina} offset ${offset}
     `)

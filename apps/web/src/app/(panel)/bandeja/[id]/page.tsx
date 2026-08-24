@@ -3,17 +3,29 @@ import { notFound } from 'next/navigation'
 import { requireTenant } from '@/lib/auth'
 import { getConversation, getContact, getStages } from '@/lib/queries'
 import { sendReply, toggleAi, setStage, addNote } from '@/lib/actions'
-import { IconBack, IconSend } from '@/components/icons'
+import { IconSend } from '@/components/icons'
+import { ListaConversaciones, iniciales } from '../lista'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Una conversación abierta, con la lista al lado.
+ *
+ * Las tres columnas son las de WhatsApp Web y las del prototipo del cliente:
+ * conversaciones, hilo y ficha del contacto. La del medio es la única que
+ * cambia al saltar de un chat a otro.
+ */
 export default async function ChatPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ q?: string; atiende?: string; p?: string }>
 }) {
   const session = await requireTenant()
   const { id } = await params
+  const { q, atiende, p } = await searchParams
+  const filtro = atiende === 'ia' || atiende === 'humano' ? atiende : undefined
 
   const conversation = await getConversation(session, id)
   if (!conversation) notFound()
@@ -26,20 +38,25 @@ export default async function ChatPage({
   const desconectado = conversation.accountStatus !== 'connected'
   const nombre =
     conversation.participantName ?? conversation.participantPhone ?? 'Sin nombre'
+  const entrantes = conversation.messages.filter((m) => m.direction === 'inbound')
 
   return (
     <>
       <div className="topnav">
-        <Link href="/bandeja" className="btn btn-ghost btn-sm">
-          <IconBack />
-          Bandeja
-        </Link>
-        <h2>{nombre}</h2>
+        <h2>Bandeja</h2>
       </div>
 
       <div className="wa">
-        {/* ---- Chat ---- */}
-        <div className="wa-chat" style={{ gridColumn: '1 / span 2' }}>
+        <ListaConversaciones
+          session={session}
+          activa={conversation.id}
+          q={q}
+          atiende={filtro}
+          pagina={Number(p) || 1}
+        />
+
+        {/* ---------------- Hilo ---------------- */}
+        <div className="wa-chat">
           <div className="wa-chat-head">
             <span className="avatar">{iniciales(nombre)}</span>
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -50,14 +67,23 @@ export default async function ChatPage({
                   : '—'}
               </div>
             </div>
+
+            <span
+              className={`badge badge-dot ${
+                conversation.aiEnabled ? 'b-blue' : 'b-gray'
+              }`}
+            >
+              {conversation.aiEnabled ? 'Atiende la IA' : 'Atiende una persona'}
+            </span>
+
+            {/* Un solo botón con las dos direcciones: quién atiende el hilo es
+                un interruptor, no dos acciones distintas. */}
             <form action={toggleAi}>
               <input type="hidden" name="conversationId" value={conversation.id} />
-              <button
-                type="submit"
-                className={`badge ${conversation.aiEnabled ? 'b-blue' : 'b-gray'}`}
-                style={{ cursor: 'pointer' }}
-              >
-                {conversation.aiEnabled ? 'IA activa' : 'IA apagada'}
+              <button type="submit" className="btn btn-ghost btn-sm">
+                {conversation.aiEnabled
+                  ? 'Tomar la conversación'
+                  : 'Devolver a la IA'}
               </button>
             </form>
           </div>
@@ -71,10 +97,7 @@ export default async function ChatPage({
             {conversation.messages.map((m) => {
               const propio = m.direction === 'outbound'
               return (
-                <div
-                  key={m.id}
-                  className={`bub ${propio ? 'bub-out' : 'bub-in'}`}
-                >
+                <div key={m.id} className={`bub ${propio ? 'bub-out' : 'bub-in'}`}>
                   {m.body ?? <em style={{ opacity: 0.7 }}>[{m.type}]</em>}
                   <div className="t">
                     {new Date(m.createdAt).toLocaleTimeString('es-AR', {
@@ -135,26 +158,45 @@ export default async function ChatPage({
           </div>
         </div>
 
-        {/* ---- Ficha ---- */}
+        {/* ---------------- Ficha ---------------- */}
         <aside className="wa-side">
           {contact ? (
             <>
-              <h6>Contacto</h6>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>
-                {contact.displayName}
+              <div className="wa-perfil">
+                <span className="wa-perfil-avatar">
+                  {iniciales(contact.displayName)}
+                </span>
+                <div className="wa-perfil-nombre">{contact.displayName}</div>
+                <div className="tiny muted">
+                  {[contact.city, contact.province].filter(Boolean).join(', ') ||
+                    'Sin zona cargada'}
+                </div>
+                <Link
+                  href={`/contactos/${contact.id}`}
+                  className="btn btn-ghost btn-sm"
+                  style={{ marginTop: 12 }}
+                >
+                  Ver ficha completa
+                </Link>
               </div>
-              <div className="tiny muted" style={{ marginTop: 2 }}>
-                Desde {new Date(contact.createdAt).toLocaleDateString('es-AR')}
-              </div>
-              <Link
-                href={`/contactos/${contact.id}`}
-                className="btn btn-ghost btn-sm btn-block"
-                style={{ marginTop: 10 }}
-              >
-                Ver ficha completa
-              </Link>
 
-              <h6>Etapa</h6>
+              <h6>Resumen</h6>
+              <div className="kv">
+                <span className="muted">Etapa</span>
+                <b>{contact.stageName ?? '—'}</b>
+              </div>
+              <div className="kv">
+                <span className="muted">Escribió</span>
+                <b>
+                  {entrantes.length} mensaje{entrantes.length === 1 ? '' : 's'}
+                </b>
+              </div>
+              <div className="kv">
+                <span className="muted">Desde</span>
+                <b>{new Date(contact.createdAt).toLocaleDateString('es-AR')}</b>
+              </div>
+
+              <h6>Mover de etapa</h6>
               <form action={setStage} style={{ display: 'flex', gap: 8 }}>
                 <input type="hidden" name="contactId" value={contact.id} />
                 <select
@@ -173,16 +215,6 @@ export default async function ChatPage({
                   Guardar
                 </button>
               </form>
-
-              {(contact.city || contact.province) && (
-                <>
-                  <h6>Zona</h6>
-                  <div className="kv">
-                    <span className="muted">Ciudad</span>
-                    <b>{[contact.city, contact.province].filter(Boolean).join(', ')}</b>
-                  </div>
-                </>
-              )}
 
               {contact.tags.length > 0 && (
                 <>
@@ -221,14 +253,7 @@ export default async function ChatPage({
               </form>
               <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
                 {contact.notes.slice(0, 8).map((n) => (
-                  <div
-                    key={n.id}
-                    style={{
-                      background: 'var(--c-surface)',
-                      borderRadius: 'var(--r-sm)',
-                      padding: 10,
-                    }}
-                  >
+                  <div key={n.id} className="wa-nota">
                     <div style={{ fontSize: 12.5 }}>{n.body}</div>
                     <div className="tiny muted" style={{ marginTop: 4 }}>
                       {n.byAi ? 'IA · ' : ''}
@@ -247,12 +272,4 @@ export default async function ChatPage({
       </div>
     </>
   )
-}
-
-function iniciales(nombre: string): string {
-  return nombre
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('')
 }
