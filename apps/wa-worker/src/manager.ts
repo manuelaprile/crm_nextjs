@@ -73,7 +73,12 @@ export class SessionManager {
    */
   async ensure(accountId: string, tenantId: string): Promise<WhatsAppSession> {
     const existing = this.sessions.get(accountId)
-    if (existing && !existing.detenida) return existing
+    if (existing && !existing.detenida) {
+      // Viva pero sin conectar: hay un reintento programado y puede faltar
+      // mucho para que salte. Quien apretó el botón quiere que sea ahora.
+      if (!existing.conectada) await existing.reintentarYa()
+      return existing
+    }
     if (existing) {
       log.info({ accountId }, 'reviviendo sesión detenida')
       await existing.stop()
@@ -103,11 +108,34 @@ export class SessionManager {
     this.sessions.delete(accountId)
   }
 
+  /**
+   * Desvincular el número. Es la salida de emergencia de cualquier sesión
+   * envenenada, así que tiene que funcionar SIEMPRE.
+   *
+   * Antes salía de una si no había sesión en memoria — por ejemplo después de
+   * reiniciar el worker. El botón "Desconectar" del panel no hacía nada, las
+   * credenciales rotas seguían en Postgres, y no quedaba forma de volver a
+   * empezar sin entrar a la base a mano.
+   */
   async logout(accountId: string): Promise<void> {
     const session = this.sessions.get(accountId)
-    if (!session) return
-    await session.logout()
-    this.sessions.delete(accountId)
+    if (session) {
+      await session.logout()
+      this.sessions.delete(accountId)
+      return
+    }
+
+    await this.pool.query('delete from wa_session_keys where account_id = $1', [
+      accountId,
+    ])
+    await this.pool.query(
+      `update channel_accounts
+          set status = 'logged_out', qr = null, qr_expires_at = null,
+              external_id = null, last_error = null, last_seen_at = now()
+        where id = $1`,
+      [accountId],
+    )
+    log.info({ accountId }, 'sesión borrada sin socket vivo')
   }
 
   send(accountId: string, job: OutboundJob): boolean {

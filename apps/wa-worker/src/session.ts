@@ -30,6 +30,15 @@ const log = pino({ level: process.env.LOG_LEVEL ?? 'info' })
 /** Backoff de reconexión: 1s, 2s, 4s… hasta 5 min. */
 const BACKOFF_BASE_MS = 1_000
 const BACKOFF_MAX_MS = 300_000
+/**
+ * Tope mucho más corto mientras el número todavía no se vinculó.
+ *
+ * Con el tope de 5 minutos, alguien parado frente a la pantalla esperando el
+ * QR ve "Reintentando…" y no pasa nada durante minutos. Cinco minutos de
+ * silencio son razonables para un número conectado que perdió internet a las
+ * 3 de la mañana; son inaceptables para alguien que acaba de apretar Conectar.
+ */
+const BACKOFF_VINCULANDO_MAX_MS = 15_000
 /** Un QR de WhatsApp vive ~60s; damos margen para el refresh. */
 const QR_TTL_MS = 75_000
 
@@ -42,12 +51,15 @@ const SEND_MIN_MS = 3_000
 const SEND_MAX_MS = 8_000
 
 /**
- * Pedirle al teléfono el historial viejo al vincular.
+ * Pedirle al teléfono todo el historial que quiera dar, al vincular.
  *
- * Con esto en `false` WhatsApp manda solo lo más reciente y la bandeja arranca
- * casi vacía. En `true` replica lo que el teléfono tenga guardado, que es lo
- * que el cliente espera ver el primer día. Cuesta varios megabytes y unos
- * minutos, y llega SOLO en la primera conexión después de escanear el QR.
+ * Llega SOLO en la primera conexión después de escanear el QR: no hay forma
+ * de pedirlo más tarde.
+ *
+ * Lo que se consigue es lo que ve WhatsApp Web —los chats con sus mensajes
+ * recientes—, no el archivo completo de años. Para eso habría que decir que
+ * somos la aplicación de escritorio, y hoy WhatsApp cierra la conexión de una
+ * si lo hacemos: ver el comentario largo en `browser`, abajo.
  */
 const SYNC_FULL_HISTORY = process.env.WA_SYNC_FULL_HISTORY !== 'false'
 
@@ -82,6 +94,10 @@ export class WhatsAppSession {
   private queue: OutboundJob[] = []
   private draining = false
   private lastSentAt = 0
+  /** El reintento pendiente, para poder cancelarlo y no apilar timers. */
+  private reintento?: ReturnType<typeof setTimeout>
+  /** Si el socket llegó a abrirse alguna vez. Cambia el tope del backoff. */
+  private abierta = false
   /**
    * Cola de escrituras de credenciales. Baileys emite `creds.update` varias
    * veces durante el pairing y cada una tiene que pisar a la anterior EN
@@ -101,14 +117,61 @@ export class WhatsAppSession {
     return this.stopped
   }
 
+  /** Si el socket está abierto ahora mismo. */
+  get conectada() {
+    return this.abierta
+  }
+
   async start(): Promise<void> {
     this.stopped = false
     this.attempt = 0
     await this.connect()
   }
 
+  /**
+   * Reintentar YA, porque una persona apretó "Conectar".
+   *
+   * Sin esto, apretar el botón mientras hay un reintento programado no hacía
+   * absolutamente nada: la sesión estaba viva, así que el manager la devolvía
+   * tal cual, y la pantalla se quedaba en "Reintentando…" hasta que venciera
+   * el backoff — que después de unos pocos intentos ya son varios minutos.
+   * Desde afuera es idéntico a un botón roto.
+   *
+   * Además, si las credenciales quedaron a medio negociar (`registered` en
+   * false: se generó un QR que nadie escaneó, o el escaneo se cortó por la
+   * mitad) se tiran a la basura. No sirven para nada y son la causa típica de
+   * que el servidor cierre la conexión apenas se abre. Lo que la persona
+   * quiere al apretar Conectar es un QR nuevo y limpio.
+   */
+  async reintentarYa(): Promise<void> {
+    clearTimeout(this.reintento)
+    this.reintento = undefined
+    this.attempt = 0
+    this.stopped = false
+
+    if (this.auth && !this.auth.state.creds.registered) {
+      log.info(
+        { accountId: this.deps.accountId },
+        'credenciales a medio vincular: se descartan y se pide un QR nuevo',
+      )
+      await this.auth.clear()
+      this.auth = undefined
+    }
+
+    try {
+      this.sock?.end(undefined)
+    } catch {
+      /* ya estaba muerto */
+    }
+    this.sock = undefined
+    await this.connect()
+  }
+
   async stop(): Promise<void> {
     this.stopped = true
+    clearTimeout(this.reintento)
+    this.reintento = undefined
+    this.abierta = false
     try {
       this.sock?.end(undefined)
     } catch {
@@ -168,16 +231,19 @@ export class WhatsAppSession {
         },
         // El QR lo publicamos nosotros al panel; no lo queremos en los logs.
         printQRInTerminal: false,
-        // El navegador que decimos ser NO es cosmético: WhatsApp solo manda el
-        // historial completo a un cliente de escritorio. Baileys traduce esto
-        // a `webSubPlatform` y únicamente reconoce 'Mac OS' y 'Windows'
-        // (ver `Utils/validate-connection.js`); diciendo 'Ubuntu' el
-        // `syncFullHistory` de abajo se ignora en silencio y llegan solo los
-        // últimos días. En el teléfono, esto es el nombre que aparece en
-        // Dispositivos vinculados.
-        browser: SYNC_FULL_HISTORY
-          ? Browsers.macOS('Desktop')
-          : Browsers.ubuntu('Chrome'),
+        // NO cambiar esto a 'Mac OS' ni a 'Windows'.
+        //
+        // Es tentador: Baileys manda `webSubPlatform: DARWIN/WIN32` cuando el
+        // navegador es uno de esos dos Y `syncFullHistory` está prendido, y esa
+        // es la única forma de pedirle a WhatsApp el archivo histórico
+        // completo. El problema es que WhatsApp hoy rechaza a los clientes que
+        // dicen ser la aplicación de escritorio: cierra el stream con 428
+        // ANTES de emitir el primer QR, así que el número no se puede vincular.
+        //
+        // Medido el 24/8/2026 contra los servidores reales: 'Mac OS'+Desktop,
+        // 'Windows'+Desktop y 'Mac OS'+Chrome con full sync cerraron con 428 y
+        // cero QR, dos veces cada uno; 'Ubuntu'+Chrome llegó al QR siempre.
+        browser: Browsers.ubuntu('Chrome'),
         logger: log.child({ accountId: this.deps.accountId }),
         // No marcamos en línea al conectar: si no, WhatsApp deja de mandar
         // notificaciones push al celular del cliente y se queja.
@@ -247,11 +313,16 @@ export class WhatsAppSession {
       await this.setStatus('qr_pending', {
         qr: dataUrl,
         qr_expires_at: new Date(Date.now() + QR_TTL_MS),
+        // Hay un QR nuevo esperando: el error del intento anterior ya no
+        // describe nada. Dejarlo puesto muestra "Desconectado (código 408)"
+        // al lado de un código perfectamente escaneable.
+        last_error: null,
       })
     }
 
     if (connection === 'open') {
       this.attempt = 0
+      this.abierta = true
       const jid = this.sock?.user?.id ?? null
       await this.setStatus('connected', {
         external_id: jid,
@@ -266,6 +337,7 @@ export class WhatsAppSession {
     }
 
     if (connection !== 'close') return
+    this.abierta = false
 
     const status = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode
 
@@ -324,16 +396,27 @@ export class WhatsAppSession {
 
   private async scheduleReconnect(status?: number): Promise<void> {
     if (this.stopped) return
-    const delay = Math.min(BACKOFF_BASE_MS * 2 ** this.attempt, BACKOFF_MAX_MS)
+    // Mientras no se vinculó hay alguien mirando la pantalla: el tope es de
+    // segundos, no de minutos. Una vez conectado, el tope largo evita
+    // martillar a WhatsApp durante una caída de red.
+    const tope = this.abierta || this.auth?.state.creds.registered
+      ? BACKOFF_MAX_MS
+      : BACKOFF_VINCULANDO_MAX_MS
+    const delay = Math.min(BACKOFF_BASE_MS * 2 ** this.attempt, tope)
     this.attempt += 1
     await this.setStatus('disconnected', {
-      last_error: `Desconectado (código ${status ?? 'desconocido'}). Reintentando…`,
+      last_error: `Desconectado (código ${status ?? 'desconocido'}). ` +
+        `Reintentando en ${Math.round(delay / 1000)}s…`,
     })
     log.warn(
       { accountId: this.deps.accountId, status, delay, attempt: this.attempt },
       'reconectando',
     )
-    setTimeout(() => void this.connect(), delay)
+    // Uno solo a la vez: sin cancelar el anterior se apilan timers y terminan
+    // abriendo varios sockets con las mismas credenciales, que es justo lo que
+    // hace que WhatsApp cierre la conexión.
+    clearTimeout(this.reintento)
+    this.reintento = setTimeout(() => void this.connect(), delay)
   }
 
   // -------------------------------------------------------------------
