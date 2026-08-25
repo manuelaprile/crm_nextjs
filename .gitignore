@@ -70,8 +70,16 @@ sessions/
 baileys_auth*/
 
 # Archivos subidos por los pacientes.
-uploads/
-media/
+#
+# CON BARRA ADELANTE, y no es un detalle de estilo: sin ella, `media/`
+# coincide con CUALQUIER carpeta llamada media a cualquier profundidad. Se
+# comió `apps/web/src/app/api/media/`, la ruta que sirve los adjuntos en la
+# bandeja. `git add -A` la salteaba en silencio, `git status` no mostraba
+# nada, y en el servidor esa ruta devolvía 404: las fotos no se veían, los
+# audios no sonaban y los PDF no se descargaban, sin un solo error que
+# apuntara al motivo.
+/uploads/
+/media/
 
 
 # ---------------------------------------------------------------------

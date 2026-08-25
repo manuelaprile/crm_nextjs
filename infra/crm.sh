@@ -12,7 +12,8 @@
 #      ./crm.sh borrar ...   dar de baja una cuenta o un usuario
 #      ./crm.sh usuario ...  gestión de usuarios
 #      ./crm.sh estado       qué está corriendo
-#      ./crm.sh logs [srv]   ver los registros
+#      ./crm.sh logs [srv]   ver los registros (termina)
+#      ./crm.sh seguir [srv] seguirlos en vivo (Ctrl+C para salir)
 #      ./crm.sh backup       copia de la base ahora mismo
 #      ./crm.sh db           abrir la consola de PostgreSQL
 #      ./crm.sh sql "..."    correr una consulta suelta
@@ -152,6 +153,19 @@ case "${1:-ayuda}" in
     ;;
 
   logs)
+    # SIN -f por defecto. Con `-f` el comando se queda siguiendo el registro
+    # en vivo y nunca termina: parece colgado, y quien lo corre para copiar un
+    # error se queda mirando una pantalla quieta sin saber que tiene que
+    # cortar con Ctrl+C. Para seguirlo en vivo está `./crm.sh seguir`.
+    if [ -n "$2" ]; then
+      docker compose logs --tail 120 "$2"
+    else
+      docker compose logs --tail 60
+    fi
+    ;;
+
+  seguir)
+    echo "  Siguiendo el registro en vivo. Ctrl+C para salir."
     if [ -n "$2" ]; then
       docker compose logs -f --tail 80 "$2"
     else
