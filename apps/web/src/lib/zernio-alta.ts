@@ -18,6 +18,7 @@ import { sql } from 'drizzle-orm'
 import { requireAdmin } from './auth'
 import { withTenant, withSystem } from './db/client'
 import { profileDeTenant, urlDeConexion, zernioActivo } from './zernio'
+import { cupoDeWhatsApp } from './cupo'
 
 function volver(tipo: 'ok' | 'error', msg: string): never {
   redirect(
@@ -47,24 +48,27 @@ export async function conectarZernio(): Promise<void> {
   }
 
   // El límite del plan se respeta igual que en las otras dos altas.
-  const hayLugar = await withTenant(session, async (tx) => {
+  const cupo = await withTenant(session, async (tx) => {
     const yaEsta = await tx.execute(sql`
       select id from channel_accounts
        where channel = 'whatsapp' and provider = 'zernio' limit 1
     `)
-    if (yaEsta.rows.length) return true
-
-    const limite = await tx.execute(
-      sql`select max_wa_accounts, name from tenants where id = ${session.tenantId}`,
-    )
-    const cuantas = await tx.execute(
-      sql`select count(*)::int as n from channel_accounts where channel = 'whatsapp'`,
-    )
-    const max = Number(limite.rows[0]?.max_wa_accounts ?? 1)
-    return Number(cuantas.rows[0]?.n ?? 0) < max
+    // Reconectar un número que ya está dado de alta no consume un lugar
+    // nuevo: es el mismo.
+    if (yaEsta.rows.length) return null
+    return cupoDeWhatsApp(tx, session.tenantId)
   })
-  if (!hayLugar) {
-    volver('error', 'Alcanzaste el límite de números de tu plan.')
+  if (cupo && !cupo.hayLugar) {
+    // El mensaje tiene que decir QUÉ HACER. "Alcanzaste el límite" a secas,
+    // en una pantalla sin ningún botón para liberar lugar, es un callejón
+    // sin salida — y el caso típico es justamente este: alguien que viene
+    // del QR y quiere pasarse acá.
+    volver(
+      'error',
+      `Tu plan permite ${cupo.max} número(s) y ya tenés ${cupo.usados} en uso. ` +
+        'Si es el número viejo del código QR, tocá «Borrar sesión» en su ' +
+        'tarjeta y volvé a intentar: las conversaciones no se pierden.',
+    )
   }
 
   const nombre = await withSystem(async (tx) => {

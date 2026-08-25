@@ -15,6 +15,7 @@ import { sql } from 'drizzle-orm'
 import { requireAdmin } from './auth'
 import { withTenant, withSystem } from './db/client'
 import { guardarCredenciales } from './cloud'
+import { cupoDeWhatsApp } from './cupo'
 
 function volver(tipo: 'ok' | 'error', msg: string): never {
   redirect(
@@ -64,16 +65,8 @@ export async function conectarCloudApi(formData: FormData): Promise<void> {
     const fila = existente.rows[0] as { id: string } | undefined
     if (fila) return String(fila.id)
 
-    const limite = await tx.execute(
-      sql`select max_wa_accounts from tenants where id = ${session.tenantId}`,
-    )
-    const cuantas = await tx.execute(
-      sql`select count(*)::int as n from channel_accounts where channel = 'whatsapp'`,
-    )
-    const max = Number(limite.rows[0]?.max_wa_accounts ?? 1)
-    if (Number(cuantas.rows[0]?.n ?? 0) >= max) {
-      return null
-    }
+    const cupo = await cupoDeWhatsApp(tx, session.tenantId)
+    if (!cupo.hayLugar) return null
 
     const nueva = await tx.execute(sql`
       insert into channel_accounts (tenant_id, label, provider)

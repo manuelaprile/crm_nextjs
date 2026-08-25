@@ -11,6 +11,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { sql } from 'drizzle-orm'
 import { requireAdmin, requireTenant, logout as endSession } from './auth'
+import { cupoDeWhatsApp } from './cupo'
 import { withTenant } from './db/client'
 import { deliverMessage } from './deliver'
 
@@ -355,14 +356,8 @@ export async function connectWhatsApp(formData: FormData): Promise<void> {
 
   if (!accountId) {
     accountId = await withTenant(session, async (tx) => {
-      const limit = await tx.execute(
-        sql`select max_wa_accounts from tenants where id = ${session.tenantId}`,
-      )
-      const count = await tx.execute(
-        sql`select count(*)::int as n from channel_accounts where channel = 'whatsapp'`,
-      )
-      const max = Number(limit.rows[0]?.max_wa_accounts ?? 1)
-      if (Number(count.rows[0]?.n ?? 0) >= max) {
+      const cupo = await cupoDeWhatsApp(tx, session.tenantId)
+      if (!cupo.hayLugar) {
         throw new Error('Alcanzaste el límite de números de tu plan')
       }
       const res = await tx.execute(sql`
