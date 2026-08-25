@@ -8,6 +8,8 @@ import Link from 'next/link'
 const CADA_MS = 5_000
 /** Cuánto queda el cartelito antes de irse solo. */
 const AVISO_MS = 12_000
+/** Dónde se recuerda el último mensaje avisado, para sobrevivir a un remonte. */
+const CLAVE_VISTO = 'crm:ultimo-aviso'
 
 type Ultimo = {
   id: string
@@ -52,6 +54,18 @@ export function Pulso({
   // respuesta solo la registra, sin refrescar ni avisar, porque la pantalla
   // recién se dibujó y esos mensajes no son nuevos para quien la abrió.
   const ultimaMarca = useRef<string | null>(null)
+  /**
+   * El último mensaje del que ya avisamos.
+   *
+   * Vive en `sessionStorage` y no solo en memoria porque este componente se
+   * vuelve a montar al navegar entre la lista y una conversación. Con la
+   * referencia solo en memoria, cada navegación la dejaba en null, la vuelta
+   * siguiente se trataba como "primera vez" y el aviso no salía — que es
+   * exactamente el síntoma de "la ventanita no aparece".
+   *
+   * `sessionStorage` y no `localStorage`: es de esta pestaña. Otra pestaña
+   * tiene que poder avisar por su cuenta.
+   */
   const ultimoVisto = useRef<string | null>(null)
   const tituloOriginal = useRef<string>('')
   const abierta = useRef(conversacionAbierta)
@@ -59,6 +73,12 @@ export function Pulso({
 
   useEffect(() => {
     tituloOriginal.current = document.title
+    try {
+      ultimoVisto.current = sessionStorage.getItem(CLAVE_VISTO)
+    } catch {
+      // Navegador con el almacenamiento bloqueado: se sigue sin él. El aviso
+      // se pierde al navegar, pero nada más se rompe.
+    }
     let vivo = true
     let timer: ReturnType<typeof setTimeout> | undefined
     let ocultar: ReturnType<typeof setTimeout> | undefined
@@ -85,8 +105,11 @@ export function Pulso({
             // El aviso se dispara por el ID del último entrante, no por la
             // marca: la marca también cambia cuando mandamos nosotros, y
             // avisar de un mensaje propio no tiene ningún sentido.
+            // Ya NO se exige `!primeraVez`: con el id recordado entre montes,
+            // la primera consulta después de navegar sabe perfectamente si el
+            // último entrante es uno del que ya avisamos o no.
             const esNuevo =
-              !primeraVez &&
+              ultimoVisto.current !== null &&
               d.ultimo &&
               d.ultimo.id !== ultimoVisto.current &&
               d.ultimo.conversacionId !== abierta.current
@@ -97,7 +120,14 @@ export function Pulso({
               ocultar = setTimeout(() => setAviso(null), AVISO_MS)
             }
 
-            if (d.ultimo) ultimoVisto.current = d.ultimo.id
+            if (d.ultimo) {
+              ultimoVisto.current = d.ultimo.id
+              try {
+                sessionStorage.setItem(CLAVE_VISTO, d.ultimo.id)
+              } catch {
+                /* sin almacenamiento, queda solo en memoria */
+              }
+            }
             ultimaMarca.current = d.marca
             marcarTitulo(d.sinLeer, d.ultimo, tituloOriginal.current)
           }

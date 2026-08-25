@@ -70,6 +70,19 @@ export async function deliverMessage(
 
   if (!ctx) return { ok: false, error: 'la conversación no existe' }
 
+  /**
+   * Si este envío significa que alguien LEYÓ la conversación.
+   *
+   * Solo cuando contesta una persona. La respuesta automática de la IA no
+   * puede marcar nada como leído: el paciente escribió, el agente contestó a
+   * los tres segundos, y el contador volvía a cero antes de que ningún humano
+   * mirara. En la práctica eso dejaba el aviso de mensajes nuevos muerto
+   * justo en las cuentas que tienen la IA prendida, que son todas.
+   *
+   * Un mensaje del sistema tampoco cuenta: nadie lo leyó.
+   */
+  const leido = input.senderKind === 'operator'
+
   // Primero la fila, después el envío. Si se cae el proceso justo en el medio,
   // queda una fila `pending` visible — que es infinitamente mejor que un
   // mensaje entregado del que no queda rastro.
@@ -101,7 +114,9 @@ export async function deliverMessage(
     )
     await withSystem((tx) =>
       tx.execute(sql`
-        update conversations set last_message_at = now(), unread_count = 0
+        update conversations
+           set last_message_at = now(),
+               unread_count = case when ${leido} then 0 else unread_count end
          where id = ${ctx.id}
       `),
     )
@@ -144,7 +159,9 @@ export async function deliverMessage(
     )
     await withSystem((tx) =>
       tx.execute(sql`
-        update conversations set last_message_at = now(), unread_count = 0
+        update conversations
+           set last_message_at = now(),
+               unread_count = case when ${leido} then 0 else unread_count end
          where id = ${ctx.id}
       `),
     )
@@ -185,7 +202,9 @@ export async function deliverMessage(
     )
     await withSystem((tx) =>
       tx.execute(sql`
-        update conversations set last_message_at = now(), unread_count = 0
+        update conversations
+           set last_message_at = now(),
+               unread_count = case when ${leido} then 0 else unread_count end
          where id = ${ctx.id}
       `),
     )
@@ -221,7 +240,9 @@ export async function deliverMessage(
 
   await withSystem((tx) =>
     tx.execute(sql`
-      update conversations set last_message_at = now(), unread_count = 0
+      update conversations
+           set last_message_at = now(),
+               unread_count = case when ${leido} then 0 else unread_count end
        where id = ${ctx.id}
     `),
   )
