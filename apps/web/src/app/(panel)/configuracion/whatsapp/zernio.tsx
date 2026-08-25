@@ -36,9 +36,9 @@ export function CanalZernio({
             )}
           </h3>
           <p className="tiny muted" style={{ marginTop: 3 }}>
-            La vía oficial de Meta. El número no se puede bloquear por usar una
-            conexión no autorizada, y <strong>sigue funcionando en el
-            celular</strong> {delRubro(etiqueta)} como siempre.
+            La vía oficial de Meta: el número no se puede bloquear por usar
+            una conexión no autorizada. Se conecta desde una ventana de
+            Facebook, sin ningún código que escanear.
           </p>
         </div>
       </div>
@@ -51,15 +51,7 @@ export function CanalZernio({
               entran solos en la bandeja.
             </span>
           </div>
-        ) : (
-          <div className="alert alert-gray" style={{ marginBottom: 14 }}>
-            <span>
-              Al apretar el botón se abre una ventana de Facebook para elegir la
-              cuenta de WhatsApp Business. Son dos o tres pantallas y vuelve
-              solo. No hay ningún código que escanear.
-            </span>
-          </div>
-        )}
+        ) : null}
 
         {!disponible && (
           <div className="alert alert-amber" style={{ marginBottom: 14 }}>
@@ -68,48 +60,88 @@ export function CanalZernio({
           </div>
         )}
 
-        <form action={conectarZernio} style={{ display: 'grid', gap: 10 }}>
-          <div>
+        {/*
+          Los dos caminos, a la vista y con el REQUISITO adelante.
+
+          Antes el botón decía "Conectar WhatsApp" a secas y el requisito
+          —que el número ya tenga WhatsApp Business— estaba escondido adentro
+          de un desplegable y redactado al revés. El resultado es que se
+          elige mal, y elegir mal no da un error claro: Meta contesta "este
+          número ya está registrado" o falla creando el perfil, y desde
+          afuera parece que el sistema está roto.
+
+          La pregunta ordena la decisión: qué hay HOY en el celular.
+        */}
+        <p style={{ marginTop: 0, marginBottom: 12, fontWeight: 600 }}>
+          ¿El número que querés conectar ya tiene WhatsApp Business en el
+          celular?
+        </p>
+
+        <form
+          action={conectarZernio}
+          style={{ display: 'grid', gap: 14, gridTemplateColumns: '1fr' }}
+        >
+          <div
+            style={{
+              border: '1px solid var(--c-border)',
+              borderRadius: 'var(--r-md)',
+              padding: 14,
+            }}
+          >
+            <p style={{ marginTop: 0, marginBottom: 4, fontWeight: 600 }}>
+              Sí, está en WhatsApp Business
+            </p>
+            <p className="tiny muted" style={{ marginTop: 0, marginBottom: 10 }}>
+              <strong>Recomendado.</strong> El número{' '}
+              <strong>sigue funcionando en el celular</strong> como siempre, y
+              además los mensajes entran acá. El código de verificación llega{' '}
+              <strong>adentro de la app de WhatsApp Business</strong>, no por
+              SMS.
+            </p>
             <button
               type="submit"
               name="modo"
               value="coexistencia"
-              className="btn btn-primary"
+              className="btn btn-primary btn-sm"
               disabled={!disponible}
             >
-              {cuenta ? 'Conectar otro número' : 'Conectar WhatsApp'}
+              Conectar conservando la app
             </button>
           </div>
 
-          {/*
-            La salida para el número que NO está en WhatsApp Business.
-            Sin esto, Meta responde "este número ya está registrado,
-            desvinculalo primero" y no queda ningún camino: la convivencia
-            exige una app a la que engancharse.
-          */}
-          <details>
-            <summary className="tiny muted" style={{ cursor: 'pointer' }}>
-              El número no está en WhatsApp Business
-            </summary>
-            <div style={{ marginTop: 10 }}>
-              <p className="tiny muted" style={{ marginBottom: 8 }}>
-                Para una línea dedicada, sin WhatsApp en el celular. El número
-                queda funcionando <strong>solo dentro del CRM</strong>: deja de
-                andar en la aplicación del teléfono, y para dar de alta uno que
-                hoy tiene WhatsApp hay que borrar esa cuenta primero.
-              </p>
-              <button
-                type="submit"
-                name="modo"
-                value="api"
-                className="btn btn-ghost btn-sm"
-                disabled={!disponible}
-              >
-                Conectar como línea dedicada
-              </button>
-            </div>
-          </details>
+          <div
+            style={{
+              border: '1px solid var(--c-border)',
+              borderRadius: 'var(--r-md)',
+              padding: 14,
+            }}
+          >
+            <p style={{ marginTop: 0, marginBottom: 4, fontWeight: 600 }}>
+              No, es una línea sin WhatsApp
+            </p>
+            <p className="tiny muted" style={{ marginTop: 0, marginBottom: 10 }}>
+              Para un número dedicado {delRubro(etiqueta)}. Queda funcionando{' '}
+              <strong>solo dentro del CRM</strong>: no se va a poder usar desde
+              la aplicación del teléfono. Si ese número hoy tiene WhatsApp, hay
+              que borrar esa cuenta primero. El código llega por SMS o llamada.
+            </p>
+            <button
+              type="submit"
+              name="modo"
+              value="api"
+              className="btn btn-ghost btn-sm"
+              disabled={!disponible}
+            >
+              Conectar como línea dedicada
+            </button>
+          </div>
         </form>
+
+        <p className="tiny muted" style={{ marginTop: 12 }}>
+          Elegir la opción equivocada no avisa claro: Meta responde que el
+          número ya está registrado, o falla al crear el perfil. Si te pasa,
+          revisá primero cuál de las dos corresponde.
+        </p>
       </div>
     </div>
   )
