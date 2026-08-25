@@ -206,22 +206,6 @@ export default async function SuperadminPage({
             href={link}
           />
         </div>
-
-        <div className="alert alert-gray" style={{ marginTop: 16 }}>
-          <span>
-            Esta pantalla muestra solo números agregados: ningún nombre de
-            paciente, ningún mensaje. <strong>«Entrar»</strong> te lleva
-            adentro de una cuenta para dar soporte, y{' '}
-            <strong>queda registrado en la auditoría</strong> con tu usuario y
-            la fecha. Mientras estés adentro vas a ver un aviso permanente.
-            <br />
-            <br />
-            <strong>Suspender</strong> corta el acceso al panel y la entrada de
-            mensajes, sin borrar nada: se reactiva cuando quieras.{' '}
-            <strong>Eliminar</strong> (en «⋯») borra la cuenta y todos sus
-            datos, y eso no se puede deshacer.
-          </span>
-        </div>
       </div>
     </>
   )

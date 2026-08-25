@@ -188,22 +188,10 @@ export default async function UsuariosPlataformaPage({
           />
         </div>
 
-        <div className="alert alert-gray" style={{ marginTop: 16 }}>
-          <span>
-            <strong>Quitar</strong> saca al usuario de esa cuenta y le cierra
-            la sesión, pero el usuario sigue existiendo y puede estar en otras.{' '}
-            <strong>Quitar el acceso</strong> le impide entrar a todo el
-            sistema sin borrar nada, y se devuelve cuando quieras.{' '}
-            <strong>Eliminar</strong> lo borra para siempre y deja sin autor
-            las acciones que esa persona hizo en la auditoría — por eso casi
-            siempre conviene quitarle el acceso en vez de eliminarlo.
-            <br />
-            <br />
-            Para <strong>asignar</strong> un usuario a una cuenta, entrá a esa
-            cuenta y usá Configuración → Usuarios: el alta necesita elegir el
-            rol y quién lo hace queda registrado ahí.
-          </span>
-        </div>
+        <p className="tiny muted" style={{ marginTop: 12 }}>
+          Para <strong>asignar</strong> un usuario a una cuenta, entrá a esa
+          cuenta y usá Configuración → Usuarios: el alta necesita elegir el rol.
+        </p>
       </div>
     </>
   )
