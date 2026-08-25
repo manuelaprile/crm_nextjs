@@ -63,6 +63,22 @@ const SEND_MIN_MS = 3_000
 const SEND_MAX_MS = 8_000
 
 /**
+ * Cuánto "escribimos" antes de mandar, y el aviso de que estamos escribiendo.
+ *
+ * No es cosmético. Un cliente de WhatsApp Web real avisa que está escribiendo
+ * antes de cada mensaje; el nuestro no avisaba nunca y contestaba siempre
+ * entre 3 y 8 segundos, a cualquier hora, con cualquier largo de texto. Eso
+ * es un patrón, y los patrones son lo que se detecta.
+ *
+ * El tiempo sale del largo del texto —escribir dos párrafos lleva más que
+ * escribir "dale"—, con un piso y un techo para que nadie espere medio minuto
+ * por una respuesta.
+ */
+const TIPEO_MS_POR_CARACTER = 45
+const TIPEO_MIN_MS = 1_200
+const TIPEO_MAX_MS = 9_000
+
+/**
  * Pedirle a WhatsApp el ARCHIVO COMPLETO de conversaciones, al vincular.
  *
  * Apagado por defecto, y a propósito. Prendido, Baileys agrega
@@ -771,6 +787,21 @@ export class WhatsAppSession {
         }
 
         try {
+          // Avisar que estamos escribiendo, y tardar en escribir lo que
+          // tardaría alguien. Si esto falla no se cancela el envío: es
+          // camuflaje, no parte del mensaje.
+          await this.tipear(job.to, job.text)
+          // El "escribiendo…" abre una ventana de varios segundos más, y la
+          // sesión se puede caer justo ahí. Sin este segundo chequeo volvía a
+          // pasar lo de arriba: `sendMessage` sobre un socket muerto devuelve
+          // undefined sin lanzar, y el mensaje quedaba marcado como enviado.
+          if (!this.sock || !this.abierta) {
+            await this.marcarFallado(
+              job.messageId,
+              'WhatsApp se desconectó antes de poder enviarlo',
+            )
+            continue
+          }
           const sent = await this.sock.sendMessage(job.to, { text: job.text })
           this.lastSentAt = Date.now()
           await this.deps.pool.query(
@@ -825,6 +856,28 @@ export class WhatsAppSession {
       `update messages set status = 'failed', error = $2 where id = $1`,
       [messageId, motivo.slice(0, 500)],
     )
+  }
+
+  /**
+   * El "escribiendo…" que ve el contacto, durante un rato verosímil.
+   *
+   * Cualquier error se traga a propósito: que no se pueda publicar la
+   * presencia no es motivo para no mandar la respuesta. Y el `paused` del
+   * final importa — sin él el contacto queda viendo "escribiendo…" pegado
+   * debajo de un mensaje que ya llegó.
+   */
+  private async tipear(to: string, texto: string): Promise<void> {
+    const ms = Math.min(
+      TIPEO_MAX_MS,
+      Math.max(TIPEO_MIN_MS, texto.length * TIPEO_MS_POR_CARACTER),
+    )
+    try {
+      await this.sock?.sendPresenceUpdate('composing', to)
+      await sleep(ms)
+      await this.sock?.sendPresenceUpdate('paused', to)
+    } catch (err) {
+      log.debug({ err, to }, 'no se pudo publicar la presencia')
+    }
   }
 
   private nextDelay(): number {
