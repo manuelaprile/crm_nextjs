@@ -100,6 +100,23 @@ const HISTORIAL_LIVIANO = new Set([
 const HISTORY_CHUNK = 200
 
 /**
+ * Cuándo arrancó el proceso. Al diagnosticar un cierre importa saber si el
+ * worker se acababa de reiniciar: una sesión restaurada desde Postgres con
+ * credenciales que quedaron atrás muere distinto que una que venía andando.
+ */
+const ARRANQUE = Date.now()
+
+/** Una duración en algo que se pueda leer de un vistazo en el log. */
+function humano(ms: number): string {
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.round(s / 60)
+  if (m < 60) return `${m}min`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}min`
+}
+
+/**
  * La versión de WhatsApp Web que decimos ser.
  *
  * Baileys trae una escrita en el código, y esa versión envejece: la librería
@@ -154,6 +171,14 @@ export class WhatsAppSession {
   private reintento?: ReturnType<typeof setTimeout>
   /** Si el socket llegó a abrirse alguna vez. Cambia el tope del backoff. */
   private abierta = false
+  /**
+   * Cuándo se abrió la conexión actual, y cuántas veces se abrió desde que
+   * arrancó el proceso. Solo para el diagnóstico del cierre: saber si una
+   * sesión murió a los 40 segundos o a las 9 horas cambia por completo la
+   * explicación, y sin esto hay que adivinar.
+   */
+  private abiertaDesde?: number
+  private aperturas = 0
   /**
    * Cola de escrituras de credenciales. Baileys emite `creds.update` varias
    * veces durante el pairing y cada una tiene que pisar a la anterior EN
@@ -405,6 +430,8 @@ export class WhatsAppSession {
     if (connection === 'open') {
       this.attempt = 0
       this.abierta = true
+      this.abiertaDesde = Date.now()
+      this.aperturas += 1
       const jid = this.sock?.user?.id ?? null
       await this.setStatus('connected', {
         external_id: jid,
@@ -420,18 +447,54 @@ export class WhatsAppSession {
 
     if (connection !== 'close') return
     this.abierta = false
+    const duroMs = this.abiertaDesde ? Date.now() - this.abiertaDesde : undefined
+    this.abiertaDesde = undefined
 
     const status = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode
 
-    // loggedOut: el cliente cerró sesión desde el celular. Reintentar es inútil
-    // y encima sospechoso. Hay que avisarle que vuelva a escanear.
+    // Una línea por cierre, SIEMPRE, antes de decidir qué hacer con él. Las
+    // ramas de abajo cada una loguea lo suyo o no loguea nada; sin esto no hay
+    // forma de reconstruir después la vida de una sesión.
+    log.info(
+      {
+        accountId: this.deps.accountId,
+        status,
+        duro: duroMs !== undefined ? humano(duroMs) : 'no había abierto',
+        aperturas: this.aperturas,
+      },
+      'se cerró la conexión',
+    )
+
+    // loggedOut: WhatsApp revocó el dispositivo. Reintentar es inútil y encima
+    // sospechoso. Hay que avisarle que vuelva a escanear.
     if (status === DisconnectReason.loggedOut) {
+      // Este cierre es el único irreversible que no depende de nosotros, y
+      // hasta ahora era también el único que no dejaba rastro: se borraban
+      // las credenciales y no quedaba NADA para saber por qué. Cuánto duró la
+      // sesión es el dato que separa las dos explicaciones posibles —
+      // credenciales que nunca terminaron de negociarse (muere en segundos)
+      // de una revocación del lado de WhatsApp (muere después de horas).
+      log.error(
+        {
+          accountId: this.deps.accountId,
+          duroMs,
+          duro: duroMs !== undefined ? humano(duroMs) : 'nunca llegó a abrir',
+          aperturas: this.aperturas,
+          registered: this.auth?.state.creds.registered ?? null,
+          desdeElArranque: humano(Date.now() - ARRANQUE),
+          motivo: lastDisconnect?.error?.message ?? null,
+        },
+        'WhatsApp cerró la sesión (401): el dispositivo quedó desvinculado',
+      )
       await this.auth?.clear()
       this.auth = undefined
       await this.setStatus('logged_out', {
         external_id: null,
         qr: null,
-        last_error: 'La sesión se cerró desde el teléfono. Hay que escanear de nuevo.',
+        last_error:
+          'WhatsApp desvinculó este dispositivo' +
+          (duroMs !== undefined ? ` después de ${humano(duroMs)} conectado` : '') +
+          '. Hay que escanear de nuevo.',
       })
       this.stopped = true
       return
