@@ -244,6 +244,7 @@ export type EntranteZernio = {
   texto: string | null
   tipo: string
   enviadoEn: string | null
+  adjuntos: { kind: string; url: string; mime?: string | null; filename?: string | null }[]
 }
 
 /**
@@ -326,7 +327,32 @@ export function traducirEntrante(cuerpo: unknown): EntranteZernio | null {
     texto: p.message?.text ?? null,
     tipo: tipoDe(p),
     enviadoEn: p.message?.sentAt ?? null,
+    adjuntos: (p.message?.attachments ?? [])
+      .filter((a): a is { type?: string; url: string } => Boolean(a?.url))
+      .map((a) => ({
+        kind: normalizarTipo(a.type),
+        url: a.url,
+        mime: null,
+        filename: null,
+      })),
   }
+}
+
+/** Los tipos que manda Zernio, mapeados a los nuestros. */
+function normalizarTipo(t: string | undefined): string {
+  const v = (t ?? '').toLowerCase()
+  if (v === 'image' || v === 'video' || v === 'audio' || v === 'sticker') return v
+  return 'document'
+}
+
+/**
+ * Cabeceras para bajar un adjunto de WhatsApp desde Zernio.
+ *
+ * Su endpoint de medios es AUTENTICADO: sin el bearer devuelve 401. No es un
+ * link público como el de Instagram o Telegram.
+ */
+export function cabecerasDeDescarga(): Record<string, string> {
+  return { authorization: `Bearer ${API_KEY}` }
 }
 
 function tipoDe(p: WebhookZernio): string {

@@ -10,7 +10,15 @@
  * repetido nos dejaría sin mensajes y sin aviso.
  */
 import { NextResponse } from 'next/server'
-import { cuentaPorId, firmaValida, payloadDe, traducirEntrante } from '@/lib/zernio'
+import {
+  cabecerasDeDescarga,
+  cuentaPorId,
+  firmaValida,
+  payloadDe,
+  traducirEntrante,
+} from '@/lib/zernio'
+import { guardarAdjunto } from '@/lib/media'
+import { mensajePorExternalId } from '@/lib/media-ingesta'
 import { procesarEntrante } from '@/lib/ingest'
 
 export const dynamic = 'force-dynamic'
@@ -45,7 +53,23 @@ export async function POST(req: Request) {
       console.error('[zernio] cuenta desconocida', entrante.cuentaZernio)
       return NextResponse.json({ ok: true, ignorado: true })
     }
-    await procesarEntrante(payloadDe(cuenta, entrante), 'zernio')
+    const res = await procesarEntrante(payloadDe(cuenta, entrante), 'zernio')
+
+    // Los adjuntos se bajan YA, no cuando alguien abra la conversación.
+    // WhatsApp los borra de sus servidores a los pocos días y después el
+    // endpoint responde 400 para siempre: el archivo es irrecuperable.
+    if (res.estado === 'ok' && entrante.adjuntos.length) {
+      const messageId = await mensajePorExternalId(entrante.mensajeId)
+      if (messageId) {
+        for (const a of entrante.adjuntos) {
+          await guardarAdjunto({
+            tenantId: cuenta.tenantId,
+            messageId,
+            adjunto: { ...a, headers: cabecerasDeDescarga() },
+          })
+        }
+      }
+    }
   } catch (err) {
     console.error('[zernio] error procesando el mensaje', err)
   }

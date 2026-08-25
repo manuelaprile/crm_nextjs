@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireTenant } from '@/lib/auth'
 import { getConversation, getContact, getStages } from '@/lib/queries'
+import { adjuntosDe } from '@/lib/media'
+import { AdjuntoEnMensaje } from './adjunto'
 import { sendReply, toggleAi, setStage, addNote } from '@/lib/actions'
 import { IconSend } from '@/components/icons'
 import { ListaConversaciones, iniciales } from '../lista'
@@ -40,6 +42,10 @@ export default async function ChatPage({
   const desconectado = conversation.accountStatus !== 'connected'
   const nombre =
     conversation.participantName ?? conversation.participantPhone ?? 'Sin nombre'
+  // Una sola consulta para todos los adjuntos de la conversación: uno por
+  // mensaje sería una consulta por burbuja.
+  const adjuntos = await adjuntosDe(conversation.messages.map((m) => m.id))
+
   const entrantes = conversation.messages.filter((m) => m.direction === 'inbound')
 
   return (
@@ -99,9 +105,16 @@ export default async function ChatPage({
             )}
             {conversation.messages.map((m) => {
               const propio = m.direction === 'outbound'
-              return (
+                const suyos = adjuntos.get(m.id) ?? []
+                return (
                 <div key={m.id} className={`bub ${propio ? 'bub-out' : 'bub-in'}`}>
-                  {m.body ?? <em style={{ opacity: 0.7 }}>[{m.type}]</em>}
+                  {m.body ??
+                    (suyos.length ? null : (
+                      <em style={{ opacity: 0.7 }}>[{m.type}]</em>
+                    ))}
+                  {suyos.map((a) => (
+                    <AdjuntoEnMensaje key={a.id} a={a} cuerpo={m.body} />
+                  ))}
                   <div className="t">
                     {new Date(m.createdAt).toLocaleTimeString('es-AR', {
                       hour: '2-digit',
