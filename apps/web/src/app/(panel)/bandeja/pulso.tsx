@@ -136,38 +136,10 @@ export function Pulso({
     <Link
       href={`/bandeja/${aviso.conversacionId}`}
       onClick={() => setAviso(null)}
-      style={{
-        position: 'fixed',
-        right: 18,
-        bottom: 18,
-        zIndex: 60,
-        maxWidth: 340,
-        display: 'block',
-        textDecoration: 'none',
-        color: 'inherit',
-        background: 'var(--c-bg)',
-        border: '1px solid var(--c-border)',
-        borderLeft: '3px solid var(--c-primary)',
-        borderRadius: 'var(--r-md)',
-        padding: '12px 14px',
-        boxShadow: '0 10px 30px rgb(0 0 0 / 0.18)',
-      }}
+      className="aviso"
     >
-      <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 3 }}>
-        Nuevo mensaje de {aviso.quien}
-      </div>
-      <div
-        className="tiny muted"
-        style={{
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-        }}
-      >
-        {aviso.texto}
-      </div>
+      <div className="aviso-quien">{aviso.quien}</div>
+      <div className="aviso-texto">{aviso.texto}</div>
     </Link>
   )
 }

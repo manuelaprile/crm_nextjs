@@ -245,9 +245,11 @@ export type Adjunto = {
 /**
  * Los adjuntos de una tanda de mensajes, para pintarlos en la conversación.
  *
- * Los ids van PARAMETRIZADOS, no interpolados. Hoy salen de nuestra propia
- * consulta, pero armar el array a mano dentro de un sql.raw es una inyección
- * esperando a que alguien reuse la función con otra fuente.
+ * Cada id va como su propio parámetro. Pasar el array de JavaScript entero NO
+ * funciona: Drizzle lo liga como tupla y Postgres responde "cannot cast type
+ * record to uuid[]" — que es exactamente el 500 que rompía la conversación en
+ * cuanto tenía un adjunto. Y armarlo a mano con sql.raw sería una inyección
+ * esperando a que alguien reuse esto con otra fuente.
  */
 export async function adjuntosDe(
   messageIds: string[],
@@ -260,7 +262,10 @@ export async function adjuntosDe(
       select id, message_id, kind, mime, filename, size_bytes, transcript,
              error, (bytes is not null) as hay_archivo
         from message_media
-       where message_id = any(${messageIds}::uuid[])
+       where message_id in (${sql.join(
+         messageIds.map((m) => sql`${m}::uuid`),
+         sql`, `,
+       )})
        order by created_at
     `)
     return res.rows as Record<string, unknown>[]
