@@ -120,6 +120,15 @@ svg {
 .btn-ghost:hover {
   background: var(--c-surface);
 }
+/* Acciones destructivas e irreversibles. Escasa a propósito: si todo lo
+   peligroso es rojo, el rojo deja de querer decir nada. */
+.btn-danger {
+  background: var(--c-danger);
+  color: #fff;
+}
+.btn-danger:hover {
+  filter: brightness(0.92);
+}
 .btn-accent {
   background: var(--c-accent);
   color: #fff;

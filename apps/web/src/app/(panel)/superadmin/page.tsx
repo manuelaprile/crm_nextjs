@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { listarCuentas, entrarACuenta } from '@/lib/usuarios'
+import { listarCuentas } from '@/lib/usuarios'
+import { AccionesCuenta } from './acciones'
 import { IconSearch } from '@/components/icons'
 import { Paginacion } from '@/components/paginacion'
 
@@ -78,6 +79,14 @@ export default async function SuperadminPage({
             <div className="lbl">Activas</div>
             <div className="val mono">
               {cuentas.filter((c) => c.status === 'active').length}
+            </div>
+          </div>
+          <div className="stat">
+            <div className="lbl">Suspendidas</div>
+            <div className="val mono">
+              {cuentas.filter(
+                (c) => c.status === 'suspended' || c.status === 'cancelled',
+              ).length}
             </div>
           </div>
           <div className="stat">
@@ -174,13 +183,11 @@ export default async function SuperadminPage({
                       >
                         {gasto.toFixed(2)} / {tope.toFixed(0)}
                       </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <form action={entrarACuenta}>
-                          <input type="hidden" name="tenantId" value={c.id} />
-                          <button type="submit" className="btn btn-ghost btn-sm">
-                            Entrar
-                          </button>
-                        </form>
+                      <td style={{ textAlign: 'right', position: 'relative' }}>
+                        <AccionesCuenta
+                          cuenta={c}
+                          adentro={session.tenantId === c.id}
+                        />
                       </td>
                     </tr>
                   )
@@ -204,6 +211,12 @@ export default async function SuperadminPage({
             adentro de una cuenta para dar soporte, y{' '}
             <strong>queda registrado en la auditoría</strong> con tu usuario y
             la fecha. Mientras estés adentro vas a ver un aviso permanente.
+            <br />
+            <br />
+            <strong>Suspender</strong> corta el acceso al panel y la entrada de
+            mensajes, sin borrar nada: se reactiva cuando quieras.{' '}
+            <strong>Eliminar</strong> (en «⋯») borra la cuenta y todos sus
+            datos, y eso no se puede deshacer.
           </span>
         </div>
       </div>
