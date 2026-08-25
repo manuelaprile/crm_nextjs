@@ -8,7 +8,6 @@ import { sendReply, toggleAi, setStage, addNote } from '@/lib/actions'
 import { IconSend } from '@/components/icons'
 import { ListaConversaciones, iniciales } from '../lista'
 import { AlFinal } from './al-final'
-import { Pulso } from '../pulso'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,7 +49,6 @@ export default async function ChatPage({
 
   return (
     <>
-      <Pulso conversacionAbierta={conversation.id} />
       <div className="topnav">
         <h2>Bandeja</h2>
       </div>

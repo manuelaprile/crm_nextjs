@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { signOut } from '@/lib/actions'
 import { CambiarCuenta } from './cambiar-cuenta'
+import { useSinLeer } from './pulso-provider'
 import {
   IconInbox,
   IconUsers,
@@ -60,6 +61,18 @@ export function Sidebar({
   const pathname = usePathname()
   const [abierto, setAbierto] = useState(false)
 
+  /**
+   * El número de sin leer, en vivo.
+   *
+   * `unread` es lo que calculó el servidor al pintar la página, y sirve para
+   * el primer instante: sin él el numerito parpadearía en cero hasta que
+   * llegue el primer latido. Después manda el latido, que es el único que se
+   * entera cuando entra un mensaje o cuando se lee una conversación sin
+   * recargar nada.
+   */
+  const enVivo = useSinLeer()
+  const noLeidos = enVivo ?? unread
+
   const grupos: { grp: string; items: Item[] }[] = []
 
   // Las secciones de una cuenta solo tienen sentido si hay una.
@@ -68,7 +81,7 @@ export function Sidebar({
       {
         grp: 'Atención',
         items: [
-          { href: '/bandeja', label: 'Bandeja', icon: <IconInbox />, badge: unread },
+          { href: '/bandeja', label: 'Bandeja', icon: <IconInbox />, badge: noLeidos },
           { href: '/contactos', label: 'Contactos', icon: <IconUsers /> },
         ],
       },

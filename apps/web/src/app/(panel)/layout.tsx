@@ -7,6 +7,7 @@ import { misCuentas, volverAPlataforma } from '@/lib/usuarios'
 import { etiquetaDe } from '@/lib/etiquetas'
 import { getLogoVersion } from '@/lib/comercio'
 import { Sidebar } from './sidebar'
+import { PulsoProvider } from './pulso-provider'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,6 +90,14 @@ export default async function PanelLayout({
     !propias.some((c) => c.id === session.tenantId)
 
   return (
+    /**
+     * El latido envuelve TODO el panel, no la bandeja.
+     *
+     * Así no se desmonta al navegar —que era lo que perdía el estado del
+     * aviso— y el número de sin leer del menú puede actualizarse en vivo sin
+     * depender de que el layout se vuelva a renderizar en el servidor.
+     */
+    <PulsoProvider sinLeerInicial={unread}>
     <div id="panel">
       <Sidebar
         tenantName={session.tenantName ?? 'Plataforma'}
@@ -124,5 +133,6 @@ export default async function PanelLayout({
         {children}
       </div>
     </div>
+    </PulsoProvider>
   )
 }

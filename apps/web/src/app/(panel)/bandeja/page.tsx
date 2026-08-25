@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { requireTenant } from '@/lib/auth'
 import { etiquetaDe, delRubro } from '@/lib/etiquetas'
 import { ListaConversaciones } from './lista'
-import { Pulso } from './pulso'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +23,6 @@ export default async function BandejaPage({
 
   return (
     <>
-      <Pulso />
       <div className="topnav">
         <h2>Bandeja</h2>
       </div>
