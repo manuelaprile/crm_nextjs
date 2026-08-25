@@ -11,6 +11,7 @@
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  fetchLatestBaileysVersion,
   isLidUser,
   jidNormalizedUser,
   makeCacheableSignalKeyStore,
@@ -80,6 +81,33 @@ const SYNC_FULL_HISTORY = process.env.WA_SYNC_FULL_HISTORY !== 'false'
  * timeout y se pierde el lote completo.
  */
 const HISTORY_CHUNK = 200
+
+/**
+ * La versión de WhatsApp Web que decimos ser.
+ *
+ * Baileys trae una escrita en el código, y esa versión envejece: la librería
+ * está clavada en el `package.json` y WhatsApp saca versiones nuevas todo el
+ * tiempo. Un cliente que dice ser una versión de hace seis meses es una
+ * anomalía fácil de marcar, y a veces directamente lo rechazan.
+ *
+ * Se averigua una sola vez por proceso. Si no se puede (sin salida a internet
+ * hacia GitHub, por ejemplo) se usa la que trae la librería: es peor, pero
+ * quedarse sin conectar por esto sería absurdo.
+ */
+let versionCache: [number, number, number] | undefined
+
+async function versionDeWhatsApp(): Promise<[number, number, number] | undefined> {
+  if (versionCache) return versionCache
+  try {
+    const { version } = await fetchLatestBaileysVersion()
+    versionCache = version
+    log.info({ version }, 'versión de WhatsApp Web')
+    return version
+  } catch (err) {
+    log.warn({ err }, 'no se pudo averiguar la versión de WhatsApp Web')
+    return undefined
+  }
+}
 
 export type OutboundJob = {
   to: string
@@ -233,7 +261,10 @@ export class WhatsAppSession {
 
       await this.setStatus('connecting')
 
+      const version = await versionDeWhatsApp()
+
       this.sock = makeWASocket({
+        ...(version ? { version } : {}),
         auth: {
           creds: this.auth.state.creds,
           // El cache de claves de firma baja muchísimo las lecturas a Postgres
