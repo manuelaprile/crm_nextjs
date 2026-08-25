@@ -54,6 +54,12 @@ services:
       META_APP_SECRET: ${META_APP_SECRET:-}
       META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
       META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v25.0}
+      # Zernio: el canal oficial a través de un socio ya aprobado por Meta.
+      # La clave es NUESTRA y vale para todos los clientes; el aislamiento
+      # entre ellos lo da el profile, no la clave. Vacía = el botón queda
+      # deshabilitado y no se acepta ningún webhook.
+      ZERNIO_API_KEY: ${ZERNIO_API_KEY:-}
+      ZERNIO_WEBHOOK_SECRET: ${ZERNIO_WEBHOOK_SECRET:-}
       # NO fijar APP_BASE_URL: el host sale del request. Una URL mal puesta
       # hace que nada conteste, sin un solo error visible.
     depends_on:

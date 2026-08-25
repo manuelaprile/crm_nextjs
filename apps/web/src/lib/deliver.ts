@@ -19,6 +19,7 @@ import 'server-only'
 import { sql } from 'drizzle-orm'
 import { withSystem } from './db/client'
 import { enviarPorCloud } from './cloud'
+import { enviarPorZernio } from './zernio'
 
 const WORKER_URL = process.env.WORKER_URL ?? 'http://wa-worker:4000'
 const WORKER_SECRET = process.env.WORKER_SECRET ?? ''
@@ -47,7 +48,7 @@ export async function deliverMessage(
     const res = await tx.execute(sql`
       select c.id, c.tenant_id, c.channel, c.provider, c.external_id,
              c.account_id, ca.status as account_status,
-             ca.external_id as account_external_id
+             ca.external_id as account_external_id, c.metadata
         from conversations c
         join channel_accounts ca on ca.id = c.account_id
        where c.id = ${input.conversationId}
@@ -62,6 +63,7 @@ export async function deliverMessage(
           account_id: string
           account_status: string
           account_external_id: string | null
+          metadata: Record<string, unknown> | null
         }
       | undefined
   })
@@ -137,6 +139,47 @@ export async function deliverMessage(
       tx.execute(sql`
         update messages
            set status = 'sent', sent_at = now(), external_id = ${envio.externalId}
+         where id = ${messageId}
+      `),
+    )
+    await withSystem((tx) =>
+      tx.execute(sql`
+        update conversations set last_message_at = now(), unread_count = 0
+         where id = ${ctx.id}
+      `),
+    )
+    return { ok: true, messageId }
+  }
+
+  // ---- Zernio --------------------------------------------------------
+  // Tampoco pasa por el worker: es un POST a su API que devuelve el id en el
+  // acto. Se direcciona por el id de conversación de ELLOS, no por el JID:
+  // ese id se guardó en la metadata cuando entró el primer mensaje.
+  if (ctx.provider === 'zernio') {
+    const hilo = (ctx.metadata as { zernioConversationId?: string } | null)
+      ?.zernioConversationId
+    if (!hilo || !ctx.account_external_id) {
+      const falta = 'No se sabe por qué hilo contestar. Esperá a que el paciente escriba.'
+      await markFailed(messageId, falta)
+      return { ok: false, error: falta, messageId }
+    }
+
+    const envio = await enviarPorZernio({
+      conversacionZernio: hilo,
+      cuentaZernio: ctx.account_external_id,
+      texto: text,
+      messageId,
+    })
+
+    if (!envio.ok) {
+      await markFailed(messageId, envio.error)
+      return { ok: false, error: envio.error, messageId }
+    }
+
+    await withSystem((tx) =>
+      tx.execute(sql`
+        update messages
+           set status = 'sent', sent_at = now(), external_id = ${envio.data}
          where id = ${messageId}
       `),
     )

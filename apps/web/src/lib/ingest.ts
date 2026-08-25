@@ -19,6 +19,14 @@ export type InboundPayload = {
   accountId: string
   accountJid: string | null
   message: WaMessage
+  /**
+   * Datos del proveedor que hay que recordar para poder CONTESTAR.
+   *
+   * Zernio no direcciona por JID: para responder hace falta el id de
+   * conversación que ellos asignaron. Sin esto se puede recibir pero no
+   * contestar, que es la peor mitad.
+   */
+  metadata?: Record<string, unknown>
 }
 
 export type WaMessage = {
@@ -85,7 +93,7 @@ export async function procesarEntrante(
    * Lo demás sale de la cuenta: el mismo camino sirve para el QR y para el
    * canal oficial, que es justamente el punto.
    */
-  proveedor: 'baileys' | 'cloud_api' = 'baileys',
+  proveedor: 'baileys' | 'cloud_api' | 'zernio' = 'baileys',
 ): Promise<ResultadoIngesta> {
   const reclamado = await withSystem(async (tx) => {
     const res = await tx.execute(sql`
@@ -238,14 +246,17 @@ async function ingest(payload: InboundPayload) {
       insert into conversations (
         tenant_id, channel, provider, account_id, external_id, contact_id,
         participant_name, participant_phone, is_group,
-        last_message_at, last_inbound_at, unread_count
+        last_message_at, last_inbound_at, unread_count, metadata
       ) values (
         ${tenantId}, ${channel}, ${provider}, ${account.id}, ${jid}, ${contactId},
         ${msg.pushName ?? null}, ${phone}, ${isGroup},
-        ${sentAt}, ${sentAt}, 1
+        ${sentAt}, ${sentAt}, 1, ${JSON.stringify(payload.metadata ?? {})}::jsonb
       )
       on conflict (provider, external_id) do update set
         archived_at = null,
+        -- Se fusiona, no se pisa: la atribución del anuncio que trajo al
+        -- paciente vive acá y no puede desaparecer porque escribió de nuevo.
+        metadata = conversations.metadata || excluded.metadata,
         last_message_at = excluded.last_message_at,
         last_inbound_at = excluded.last_inbound_at,
         unread_count = conversations.unread_count + 1,

@@ -3,7 +3,15 @@ import { etiquetaDe, delRubro, alRubro } from '@/lib/etiquetas'
 import { getWhatsAppAccounts } from '@/lib/queries'
 import { connectWhatsApp, disconnectWhatsApp } from '@/lib/actions'
 import { AutoRefresh } from './auto-refresh'
-import { CanalOficial } from './oficial'
+import { CanalZernio } from './zernio'
+import { zernioActivo } from '@/lib/zernio'
+// El alta manual del canal oficial de Meta queda ESCONDIDA, no borrada: el
+// código anda y está probado, pero pide que el cliente cree su cuenta en
+// Meta a mano y encima le saca el número de la aplicación del celular. La
+// conexión por Zernio hace lo mismo con un botón y sin perder la app, así
+// que mostrar las dos solo confunde. Para volver a exponerla alcanza con
+// devolver <CanalOficial cuentas={accounts} /> abajo.
+// import { CanalOficial } from './oficial'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +36,9 @@ export default async function WhatsAppPage({
   // Las tarjetas con QR son solo del canal no oficial. Una cuenta oficial no
   // tiene código que escanear ni sesión que reconectar: se administra en su
   // propia sección.
-  const porQr = accounts.filter((a) => a.provider !== 'cloud_api')
+  const porQr = accounts.filter(
+    (a) => a.provider !== 'cloud_api' && a.provider !== 'zernio',
+  )
   const puedeGestionar = session.role !== 'agent'
   // Mientras negocia, la pantalla se refresca sola para que aparezca el QR.
   const negociando = porQr.some(
@@ -48,17 +58,28 @@ export default async function WhatsAppPage({
       ) : null}
       <div className="page-head">
         <p style={{ marginTop: 0 }}>
-          Conectá el número {delRubro(etiqueta)}: por código QR, o por el
-          canal oficial de Meta
+          Conectá el número {delRubro(etiqueta)}. Lo normal es el botón de
+          abajo; el código QR queda como alternativa
         </p>
       </div>
+
+      {puedeGestionar && (
+        <CanalZernio
+          cuentas={accounts}
+          etiqueta={etiqueta}
+          disponible={zernioActivo()}
+        />
+      )}
 
       {porQr.length === 0 && (
         <div className="panel-box">
           <div className="empty">
-            <b>Todavía no hay ningún número conectado</b>
-            Al conectar vas a ver un código QR. Escanealo desde el celular{' '}
-            {delRubro(etiqueta)} con WhatsApp → Dispositivos vinculados.
+            <b>Conexión por código QR</b>
+            La alternativa, si no querés usar la vía oficial. Al conectar vas a
+            ver un código para escanear desde el celular {delRubro(etiqueta)},
+            con WhatsApp → Dispositivos vinculados. Tené en cuenta que{' '}
+            <strong>WhatsApp puede bloquear el número</strong> por conectarse
+            así.
             {puedeGestionar ? (
               <form action={connectWhatsApp} style={{ marginTop: 18 }}>
                 <button type="submit" className="btn btn-primary">
@@ -218,7 +239,7 @@ export default async function WhatsAppPage({
         )
       })}
 
-      {puedeGestionar && <CanalOficial cuentas={accounts} />}
+      {/* {puedeGestionar && <CanalOficial cuentas={accounts} />} */}
 
       <div className="alert alert-gray" style={{display: 'none'}}>
         <span>
