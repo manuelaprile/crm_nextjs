@@ -68,14 +68,47 @@ export function CanalZernio({
           </div>
         )}
 
-        <form action={conectarZernio}>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={!disponible}
-          >
-            {cuenta ? 'Conectar otro número' : 'Conectar WhatsApp'}
-          </button>
+        <form action={conectarZernio} style={{ display: 'grid', gap: 10 }}>
+          <div>
+            <button
+              type="submit"
+              name="modo"
+              value="coexistencia"
+              className="btn btn-primary"
+              disabled={!disponible}
+            >
+              {cuenta ? 'Conectar otro número' : 'Conectar WhatsApp'}
+            </button>
+          </div>
+
+          {/*
+            La salida para el número que NO está en WhatsApp Business.
+            Sin esto, Meta responde "este número ya está registrado,
+            desvinculalo primero" y no queda ningún camino: la convivencia
+            exige una app a la que engancharse.
+          */}
+          <details>
+            <summary className="tiny muted" style={{ cursor: 'pointer' }}>
+              El número no está en WhatsApp Business
+            </summary>
+            <div style={{ marginTop: 10 }}>
+              <p className="tiny muted" style={{ marginBottom: 8 }}>
+                Para una línea dedicada, sin WhatsApp en el celular. El número
+                queda funcionando <strong>solo dentro del CRM</strong>: deja de
+                andar en la aplicación del teléfono, y para dar de alta uno que
+                hoy tiene WhatsApp hay que borrar esa cuenta primero.
+              </p>
+              <button
+                type="submit"
+                name="modo"
+                value="api"
+                className="btn btn-ghost btn-sm"
+                disabled={!disponible}
+              >
+                Conectar como línea dedicada
+              </button>
+            </div>
+          </details>
         </form>
       </div>
     </div>

@@ -40,8 +40,22 @@ async function origen(): Promise<string> {
   return `${proto}://${host}`
 }
 
-export async function conectarZernio(): Promise<void> {
+export async function conectarZernio(formData?: FormData): Promise<void> {
   const session = await requireAdmin()
+
+  /**
+   * Qué pantalla de Meta abrir.
+   *
+   * `coexistencia` (el default) es la que queremos casi siempre: el número
+   * sigue funcionando en la aplicación del celular. Pero EXIGE que ya esté
+   * dado de alta en WhatsApp Business; si no, Meta responde "este número ya
+   * está registrado, desvinculalo primero" y no hay forma de seguir.
+   *
+   * `api` es para el otro caso real: una línea dedicada, sin WhatsApp en el
+   * teléfono, o alguien que prefiere borrar la cuenta y usar el número solo
+   * desde el CRM. Sin esta opción, ese cliente quedaba sin ningún camino.
+   */
+  const modo = String(formData?.get('modo') ?? 'coexistencia')
 
   if (!zernioActivo()) {
     volver('error', 'Falta configurar ZERNIO_API_KEY en el servidor.')
@@ -86,6 +100,7 @@ export async function conectarZernio(): Promise<void> {
   const url = await urlDeConexion({
     profileId: profile.data,
     redirectUrl: `${await origen()}/api/zernio/callback`,
+    coexistence: modo !== 'api',
   })
   if (!url.ok) {
     volver('error', `No se pudo iniciar la conexión: ${url.error}`)
@@ -93,9 +108,9 @@ export async function conectarZernio(): Promise<void> {
 
   await withSystem((tx) =>
     tx.execute(sql`
-      insert into audit_log (tenant_id, actor_user_id, action, entity)
+      insert into audit_log (tenant_id, actor_user_id, action, entity, diff)
       values (${session.tenantId}, ${session.userId}, 'whatsapp.zernio_iniciado',
-              'channel_account')
+              'channel_account', ${JSON.stringify({ modo })}::jsonb)
     `),
   )
 
