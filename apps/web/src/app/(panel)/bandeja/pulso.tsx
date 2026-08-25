@@ -1,45 +1,105 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 /** Cada cuánto se pregunta si entró algo. */
 const CADA_MS = 5_000
+/** Cuánto queda el cartelito antes de irse solo. */
+const AVISO_MS = 12_000
+
+type Ultimo = {
+  id: string
+  conversacionId: string
+  quien: string
+  texto: string
+}
+
+type Latido = { marca: string; sinLeer: number; ultimo: Ultimo | null }
 
 /**
- * Hace que un mensaje nuevo aparezca solo, sin recargar la página.
+ * Hace que un mensaje nuevo aparezca solo, y que se note.
  *
- * Pregunta por una marca chica (`/api/bandeja/pulso`) y, cuando cambia,
- * pide un `router.refresh()`. El refresh de Next vuelve a correr los
- * componentes de servidor y parchea el árbol de React: NO recarga el
- * documento, así que lo que la persona esté escribiendo en el campo de
- * respuesta no se pierde y la lista no salta.
+ * Dos cosas distintas:
  *
- * Se apaga cuando la pestaña no está a la vista. Una bandeja abierta y
- * olvidada en otra ventana no tiene por qué seguir consultando la base todo
- * el día, y al volver se consulta enseguida, así que no se pierde nada.
+ *  1. **Refrescar.** Pregunta por una marca chica y, cuando cambia, pide un
+ *     `router.refresh()`. El refresh de Next vuelve a correr los componentes
+ *     de servidor y parchea el árbol de React: NO recarga el documento, así
+ *     que lo que la persona esté escribiendo no se pierde.
+ *
+ *  2. **Avisar.** Cambia el título de la pestaña y muestra un cartel abajo a
+ *     la derecha. Sin esto, alguien con la pestaña en segundo plano —que es
+ *     como se usa un CRM— no se entera de que un paciente escribió hasta que
+ *     vuelve a mirar.
+ *
+ * Se apaga cuando la pestaña no está a la vista para no consultar la base
+ * todo el día, y al volver se consulta enseguida.
  */
-export function Pulso() {
+export function Pulso({
+  /**
+   * La conversación abierta, si hay una. No se avisa de la que la persona
+   * está mirando: ya la está viendo, y un cartel tapándola es estorbo.
+   */
+  conversacionAbierta,
+}: {
+  conversacionAbierta?: string
+}) {
   const router = useRouter()
-  // La marca de la última vez. Empieza vacía a propósito: la primera respuesta
-  // solo la registra, sin refrescar, porque la pantalla recién se dibujó.
-  const ultima = useRef<string | null>(null)
+  const [aviso, setAviso] = useState<Ultimo | null>(null)
+
+  // La marca de la última vez. Empieza vacía a propósito: la primera
+  // respuesta solo la registra, sin refrescar ni avisar, porque la pantalla
+  // recién se dibujó y esos mensajes no son nuevos para quien la abrió.
+  const ultimaMarca = useRef<string | null>(null)
+  const ultimoVisto = useRef<string | null>(null)
+  const tituloOriginal = useRef<string>('')
+  const abierta = useRef(conversacionAbierta)
+  abierta.current = conversacionAbierta
 
   useEffect(() => {
+    tituloOriginal.current = document.title
     let vivo = true
     let timer: ReturnType<typeof setTimeout> | undefined
+    let ocultar: ReturnType<typeof setTimeout> | undefined
 
     async function mirar() {
       if (!vivo) return
       try {
         if (document.visibilityState === 'visible') {
           const res = await fetch('/api/bandeja/pulso', { cache: 'no-store' })
+          // Sesión vencida: se deja de latir. Insistir cada cinco segundos
+          // contra un 401 no arregla nada y llena el registro.
+          if (res.status === 401) {
+            vivo = false
+            return
+          }
           if (res.ok) {
-            const { marca } = (await res.json()) as { marca: string }
-            if (ultima.current !== null && ultima.current !== marca) {
+            const d = (await res.json()) as Latido
+            const primeraVez = ultimaMarca.current === null
+
+            if (!primeraVez && ultimaMarca.current !== d.marca) {
               router.refresh()
             }
-            ultima.current = marca
+
+            // El aviso se dispara por el ID del último entrante, no por la
+            // marca: la marca también cambia cuando mandamos nosotros, y
+            // avisar de un mensaje propio no tiene ningún sentido.
+            const esNuevo =
+              !primeraVez &&
+              d.ultimo &&
+              d.ultimo.id !== ultimoVisto.current &&
+              d.ultimo.conversacionId !== abierta.current
+
+            if (esNuevo && d.ultimo) {
+              setAviso(d.ultimo)
+              clearTimeout(ocultar)
+              ocultar = setTimeout(() => setAviso(null), AVISO_MS)
+            }
+
+            if (d.ultimo) ultimoVisto.current = d.ultimo.id
+            ultimaMarca.current = d.marca
+            marcarTitulo(d.sinLeer, d.ultimo, tituloOriginal.current)
           }
         }
       } catch {
@@ -53,7 +113,6 @@ export function Pulso() {
     // con interval se apilarían pedidos encima de una base que ya está lenta.
     timer = setTimeout(mirar, CADA_MS)
 
-    // Al volver a la pestaña se mira enseguida, sin esperar el ciclo.
     const alVolver = () => {
       if (document.visibilityState === 'visible') {
         clearTimeout(timer)
@@ -65,9 +124,67 @@ export function Pulso() {
     return () => {
       vivo = false
       clearTimeout(timer)
+      clearTimeout(ocultar)
       document.removeEventListener('visibilitychange', alVolver)
+      document.title = tituloOriginal.current
     }
   }, [router])
 
-  return null
+  if (!aviso) return null
+
+  return (
+    <Link
+      href={`/bandeja/${aviso.conversacionId}`}
+      onClick={() => setAviso(null)}
+      style={{
+        position: 'fixed',
+        right: 18,
+        bottom: 18,
+        zIndex: 60,
+        maxWidth: 340,
+        display: 'block',
+        textDecoration: 'none',
+        color: 'inherit',
+        background: 'var(--c-bg)',
+        border: '1px solid var(--c-border)',
+        borderLeft: '3px solid var(--c-primary)',
+        borderRadius: 'var(--r-md)',
+        padding: '12px 14px',
+        boxShadow: '0 10px 30px rgb(0 0 0 / 0.18)',
+      }}
+    >
+      <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 3 }}>
+        Nuevo mensaje de {aviso.quien}
+      </div>
+      <div
+        className="tiny muted"
+        style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+        }}
+      >
+        {aviso.texto}
+      </div>
+    </Link>
+  )
+}
+
+/**
+ * El título de la pestaña.
+ *
+ * Es lo que ve alguien que tiene el CRM en una pestaña de fondo mientras
+ * trabaja en otra cosa, que es como se usa de verdad. El contador va
+ * adelante para que se lea aunque el navegador recorte el título.
+ */
+function marcarTitulo(sinLeer: number, ultimo: Ultimo | null, original: string) {
+  if (sinLeer > 0 && ultimo) {
+    document.title = `(${sinLeer}) Nuevo mensaje de ${ultimo.quien}`
+  } else if (sinLeer > 0) {
+    document.title = `(${sinLeer}) ${original}`
+  } else {
+    document.title = original
+  }
 }

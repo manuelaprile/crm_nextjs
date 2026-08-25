@@ -36,12 +36,34 @@ export default async function WhatsAppPage({
   // Las tarjetas con QR son solo del canal no oficial. Una cuenta oficial no
   // tiene código que escanear ni sesión que reconectar: se administra en su
   // propia sección.
-  const porQr = accounts.filter(
-    (a) => a.provider !== 'cloud_api' && a.provider !== 'zernio',
+  /**
+   * La conexión por código QR queda ESCONDIDA, no borrada.
+   *
+   * Es una librería no oficial y va contra los términos de Meta: el número se
+   * puede bloquear, y ya nos pasó. Con el canal oficial andando por Zernio no
+   * hay motivo para ofrecerle ese riesgo a un cliente.
+   *
+   * El worker, la sesión en Postgres y toda la ruta siguen en su lugar y
+   * funcionando: una cuenta que HOY esté conectada por QR se sigue viendo y
+   * se puede administrar. Lo que desaparece es la invitación a crear una
+   * nueva. Para volver a ofrecerlo, poner MOSTRAR_QR en true.
+   */
+  const MOSTRAR_QR = false
+  const porQr = MOSTRAR_QR
+    ? accounts.filter((a) => a.provider !== 'cloud_api' && a.provider !== 'zernio')
+    : []
+  // Una cuenta de QR ya conectada NO se esconde: esconderla dejaría a alguien
+  // con un número andando y sin ninguna pantalla para desconectarlo.
+  const qrExistentes = accounts.filter(
+    (a) =>
+      a.provider !== 'cloud_api' &&
+      a.provider !== 'zernio' &&
+      a.provider !== 'mock' &&
+      a.status !== 'logged_out',
   )
   const puedeGestionar = session.role !== 'agent'
   // Mientras negocia, la pantalla se refresca sola para que aparezca el QR.
-  const negociando = porQr.some(
+  const negociando = (MOSTRAR_QR ? porQr : qrExistentes).some(
     (a) => a.status === 'connecting' || a.status === 'qr_pending',
   )
 
@@ -58,8 +80,7 @@ export default async function WhatsAppPage({
       ) : null}
       <div className="page-head">
         <p style={{ marginTop: 0 }}>
-          Conectá el número {delRubro(etiqueta)}. Lo normal es el botón de
-          abajo; el código QR queda como alternativa
+          Conectá el número {delRubro(etiqueta)} por la vía oficial de Meta
         </p>
       </div>
 
@@ -71,7 +92,7 @@ export default async function WhatsAppPage({
         />
       )}
 
-      {porQr.length === 0 && (
+      {MOSTRAR_QR && porQr.length === 0 && (
         <div className="panel-box">
           <div className="empty">
             <b>Conexión por código QR</b>
@@ -95,7 +116,7 @@ export default async function WhatsAppPage({
         </div>
       )}
 
-      {porQr.map((acc) => {
+      {(MOSTRAR_QR ? porQr : qrExistentes).map((acc) => {
         const estado = ESTADOS[acc.status] ?? ESTADOS.disconnected!
         return (
           <div key={acc.id} className="panel-box" style={{ marginBottom: 16 }}>

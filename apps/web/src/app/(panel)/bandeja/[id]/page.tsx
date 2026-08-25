@@ -50,7 +50,7 @@ export default async function ChatPage({
 
   return (
     <>
-      <Pulso />
+      <Pulso conversacionAbierta={conversation.id} />
       <div className="topnav">
         <h2>Bandeja</h2>
       </div>
