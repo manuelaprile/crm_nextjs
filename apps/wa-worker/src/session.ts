@@ -16,9 +16,9 @@ import makeWASocket, {
   jidNormalizedUser,
   makeCacheableSignalKeyStore,
   type Contact,
+  proto,
   type WAMessageKey,
   type WASocket,
-  type proto,
 } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import type { Pool } from 'pg'
@@ -63,17 +63,34 @@ const SEND_MIN_MS = 3_000
 const SEND_MAX_MS = 8_000
 
 /**
- * Pedirle al teléfono todo el historial que quiera dar, al vincular.
+ * Pedirle a WhatsApp el ARCHIVO COMPLETO de conversaciones, al vincular.
  *
- * Llega SOLO en la primera conexión después de escanear el QR: no hay forma
- * de pedirlo más tarde.
+ * Apagado por defecto, y a propósito. Prendido, Baileys agrega
+ * `requireFullSync` al registro del dispositivo, que es una petición pesada y
+ * poco habitual justo en el momento más delicado de todos: el emparejamiento.
+ * Vincular tiene que funcionar siempre; traer dos años de chats es un lujo.
  *
- * Lo que se consigue es lo que ve WhatsApp Web —los chats con sus mensajes
- * recientes—, no el archivo completo de años. Para eso habría que decir que
- * somos la aplicación de escritorio, y hoy WhatsApp cierra la conexión de una
- * si lo hacemos: ver el comentario largo en `browser`, abajo.
+ * Apagarlo NO deja la bandeja vacía: abajo se procesa igual el historial
+ * reciente que WhatsApp manda solo, que es el mismo que ve WhatsApp Web al
+ * vincularse. Se prende con WA_SYNC_FULL_HISTORY=true, una vez que la
+ * conexión esté probada en ese cliente.
  */
-const SYNC_FULL_HISTORY = process.env.WA_SYNC_FULL_HISTORY !== 'false'
+const SYNC_FULL_HISTORY = process.env.WA_SYNC_FULL_HISTORY === 'true'
+
+/**
+ * Qué historial se procesa cuando NO se pidió el archivo completo.
+ *
+ * Sin esto, apagar `syncFullHistory` hace que Baileys descarte todo el
+ * historial, incluso el que WhatsApp manda por su cuenta al vincular — y la
+ * bandeja arranca completamente vacía, que es de donde venimos.
+ * `INITIAL_BOOTSTRAP` y `RECENT` son justamente lo que el teléfono replica
+ * solo; `PUSH_NAME` son los nombres.
+ */
+const HISTORIAL_LIVIANO = new Set([
+  proto.Message.HistorySyncNotification.HistorySyncType.INITIAL_BOOTSTRAP,
+  proto.Message.HistorySyncNotification.HistorySyncType.RECENT,
+  proto.Message.HistorySyncNotification.HistorySyncType.PUSH_NAME,
+])
 
 /**
  * Mensajes por POST al ingestar historial. El sync llega en tandas que pueden
@@ -291,7 +308,18 @@ export class WhatsAppSession {
         // notificaciones push al celular del cliente y se queja.
         markOnlineOnConnect: false,
         syncFullHistory: SYNC_FULL_HISTORY,
+        shouldSyncHistoryMessage: (msg) =>
+          SYNC_FULL_HISTORY || HISTORIAL_LIVIANO.has(msg.syncType!),
         generateHighQualityLinkPreview: false,
+        // Somos un negocio argentino; el default de Baileys es 'US'.
+        countryCode: 'AR',
+        // Qué contestar cuando WhatsApp nos pide reenviar un mensaje nuestro.
+        //
+        // El default de Baileys devuelve `undefined`, y entonces el celular
+        // del contacto se queda para siempre con "Esperando este mensaje". No
+        // es un error de servidor ni queda en ningún log: simplemente el
+        // paciente ve un globo vacío y nosotros creemos que contestamos.
+        getMessage: (key) => this.mensajeParaReintento(key),
       })
 
       this.sock.ev.on('creds.update', () => {
@@ -625,8 +653,24 @@ export class WhatsAppSession {
         const wait = this.nextDelay()
         if (wait > 0) await sleep(wait)
 
+        // Sin socket no hay envío, y hay que decirlo.
+        //
+        // Acá había un `this.sock?.sendMessage(...)`: con la sesión caída el
+        // optional chaining devolvía `undefined` sin lanzar nada, y la fila
+        // quedaba marcada como ENVIADA con external_id nulo. El mensaje no
+        // salía nunca y en la bandeja figuraba entregado. Es fácil de
+        // provocar: entre que se encola y se manda pasan 3 a 8 segundos a
+        // propósito, y cualquier desconexión en esa ventana se lo tragaba.
+        if (!this.sock || !this.abierta) {
+          await this.marcarFallado(
+            job.messageId,
+            'WhatsApp se desconectó antes de poder enviarlo',
+          )
+          continue
+        }
+
         try {
-          const sent = await this.sock?.sendMessage(job.to, { text: job.text })
+          const sent = await this.sock.sendMessage(job.to, { text: job.text })
           this.lastSentAt = Date.now()
           await this.deps.pool.query(
             `update messages
@@ -635,16 +679,51 @@ export class WhatsAppSession {
             [job.messageId, sent?.key?.id ?? null],
           )
         } catch (err) {
-          await this.deps.pool.query(
-            `update messages set status = 'failed', error = $2 where id = $1`,
-            [job.messageId, String(err)],
-          )
+          await this.marcarFallado(job.messageId, String(err))
           log.error({ err, messageId: job.messageId }, 'falló el envío')
         }
       }
     } finally {
       this.draining = false
     }
+  }
+
+  /**
+   * Recupera un mensaje nuestro para que Baileys lo pueda reenviar cifrado.
+   *
+   * WhatsApp pide esto cuando el teléfono del contacto no pudo descifrar lo
+   * que le mandamos —pasa con cambios de dispositivo o de claves—. Sin
+   * respuesta, del otro lado queda "Esperando este mensaje" y no se arregla
+   * nunca.
+   *
+   * El texto ya lo tenemos en `messages`, indexado por el id que WhatsApp le
+   * asignó al enviarlo. Solo se reenvía texto: es lo único que este sistema
+   * manda hoy.
+   */
+  private async mensajeParaReintento(
+    key: WAMessageKey,
+  ): Promise<proto.IMessage | undefined> {
+    if (!key.id) return undefined
+    try {
+      const { rows } = await this.deps.pool.query(
+        `select body from messages
+          where external_id = $1 and tenant_id = $2 and direction = 'outbound'
+          limit 1`,
+        [key.id, this.deps.tenantId],
+      )
+      const body = rows[0]?.body
+      return typeof body === 'string' && body ? { conversation: body } : undefined
+    } catch (err) {
+      log.error({ err, id: key.id }, 'no se pudo recuperar el mensaje para reenviar')
+      return undefined
+    }
+  }
+
+  private async marcarFallado(messageId: string, motivo: string): Promise<void> {
+    await this.deps.pool.query(
+      `update messages set status = 'failed', error = $2 where id = $1`,
+      [messageId, motivo.slice(0, 500)],
+    )
   }
 
   private nextDelay(): number {
