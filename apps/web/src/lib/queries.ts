@@ -403,6 +403,10 @@ export type WhatsAppAccount = {
   qrVencido: boolean
   lastError: string | null
   connectedAt: string | null
+  /** 'baileys' (QR) o 'cloud_api' (oficial). */
+  provider: string
+  /** Cloud API: últimos caracteres del token cargado, para reconocerlo. */
+  tokenHint: string | null
 }
 
 export async function getWhatsAppAccounts(
@@ -411,7 +415,7 @@ export async function getWhatsAppAccounts(
   return withTenant(ctx, async (tx) => {
     const res = await tx.execute(sql`
       select id, label, status, phone, qr, last_error, connected_at,
-             qr_expires_at
+             qr_expires_at, provider, token_hint
         from channel_accounts where channel = 'whatsapp' order by created_at
     `)
     return (res.rows as Record<string, unknown>[]).map((r) => {
@@ -427,6 +431,8 @@ export async function getWhatsAppAccounts(
         qrVencido: String(r.status) === 'qr_pending' && !qrVigente,
         lastError: r.last_error ? String(r.last_error) : null,
         connectedAt: r.connected_at ? String(r.connected_at) : null,
+        provider: String(r.provider),
+        tokenHint: r.token_hint ? String(r.token_hint) : null,
       }
     })
   })

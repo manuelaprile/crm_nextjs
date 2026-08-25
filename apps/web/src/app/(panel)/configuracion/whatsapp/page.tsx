@@ -3,6 +3,7 @@ import { etiquetaDe, delRubro, alRubro } from '@/lib/etiquetas'
 import { getWhatsAppAccounts } from '@/lib/queries'
 import { connectWhatsApp, disconnectWhatsApp } from '@/lib/actions'
 import { AutoRefresh } from './auto-refresh'
+import { CanalOficial } from './oficial'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,26 +16,44 @@ const ESTADOS: Record<string, { label: string; badge: string }> = {
   banned: { label: 'Número bloqueado', badge: 'b-red' },
 }
 
-export default async function WhatsAppPage() {
+export default async function WhatsAppPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ r?: string; m?: string }>
+}) {
   const session = await requireTenant()
+  const { r, m } = await searchParams
   const etiqueta = etiquetaDe(session)
   const accounts = await getWhatsAppAccounts(session)
+  // Las tarjetas con QR son solo del canal no oficial. Una cuenta oficial no
+  // tiene código que escanear ni sesión que reconectar: se administra en su
+  // propia sección.
+  const porQr = accounts.filter((a) => a.provider !== 'cloud_api')
   const puedeGestionar = session.role !== 'agent'
   // Mientras negocia, la pantalla se refresca sola para que aparezca el QR.
-  const negociando = accounts.some(
+  const negociando = porQr.some(
     (a) => a.status === 'connecting' || a.status === 'qr_pending',
   )
 
   return (
     <>
       <AutoRefresh activo={negociando} />
+      {m ? (
+        <div
+          className={`alert ${r === 'ok' ? 'alert-green' : 'alert-red'}`}
+          style={{ marginBottom: 16 }}
+        >
+          <span>{m}</span>
+        </div>
+      ) : null}
       <div className="page-head">
         <p style={{ marginTop: 0 }}>
-          Conectá el número {delRubro(etiqueta)} escaneando un código QR
+          Conectá el número {delRubro(etiqueta)}: por código QR, o por el
+          canal oficial de Meta
         </p>
       </div>
 
-      {accounts.length === 0 && (
+      {porQr.length === 0 && (
         <div className="panel-box">
           <div className="empty">
             <b>Todavía no hay ningún número conectado</b>
@@ -55,7 +74,7 @@ export default async function WhatsAppPage() {
         </div>
       )}
 
-      {accounts.map((acc) => {
+      {porQr.map((acc) => {
         const estado = ESTADOS[acc.status] ?? ESTADOS.disconnected!
         return (
           <div key={acc.id} className="panel-box" style={{ marginBottom: 16 }}>
@@ -198,6 +217,8 @@ export default async function WhatsAppPage() {
           </div>
         )
       })}
+
+      {puedeGestionar && <CanalOficial cuentas={accounts} />}
 
       <div className="alert alert-gray" style={{display: 'none'}}>
         <span>

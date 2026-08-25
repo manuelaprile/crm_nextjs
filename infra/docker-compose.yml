@@ -49,6 +49,11 @@ services:
       WORKER_URL: http://wa-worker:4000
       WORKER_SECRET: ${WORKER_SECRET:?falta WORKER_SECRET}
       INGEST_SECRET: ${INGEST_SECRET:?falta INGEST_SECRET}
+      # Canal oficial de Meta. Vacíos si ningún cliente lo usa: la ruta
+      # /api/ingest/cloud rechaza todo mientras no estén cargados.
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v25.0}
       # NO fijar APP_BASE_URL: el host sale del request. Una URL mal puesta
       # hace que nada conteste, sin un solo error visible.
     depends_on:

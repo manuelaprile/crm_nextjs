@@ -18,6 +18,7 @@
 import 'server-only'
 import { sql } from 'drizzle-orm'
 import { withSystem } from './db/client'
+import { enviarPorCloud } from './cloud'
 
 const WORKER_URL = process.env.WORKER_URL ?? 'http://wa-worker:4000'
 const WORKER_SECRET = process.env.WORKER_SECRET ?? ''
@@ -45,7 +46,8 @@ export async function deliverMessage(
   const ctx = await withSystem(async (tx) => {
     const res = await tx.execute(sql`
       select c.id, c.tenant_id, c.channel, c.provider, c.external_id,
-             c.account_id, ca.status as account_status
+             c.account_id, ca.status as account_status,
+             ca.external_id as account_external_id
         from conversations c
         join channel_accounts ca on ca.id = c.account_id
        where c.id = ${input.conversationId}
@@ -59,6 +61,7 @@ export async function deliverMessage(
           external_id: string
           account_id: string
           account_status: string
+          account_external_id: string | null
         }
       | undefined
   })
@@ -108,6 +111,45 @@ export async function deliverMessage(
     return { ok: false, error: 'WhatsApp no está conectado', messageId }
   }
 
+  // ---- Canal oficial -------------------------------------------------
+  // No pasa por el worker: la Cloud API es un POST a Meta y responde con el
+  // id del mensaje en el acto. Por eso acá se marca 'sent' de una, en vez de
+  // dejarlo 'pending' esperando que el worker confirme.
+  if (ctx.provider === 'cloud_api') {
+    if (!ctx.account_external_id) {
+      await markFailed(messageId, 'La cuenta no tiene cargado el número de Meta')
+      return { ok: false, error: 'falta el número de Meta', messageId }
+    }
+
+    const envio = await enviarPorCloud({
+      accountId: ctx.account_id,
+      numeroId: ctx.account_external_id,
+      para: ctx.external_id,
+      texto: text,
+    })
+
+    if (!envio.ok) {
+      await markFailed(messageId, envio.error)
+      return { ok: false, error: envio.error, messageId }
+    }
+
+    await withSystem((tx) =>
+      tx.execute(sql`
+        update messages
+           set status = 'sent', sent_at = now(), external_id = ${envio.externalId}
+         where id = ${messageId}
+      `),
+    )
+    await withSystem((tx) =>
+      tx.execute(sql`
+        update conversations set last_message_at = now(), unread_count = 0
+         where id = ${ctx.id}
+      `),
+    )
+    return { ok: true, messageId }
+  }
+
+  // ---- Baileys -------------------------------------------------------
   try {
     const res = await fetch(`${WORKER_URL}/messages/send`, {
       method: 'POST',

@@ -80,11 +80,17 @@ export type ResultadoIngesta =
  */
 export async function procesarEntrante(
   payload: InboundPayload,
+  /**
+   * De qué proveedor vino, solo para dejarlo asentado en `webhook_events`.
+   * Lo demás sale de la cuenta: el mismo camino sirve para el QR y para el
+   * canal oficial, que es justamente el punto.
+   */
+  proveedor: 'baileys' | 'cloud_api' = 'baileys',
 ): Promise<ResultadoIngesta> {
   const reclamado = await withSystem(async (tx) => {
     const res = await tx.execute(sql`
       insert into webhook_events (event_id, tenant_id, provider, kind, payload)
-      values (${payload.eventId}, ${payload.tenantId}, 'baileys',
+      values (${payload.eventId}, ${payload.tenantId}, ${proveedor},
               ${payload.kind}, ${JSON.stringify(payload)}::jsonb)
       on conflict (event_id) do nothing
       returning event_id
