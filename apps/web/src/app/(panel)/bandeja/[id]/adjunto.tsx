@@ -21,11 +21,11 @@ export function AdjuntoEnMensaje({
   return (
     <div style={{ marginTop: 6 }}>
       {a.hayArchivo && a.kind === 'image' && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <a href={src} target="_blank" rel="noreferrer">
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
-            alt={a.filename ?? 'Imagen del paciente'}
+            alt="Imagen"
             style={{
               maxWidth: '100%',
               maxHeight: 320,
@@ -33,7 +33,17 @@ export function AdjuntoEnMensaje({
               display: 'block',
             }}
           />
-        </a>
+          {/* Ver y descargar son dos cosas distintas: abrirla en grande para
+              mirarla, y bajarla para guardarla o mandarla a otro lado. */}
+          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+            <a href={src} target="_blank" rel="noreferrer" className="tiny muted">
+              Ver en grande
+            </a>
+            <a href={src} download={a.filename ?? 'imagen'} className="tiny muted">
+              Descargar
+            </a>
+          </div>
+        </>
       )}
 
       {a.hayArchivo && a.kind === 'video' && (

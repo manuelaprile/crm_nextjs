@@ -24,10 +24,19 @@ const csp = [
   // En desarrollo el websocket de recarga en caliente necesita ws:.
   `connect-src 'self'${enDesarrollo ? ' ws: wss:' : ''}`,
   "font-src 'self' data:",
+  // Audios y videos que mandan los pacientes. Sin declararlo cae en
+  // `default-src`, que hoy alcanza — pero el día que default-src se ajuste,
+  // los audios dejarían de reproducirse sin ningún error de servidor y sin
+  // que nadie relacione una cosa con la otra.
+  "media-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  "object-src 'none'",
+  // 'self' y no 'none': con `object-src 'none'` el visor de PDF de Chrome
+  // queda bloqueado y abrir un estudio que mandó un paciente muestra un
+  // error en vez del documento. Se sigue prohibiendo cualquier objeto de
+  // otro origen, que es lo que importa.
+  "object-src 'self'",
 ].join('; ')
 
 const config: NextConfig = {
