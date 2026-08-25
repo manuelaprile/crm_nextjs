@@ -178,6 +178,18 @@ export class WhatsAppSession {
     return this.abierta
   }
 
+  /**
+   * Si las credenciales guardadas sirven para reconectar sin escanear.
+   *
+   * Es la línea que separa los dos mundos de esta clase: un número YA
+   * vinculado que se cayó merece insistir toda la noche; uno que nunca se
+   * vinculó no, porque insistir contra WhatsApp sin que nadie mire la pantalla
+   * es lo que termina en una cuenta restringida.
+   */
+  private credencialesUtiles(): boolean {
+    return this.abierta || Boolean(this.auth?.state.creds.registered)
+  }
+
   async start(): Promise<void> {
     this.stopped = false
     this.attempt = 0
@@ -445,6 +457,32 @@ export class WhatsAppSession {
       return
     }
 
+    // 408 sin haber vinculado nunca = nadie escaneó el QR a tiempo.
+    //
+    // No es una falla de conexión y no se reintenta solo. Reintentando, el
+    // panel quedaba mostrando el QR VIEJO —que ya no sirve— al lado de un
+    // cartel que decía "Desconectado (código 408)": si alguien llegaba tarde
+    // y escaneaba eso, no pasaba nada y concluía que el sistema está roto.
+    // Y de paso son conexiones automáticas contra WhatsApp que nadie pidió.
+    //
+    // El código se borra y se espera a que una persona apriete el botón.
+    if (status === DisconnectReason.timedOut && !this.credencialesUtiles()) {
+      this.stopped = true
+      // Credenciales a medio negociar: no sirven para nada y ensucian el
+      // próximo intento.
+      await this.auth?.clear()
+      this.auth = undefined
+      await this.setStatus('disconnected', {
+        qr: null,
+        qr_expires_at: null,
+        last_error:
+          'El código QR venció sin que nadie lo escaneara. ' +
+          'Tocá «Conectar» para generar uno nuevo.',
+      })
+      log.info({ accountId: this.deps.accountId }, 'el QR venció sin escanear')
+      return
+    }
+
     // 440: otra conexión tomó estas mismas credenciales. Reintentar acá es una
     // guerra: cada reconexión expulsa a la otra punta y la otra punta expulsa
     // a esta, para siempre. Se corta y se avisa.
@@ -467,7 +505,7 @@ export class WhatsAppSession {
   private async scheduleReconnect(status?: number): Promise<void> {
     if (this.stopped) return
 
-    const vinculado = this.abierta || Boolean(this.auth?.state.creds.registered)
+    const vinculado = this.credencialesUtiles()
 
     // Un número que NO está vinculado y que falla una y otra vez no se
     // reintenta para siempre. Reconectar en bucle contra WhatsApp desde una
