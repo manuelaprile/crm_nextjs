@@ -23,8 +23,12 @@ export class SessionManager {
 
   /**
    * Levanta al arrancar las cuentas que estaban conectadas.
-   * Las que quedaron en `logged_out` o `banned` NO se reintentan solas:
-   * necesitan intervención humana y reintentarlas es sospechoso.
+   *
+   * Las que quedaron en `logged_out`, `banned` o `qr_pending` NO se reintentan
+   * solas: necesitan intervención humana y reintentarlas es sospechoso. El
+   * `qr_pending` es el caso más fácil de pasar por alto — es un QR que nadie
+   * llegó a escanear, así que reconectar solo agrega intentos fallidos contra
+   * WhatsApp sin que nadie esté mirando la pantalla para escanear el nuevo.
    */
   async restoreAll(): Promise<void> {
     let rows: { id: string; tenant_id: string }[]
@@ -34,7 +38,7 @@ export class SessionManager {
            from channel_accounts ca
            join tenants t on t.id = ca.tenant_id
           where ca.provider = 'baileys'
-            and ca.status in ('connected','connecting','qr_pending','disconnected')
+            and ca.status in ('connected','connecting')
             and t.status in ('trial','active')`,
       )
       rows = res.rows

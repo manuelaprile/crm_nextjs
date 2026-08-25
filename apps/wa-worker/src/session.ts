@@ -39,6 +39,17 @@ const BACKOFF_MAX_MS = 300_000
  * 3 de la mañana; son inaceptables para alguien que acaba de apretar Conectar.
  */
 const BACKOFF_VINCULANDO_MAX_MS = 15_000
+/**
+ * Cuántas veces se reintenta antes de rendirse, si el número todavía no está
+ * vinculado.
+ *
+ * No es una optimización: es protección del número del cliente. Un bucle de
+ * reconexión desde una librería no oficial es el patrón que WhatsApp castiga,
+ * y si falla es porque algo está mal —credenciales podridas, la cuenta ya
+ * restringida, un cambio del lado de ellos—, no porque falte insistir.
+ * Insistiendo se llega al bloqueo.
+ */
+const MAX_INTENTOS_VINCULANDO = 5
 /** Un QR de WhatsApp vive ~60s; damos margen para el refresh. */
 const QR_TTL_MS = 75_000
 
@@ -396,12 +407,36 @@ export class WhatsAppSession {
 
   private async scheduleReconnect(status?: number): Promise<void> {
     if (this.stopped) return
+
+    const vinculado = this.abierta || Boolean(this.auth?.state.creds.registered)
+
+    // Un número que NO está vinculado y que falla una y otra vez no se
+    // reintenta para siempre. Reconectar en bucle contra WhatsApp desde una
+    // librería no oficial es exactamente el patrón que dispara la restricción
+    // de la cuenta, y si el motivo del fallo es justamente que WhatsApp ya nos
+    // está rechazando, cada reintento empeora las cosas. Después de unos pocos
+    // se corta y se espera a que una persona apriete Conectar.
+    if (!vinculado && this.attempt >= MAX_INTENTOS_VINCULANDO) {
+      this.stopped = true
+      await this.setStatus('disconnected', {
+        qr: null,
+        qr_expires_at: null,
+        last_error:
+          `No se pudo conectar en ${MAX_INTENTOS_VINCULANDO} intentos ` +
+          `(último código: ${status ?? 'desconocido'}). Se dejó de reintentar ` +
+          'para no exponer el número. Apretá Conectar cuando quieras probar de nuevo.',
+      })
+      log.error(
+        { accountId: this.deps.accountId, status },
+        'se abandona la vinculación tras demasiados intentos',
+      )
+      return
+    }
+
     // Mientras no se vinculó hay alguien mirando la pantalla: el tope es de
     // segundos, no de minutos. Una vez conectado, el tope largo evita
     // martillar a WhatsApp durante una caída de red.
-    const tope = this.abierta || this.auth?.state.creds.registered
-      ? BACKOFF_MAX_MS
-      : BACKOFF_VINCULANDO_MAX_MS
+    const tope = vinculado ? BACKOFF_MAX_MS : BACKOFF_VINCULANDO_MAX_MS
     const delay = Math.min(BACKOFF_BASE_MS * 2 ** this.attempt, tope)
     this.attempt += 1
     await this.setStatus('disconnected', {

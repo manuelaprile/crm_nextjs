@@ -82,7 +82,10 @@ export default async function WhatsAppPage() {
 
               {puedeGestionar && (
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {acc.status !== 'connected' && (
+                  {/* Con el número bloqueado NO se ofrece reconectar. Cada
+                      intento contra una cuenta restringida alarga el castigo,
+                      y el botón invita justo a eso. */}
+                  {acc.status !== 'connected' && acc.status !== 'banned' && (
                     <form action={connectWhatsApp}>
                       <input type="hidden" name="accountId" value={acc.id} />
                       <button type="submit" className="btn btn-primary btn-sm">
@@ -94,11 +97,16 @@ export default async function WhatsAppPage() {
                       </button>
                     </form>
                   )}
-                  {acc.status === 'connected' && (
+                  {/* Borrar la sesión tiene que poder hacerse SIEMPRE, no solo
+                      con el número conectado: es la salida de una sesión rota,
+                      y es justo cuando está rota que no se puede conectar. */}
+                  {acc.status !== 'logged_out' && (
                     <form action={disconnectWhatsApp}>
                       <input type="hidden" name="accountId" value={acc.id} />
                       <button type="submit" className="btn btn-ghost btn-sm">
-                        Desconectar
+                        {acc.status === 'connected'
+                          ? 'Desconectar'
+                          : 'Borrar sesión'}
                       </button>
                     </form>
                   )}
@@ -107,7 +115,24 @@ export default async function WhatsAppPage() {
             </div>
 
             <div className="panel-box-body">
-              {acc.lastError && (
+              {acc.status === 'banned' && (
+                <div className="alert alert-red" style={{ marginBottom: 14 }}>
+                  <span>
+                    <strong>WhatsApp restringió este número.</strong> Casi
+                    siempre es temporal —de unas horas a unos días— y se
+                    levanta solo. Desde el celular, en el aviso que muestra
+                    WhatsApp, se puede pedir la revisión.
+                    <br />
+                    <br />
+                    Mientras tanto, <strong>no reconectes</strong>: cada
+                    intento contra una cuenta restringida alarga el castigo.
+                    Esperá a que el teléfono vuelva a funcionar normalmente y
+                    recién ahí volvé a vincular.
+                  </span>
+                </div>
+              )}
+
+              {acc.lastError && acc.status !== 'banned' && (
                 <div className="alert alert-amber" style={{ marginBottom: 14 }}>
                   {acc.lastError}
                 </div>
