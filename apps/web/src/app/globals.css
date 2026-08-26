@@ -1239,35 +1239,76 @@ tbody tr.clickable {
 /* ---------------------------------------------------------------------
    Aviso de mensaje nuevo.
 
-   Usa los mismos tokens que el resto —fondo, borde y radio de un
-   panel-box, y la sombra de popover que ya existía— para que se lea como
-   una pieza más de la interfaz y no como un cartel pegado encima. Sin
-   barra de color al costado: en este sistema el color se reserva para
-   estados (verde conectado, rojo bloqueado), y un aviso no es un estado.
+   Tiene que ganarle a la vista periférica de alguien que está mirando otra
+   cosa, sin quedar chillón: entra desde el costado con un rebote corto, trae
+   la inicial de quien escribió en un círculo oscuro que es lo primero que
+   engancha el ojo, y una línea abajo que se va consumiendo para que se
+   entienda que el cartel se va solo y no hay que cerrarlo.
+
+   El color se sigue reservando para estados. Lo que llama la atención acá es
+   el movimiento, el contraste del círculo y el peso de la sombra.
    --------------------------------------------------------------------- */
 .aviso {
   position: fixed;
   right: 20px;
   bottom: 20px;
   z-index: 60;
-  max-width: 320px;
-  display: block;
-  padding: 12px 14px;
+  width: 340px;
+  max-width: calc(100vw - 40px);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px 16px;
   background: var(--c-bg);
   border: 1px solid var(--c-border);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-pop);
+  box-shadow:
+    0 2px 6px rgba(17, 17, 17, 0.06),
+    0 14px 44px rgba(17, 17, 17, 0.22);
   color: var(--c-text);
   text-decoration: none;
-  animation: aviso-entra 180ms ease-out;
+  overflow: hidden;
+  animation: aviso-entra 420ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .aviso:hover {
   border-color: var(--c-secondary);
+  transform: translateY(-1px);
+}
+
+/* La inicial de quien escribió. Es el ancla visual del cartel. */
+.aviso-inicial {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-full);
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.aviso-cuerpo {
+  min-width: 0;
+}
+.aviso-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-bottom: 1px;
 }
 .aviso-quien {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .aviso-texto {
   font-size: 12.5px;
@@ -1279,10 +1320,24 @@ tbody tr.clickable {
   -webkit-box-orient: vertical;
 }
 
+/* La barrita que se consume: dice sin palabras que esto se va solo. */
+.aviso::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--c-primary);
+  transform-origin: left;
+  animation: aviso-tiempo linear forwards;
+  animation-duration: var(--aviso-ms, 10s);
+}
+
 @keyframes aviso-entra {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateX(26px) scale(0.96);
   }
   to {
     opacity: 1;
@@ -1290,9 +1345,25 @@ tbody tr.clickable {
   }
 }
 
-/* Quien pidió no ver animaciones, no las ve. */
+@keyframes aviso-tiempo {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* Quien pidió no ver animaciones, no las ve: aparece y se queda quieto. */
 @media (prefers-reduced-motion: reduce) {
   .aviso {
     animation: none;
+  }
+  .aviso:hover {
+    transform: none;
+  }
+  .aviso::after {
+    animation: none;
+    transform: scaleX(1);
   }
 }

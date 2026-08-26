@@ -33,7 +33,23 @@ import Link from 'next/link'
  * todos de acá, así que muestran siempre lo mismo y se actualizan juntos.
  */
 
-const CADA_MS = 5_000
+/**
+ * Cada cuánto se pregunta si pasó algo.
+ *
+ * Medido: el latido cuesta 16ms de punta a punta y la consulta en sí 0,7ms
+ * —son dos lecturas de la punta de un índice y una suma—. Con ese costo, los
+ * cinco segundos que había antes no se justificaban: hacían esperar 2,5
+ * segundos de promedio a que apareciera un mensaje, por nada.
+ *
+ * Va adaptativo. Rápido mientras hay actividad, que es cuando alguien está
+ * mirando la pantalla esperando una respuesta; lento cuando hace rato que no
+ * pasa nada, para no consultar 1.800 veces por hora una bandeja dormida.
+ */
+const RAPIDO_MS = 1_500
+const LENTO_MS = 8_000
+/** Cuántas vueltas sin novedad antes de aflojar. ~40s a ritmo rápido. */
+const VUELTAS_HASTA_AFLOJAR = 25
+
 const AVISO_MS = 10_000
 /** Qué mensaje se avisó por última vez. Por pestaña. */
 const CLAVE_VISTO = 'crm:ultimo-aviso'
@@ -86,6 +102,8 @@ export function PulsoProvider({
   const [aviso, setAviso] = useState<Ultimo | null>(null)
 
   const ultimaMarca = useRef<string | null>(null)
+  /** Vueltas seguidas sin que cambie nada. Decide el ritmo. */
+  const quietas = useRef(0)
   const ultimoVisto = useRef<string | null>(null)
   const enBandeja = useRef(false)
   const rutaActual = useRef(ruta)
@@ -112,7 +130,9 @@ export function PulsoProvider({
     async function mirar() {
       if (!vivo) return
       if (document.visibilityState !== 'visible') {
-        timer = setTimeout(mirar, CADA_MS)
+        // Con la pestaña oculta no se consulta, pero se sigue mirando de
+        // tanto en tanto por si vuelve sin disparar el evento.
+        timer = setTimeout(mirar, LENTO_MS)
         return
       }
       try {
@@ -137,6 +157,10 @@ export function PulsoProvider({
           ) {
             router.refresh()
           }
+          // Cualquier novedad devuelve el ritmo rápido: si acaba de entrar un
+          // mensaje, lo más probable es que entre otro enseguida.
+          if (ultimaMarca.current !== d.marca) quietas.current = 0
+          else quietas.current += 1
           ultimaMarca.current = d.marca
 
           const esNuevo =
@@ -164,7 +188,11 @@ export function PulsoProvider({
         // Un latido perdido no es un error: el servidor puede estar
         // reiniciando. Se reintenta en la próxima vuelta.
       }
-      if (vivo) timer = setTimeout(mirar, CADA_MS)
+      if (vivo) {
+        const espera =
+          quietas.current >= VUELTAS_HASTA_AFLOJAR ? LENTO_MS : RAPIDO_MS
+        timer = setTimeout(mirar, espera)
+      }
     }
 
     // Enseguida, no a los cinco segundos. Al entrar a una conversación se
@@ -176,6 +204,8 @@ export function PulsoProvider({
 
     const alVolver = () => {
       if (document.visibilityState === 'visible') {
+        // Volver a la pestaña es señal de que hay alguien: se arranca rápido.
+        quietas.current = 0
         clearTimeout(timer)
         void mirar()
       }
@@ -215,9 +245,19 @@ export function PulsoProvider({
           href={`/bandeja/${aviso.conversacionId}`}
           onClick={() => setAviso(null)}
           className="aviso"
+          // La barrita de tiempo se consume exactamente lo que dura el
+          // cartel. Si algún día se cambia AVISO_MS, la animación acompaña
+          // sola en vez de quedar desfasada.
+          style={{ '--aviso-ms': `${AVISO_MS}ms` } as React.CSSProperties}
         >
-          <div className="aviso-quien">{aviso.quien}</div>
-          <div className="aviso-texto">{aviso.texto}</div>
+          <span className="aviso-inicial" aria-hidden>
+            {aviso.quien.trim().charAt(0) || '?'}
+          </span>
+          <span className="aviso-cuerpo">
+            <span className="aviso-titulo">Mensaje nuevo</span>
+            <div className="aviso-quien">{aviso.quien}</div>
+            <div className="aviso-texto">{aviso.texto}</div>
+          </span>
         </Link>
       )}
     </Ctx.Provider>
