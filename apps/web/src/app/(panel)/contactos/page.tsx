@@ -156,8 +156,7 @@ async function TableroContactos({
   return (
     <>
       <p className="tiny muted" style={{ marginBottom: 10 }}>
-        Arrastrá las tarjetas para cambiar de etapa · Hasta 25 por columna;
-        para verlos todos, usá Lista
+        Arrastrá las tarjetas para cambiar de etapa · 25 por columna
       </p>
       <Board
         columns={columns.map((c) => ({

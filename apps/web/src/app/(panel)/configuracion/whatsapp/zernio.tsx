@@ -1,5 +1,4 @@
 import { conectarZernio } from '@/lib/zernio-alta'
-import { delRubro, type Etiqueta } from '@/lib/etiquetas'
 import type { WhatsAppAccount } from '@/lib/queries'
 
 /**
@@ -14,11 +13,9 @@ import type { WhatsAppAccount } from '@/lib/queries'
  */
 export function CanalZernio({
   cuentas,
-  etiqueta,
   disponible,
 }: {
   cuentas: WhatsAppAccount[]
-  etiqueta: Etiqueta
   disponible: boolean
 }) {
   const cuenta = cuentas.find((c) => c.provider === 'zernio')
@@ -36,9 +33,7 @@ export function CanalZernio({
             )}
           </h3>
           <p className="tiny muted" style={{ marginTop: 3 }}>
-            La vía oficial de Meta: el número no se puede bloquear por usar
-            una conexión no autorizada. Se conecta desde una ventana de
-            Facebook, sin ningún código que escanear.
+            La vía oficial de Meta
           </p>
         </div>
       </div>
@@ -46,10 +41,7 @@ export function CanalZernio({
       <div className="panel-box-body">
         {cuenta ? (
           <div className="alert alert-green" style={{ marginBottom: 14 }}>
-            <span>
-              Conectado{cuenta.phone ? ` (+${cuenta.phone})` : ''}. Los mensajes
-              entran solos en la bandeja.
-            </span>
+            <span>Conectado{cuenta.phone ? ` (+${cuenta.phone})` : ''}</span>
           </div>
         ) : null}
 
@@ -73,8 +65,7 @@ export function CanalZernio({
           La pregunta ordena la decisión: qué hay HOY en el celular.
         */}
         <p style={{ marginTop: 0, marginBottom: 12, fontWeight: 600 }}>
-          ¿El número que querés conectar ya tiene WhatsApp Business en el
-          celular?
+          ¿El número ya tiene WhatsApp Business en el celular?
         </p>
 
         <form
@@ -92,11 +83,8 @@ export function CanalZernio({
               Sí, está en WhatsApp Business
             </p>
             <p className="tiny muted" style={{ marginTop: 0, marginBottom: 10 }}>
-              <strong>Recomendado.</strong> El número{' '}
-              <strong>sigue funcionando en el celular</strong> como siempre, y
-              además los mensajes entran acá. El código de verificación llega{' '}
-              <strong>adentro de la app de WhatsApp Business</strong>, no por
-              SMS.
+              Sigue funcionando en el celular. El código llega{' '}
+              <strong>adentro de WhatsApp Business</strong>, no por SMS.
             </p>
             <button
               type="submit"
@@ -120,10 +108,8 @@ export function CanalZernio({
               No, es una línea sin WhatsApp
             </p>
             <p className="tiny muted" style={{ marginTop: 0, marginBottom: 10 }}>
-              Para un número dedicado {delRubro(etiqueta)}. Queda funcionando{' '}
-              <strong>solo dentro del CRM</strong>: no se va a poder usar desde
-              la aplicación del teléfono. Si ese número hoy tiene WhatsApp, hay
-              que borrar esa cuenta primero. El código llega por SMS o llamada.
+              <strong>Deja de funcionar en el celular</strong>: queda solo
+              dentro del CRM. El código llega por SMS o llamada.
             </p>
             <button
               type="submit"
@@ -137,11 +123,6 @@ export function CanalZernio({
           </div>
         </form>
 
-        <p className="tiny muted" style={{ marginTop: 12 }}>
-          Elegir la opción equivocada no avisa claro: Meta responde que el
-          número ya está registrado, o falla al crear el perfil. Si te pasa,
-          revisá primero cuál de las dos corresponde.
-        </p>
       </div>
     </div>
   )

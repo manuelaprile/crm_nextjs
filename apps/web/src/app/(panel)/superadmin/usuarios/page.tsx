@@ -188,10 +188,6 @@ export default async function UsuariosPlataformaPage({
           />
         </div>
 
-        <p className="tiny muted" style={{ marginTop: 12 }}>
-          Para <strong>asignar</strong> un usuario a una cuenta, entrá a esa
-          cuenta y usá Configuración → Usuarios: el alta necesita elegir el rol.
-        </p>
       </div>
     </>
   )

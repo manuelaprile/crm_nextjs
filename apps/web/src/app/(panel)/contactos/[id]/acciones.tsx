@@ -67,8 +67,7 @@ export function AccionesContacto({
       <div className="panel-box-body">
         {archivado && (
           <p className="tiny muted" style={{ marginBottom: 12 }}>
-            Archivado: no aparece en el embudo ni en la bandeja. Si vuelve a
-            escribir, reaparece solo.
+            Archivado. Si vuelve a escribir, reaparece solo.
           </p>
         )}
 

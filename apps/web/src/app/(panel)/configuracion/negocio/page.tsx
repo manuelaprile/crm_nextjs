@@ -1,5 +1,4 @@
 import { requireTenant } from '@/lib/auth'
-import { etiquetaDe, delRubro } from '@/lib/etiquetas'
 import { conocimientoDelNegocio } from '@/lib/conocimiento'
 import {
   guardarEntrada,
@@ -26,7 +25,6 @@ export default async function NegocioPage({
 }) {
   const session = await requireTenant()
   const { r, m, editar } = await searchParams
-  const etiqueta = etiquetaDe(session)
   const entradas = await conocimientoDelNegocio(session.tenantId)
   const puedeEditar = session.role !== 'agent'
   const enEdicion = entradas.find((e) => e.id === editar)
@@ -51,21 +49,15 @@ export default async function NegocioPage({
 
       <div className="page-head">
         <p style={{ marginTop: 0 }}>
-          Lo que el asistente puede responder sin consultarle a nadie. Todo lo
-          que cargues acá es una derivación menos.
+          Lo que el asistente puede responder sin derivar
         </p>
       </div>
 
       {viejas > 0 && (
         <div className="alert alert-amber" style={{ marginBottom: 16 }}>
           <span>
-            Hay <strong>{viejas}</strong> entrada{viejas === 1 ? '' : 's'} sin
-            actualizar hace más de {DIAS_PARA_REVISAR} días. Vale la pena
-            revisarlas:{' '}
-            <strong>
-              una lista de precios vieja es peor que ninguna
-            </strong>
-            , porque el asistente la va a decir con total seguridad.
+            {viejas} entrada{viejas === 1 ? '' : 's'} sin actualizar hace más de{' '}
+            {DIAS_PARA_REVISAR} días.
           </span>
         </div>
       )}
@@ -91,10 +83,6 @@ export default async function NegocioPage({
                   maxLength={80}
                   required
                 />
-                <p className="tiny muted" style={{ marginTop: 4 }}>
-                  Un tema por entrada. Es más fácil de mantener que un texto
-                  largo con todo mezclado.
-                </p>
               </div>
               <div className="field">
                 <label htmlFor="contenido">Qué tiene que saber</label>
@@ -110,10 +98,6 @@ export default async function NegocioPage({
                   maxLength={4000}
                   required
                 />
-                <p className="tiny muted" style={{ marginTop: 4 }}>
-                  Escribilo como se lo explicarías a alguien que entra a
-                  trabajar {delRubro(etiqueta)} mañana. Concreto y sin rodeos.
-                </p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="submit" className="btn btn-primary">
@@ -138,9 +122,7 @@ export default async function NegocioPage({
           {entradas.length === 0 ? (
             <div className="empty">
               <b>Todavía no cargaste nada</b>
-              Sin esto, el asistente deriva cada vez que le preguntan un
-              precio, un horario o una dirección. Empezá por lo que más te
-              preguntan.
+              Empezá por lo que más te preguntan: precios, horarios, dirección.
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 12 }}>

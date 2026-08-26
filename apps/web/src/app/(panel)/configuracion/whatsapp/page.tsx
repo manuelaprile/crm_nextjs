@@ -85,11 +85,7 @@ export default async function WhatsAppPage({
       </div>
 
       {puedeGestionar && (
-        <CanalZernio
-          cuentas={accounts}
-          etiqueta={etiqueta}
-          disponible={zernioActivo()}
-        />
+        <CanalZernio cuentas={accounts} disponible={zernioActivo()} />
       )}
 
       {MOSTRAR_QR && porQr.length === 0 && (
