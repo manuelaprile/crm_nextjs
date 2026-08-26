@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { sonar } from './sonido'
 
 /**
  * El latido del panel, en un solo lugar.
@@ -172,6 +173,11 @@ export function PulsoProvider({
 
           if (esNuevo && d.ultimo) {
             setAviso(d.ultimo)
+            // El sonido es lo que hace que se note con la pestaña de fondo,
+            // que es como se usa esto de verdad. Se apaga desde el menú y
+            // nunca lanza: si el navegador todavía no deja reproducir audio,
+            // el cartel aparece igual.
+            sonar()
             clearTimeout(cierre)
             cierre = setTimeout(() => setAviso(null), AVISO_MS)
           }

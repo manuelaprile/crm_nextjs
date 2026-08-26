@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { signOut } from '@/lib/actions'
 import { CambiarCuenta } from './cambiar-cuenta'
 import { useSinLeer } from './pulso-provider'
+import { BotonSonido } from './sonido-boton'
 import {
   IconInbox,
   IconUsers,
@@ -237,6 +238,9 @@ export function Sidebar({
               <div className="tiny muted">{rolLabel}</div>
             </div>
           </div>
+          {/* Solo tiene sentido donde hay bandeja. Un superadmin en la vista
+              de plataforma no recibe mensajes de nadie. */}
+          {!sinCuenta && <BotonSonido />}
           <form action={signOut}>
             <button
               type="submit"
