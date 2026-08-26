@@ -109,7 +109,15 @@ export async function toggleAi(formData: FormData): Promise<void> {
 
   await withTenant(session, (tx) =>
     tx.execute(sql`
-      update conversations set ai_enabled = not ai_enabled
+      update conversations
+         set ai_enabled = not ai_enabled,
+             -- Al PRENDERLA se anota cuándo. Es el corte que le dice al
+             -- agente qué parte del historial ya fue atendida por una
+             -- persona: sin esto vuelve a leer el "quiero hablar con
+             -- alguien" de hace tres días y deriva de nuevo.
+             ai_resumed_at = case
+               when not ai_enabled then now() else ai_resumed_at
+             end
        where id = ${conversationId}
     `),
   )

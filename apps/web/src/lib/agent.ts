@@ -50,6 +50,11 @@ type AgentContext = {
   systemPrompt: string
   maxTurns: number
   handoffKeywords: string[]
+  /**
+   * Cuándo volvió esta conversación a la IA después de que la atendiera una
+   * persona. Marca el corte entre lo que ya se resolvió y lo que es nuevo.
+   */
+  retomadaEn: Date | null
   assistantName: string
 }
 
@@ -100,6 +105,7 @@ async function loadContext(conversationId: string): Promise<AgentContext | null>
   return withSystem(async (tx) => {
     const res = await tx.execute(sql`
       select c.id, c.tenant_id, c.contact_id, c.ai_enabled, c.is_group,
+             c.ai_resumed_at,
              ac.enabled, ac.system_prompt, ac.model, ac.max_turns,
              ac.handoff_keywords, ac.assistant_name,
              ac.provider, ac.api_key_enc
@@ -136,6 +142,7 @@ async function loadContext(conversationId: string): Promise<AgentContext | null>
       systemPrompt: String(row.system_prompt),
       maxTurns: Number(row.max_turns ?? 6),
       handoffKeywords: (row.handoff_keywords as string[]) ?? [],
+      retomadaEn: row.ai_resumed_at ? new Date(String(row.ai_resumed_at)) : null,
       assistantName: String(row.assistant_name ?? 'Asistente'),
     }
   })
@@ -499,7 +506,7 @@ async function etapasDelTenant(
 
 async function run(ctx: AgentContext): Promise<void> {
   const started = Date.now()
-  const messages = await loadHistory(ctx.conversationId)
+  const messages = await loadHistory(ctx.conversationId, ctx.retomadaEn)
   if (!messages.length) return
 
   const etapas = await etapasDelTenant(ctx.tenantId)
@@ -608,19 +615,55 @@ async function run(ctx: AgentContext): Promise<void> {
  * Si se filtrara por contacto, el agente mezclaría lo que la persona dijo por
  * WhatsApp con lo que dijo por Instagram.
  */
-async function loadHistory(conversationId: string): Promise<ChatMessage[]> {
+async function loadHistory(
+  conversationId: string,
+  retomadaEn: Date | null,
+): Promise<ChatMessage[]> {
   return withSystem(async (tx) => {
     const res = await tx.execute(sql`
-      select direction, body from messages
+      select direction, body, created_at from messages
        where conversation_id = ${conversationId}
          and body is not null and body <> ''
        order by created_at desc
        limit 30
     `)
-    const rows = (res.rows as { direction: string; body: string }[]).reverse()
+    const rows = (
+      res.rows as { direction: string; body: string; created_at: string }[]
+    ).reverse()
+    let marcado = false
 
     const out: ChatMessage[] = []
     for (const row of rows) {
+      /**
+       * La marca de que acá hubo una persona en el medio.
+       *
+       * Va DENTRO de la conversación y no en el prompt del sistema a
+       * propósito: un modelo obedece mucho mejor un corte que ve en el hilo
+       * que una instrucción abstracta sobre un historial que también está
+       * leyendo. Sin esto vuelve a atender un pedido de hace tres días y
+       * deriva de nuevo apenas entra un mensaje.
+       *
+       * El historial NO se recorta: ahí está el nombre, el motivo de
+       * consulta y todo lo que la persona ya contó. Hacérselo preguntar de
+       * nuevo sería peor que el problema que estamos arreglando.
+       */
+      if (
+        retomadaEn &&
+        !marcado &&
+        new Date(row.created_at).getTime() >= retomadaEn.getTime()
+      ) {
+        marcado = true
+        out.push({
+          role: 'assistant',
+          content:
+            '[Nota del sistema: hasta acá esta conversación la atendió una ' +
+            'persona del equipo, y todo lo que se pidió antes de este punto ' +
+            'ya fue atendido. A partir de acá volvés a responder vos. No ' +
+            'derives de nuevo por algo que se haya pedido más arriba: ' +
+            'derivá solo si lo vuelven a pedir de acá en adelante.]',
+        })
+      }
+
       const role = row.direction === 'inbound' ? 'user' : 'assistant'
       const prev = out[out.length - 1]
       // Dos mensajes seguidos de la misma persona se concatenan: WhatsApp
