@@ -30,6 +30,7 @@
  */
 import 'server-only'
 import { sql } from 'drizzle-orm'
+import { promptCompleto } from './conocimiento'
 import { withSystem } from './db/client'
 import { deliverMessage } from './deliver'
 import { isSealed, open as openSecret, type SealedValue } from './crypto'
@@ -525,9 +526,21 @@ async function run(ctx: AgentContext): Promise<void> {
       apiKey: ctx.apiKey,
     })
 
+    /**
+     * Las instrucciones, más lo que sabe del negocio y de esta persona.
+     *
+     * Se arma UNA vez por corrida y no por turno: el prompt no cambia entre
+     * turnos y rearmarlo sería consultar la base varias veces por lo mismo.
+     */
+    const system = await promptCompleto({
+      base: ctx.systemPrompt,
+      tenantId: ctx.tenantId,
+      contactId: ctx.contactId,
+    })
+
     for (let turno = 0; turno < ctx.maxTurns; turno++) {
       const res = await modelo.complete({
-        system: ctx.systemPrompt,
+        system,
         messages,
         tools,
         maxTokens: 1024,

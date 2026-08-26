@@ -8,6 +8,9 @@ const SECCIONES = [
   // inmobiliaria y un estudio contable.
   { href: '/configuracion/general', label: 'General' },
   { href: '/configuracion/etapas', label: 'Etapas' },
+  // Pegada a "Asistente IA" porque es su otra mitad: acá se carga lo que el
+  // asistente sabe, allá cómo se comporta.
+  { href: '/configuracion/negocio', label: 'Info del negocio' },
   { href: '/configuracion/whatsapp', label: 'WhatsApp' },
   { href: '/configuracion/ia', label: 'Asistente IA' },
   { href: '/configuracion/usuarios', label: 'Usuarios' },

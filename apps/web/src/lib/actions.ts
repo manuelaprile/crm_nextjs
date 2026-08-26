@@ -197,10 +197,21 @@ export async function addNote(formData: FormData): Promise<void> {
   const body = String(formData.get('body') ?? '').trim().slice(0, 4000)
   if (!contactId || !body) return
 
+  /**
+   * Si el asistente puede leer esta nota.
+   *
+   * Por defecto SÍ: es lo que le da memoria entre conversaciones y es para lo
+   * que se cargan las notas. Marcarla como interna es la excepción, para lo
+   * que el equipo se escribe entre sí y no debería influir en cómo se le
+   * contesta a la persona.
+   */
+  const privada = String(formData.get('privada') ?? '') === 'si'
+
   await withTenant(session, (tx) =>
     tx.execute(sql`
-      insert into notes (tenant_id, contact_id, author_user_id, body)
-      values (${session.tenantId}, ${contactId}, ${session.userId}, ${body})
+      insert into notes (tenant_id, contact_id, author_user_id, body, visible_ia)
+      values (${session.tenantId}, ${contactId}, ${session.userId}, ${body},
+              ${!privada})
     `),
   )
   revalidatePath(`/contactos/${contactId}`)

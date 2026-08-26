@@ -262,6 +262,23 @@ export default async function ChatPage({
                   placeholder="Agregar una nota…"
                   style={{ resize: 'none' }}
                 />
+                {/* El asistente lee las notas para tener memoria del
+                    contacto. Esta casilla es la salida para lo que se
+                    escribe entre nosotros y no queremos que influya en
+                    cómo se le contesta a la persona. */}
+                <label
+                  className="tiny muted"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginTop: 8,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input type="checkbox" name="privada" value="si" />
+                  Solo para el equipo (el asistente no la lee)
+                </label>
                 <button
                   type="submit"
                   className="btn btn-ghost btn-sm btn-block"
