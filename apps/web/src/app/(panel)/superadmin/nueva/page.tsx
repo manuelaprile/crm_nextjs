@@ -65,16 +65,6 @@ export default async function NuevaCuentaPage({
           </div>
         </div>
 
-        <div className="alert alert-gray" style={{ marginTop: 16, maxWidth: 820 }}>
-          <span>
-            Lo que falta hacer después, ya adentro de la cuenta:{' '}
-            <strong>conectar WhatsApp</strong> escaneando el QR y{' '}
-            <strong>completar las instrucciones del asistente</strong> con los
-            datos reales (dirección, horarios, qué ofrece). El asistente arranca
-            apagado a propósito: se prende cuando el cliente leyó y aprobó lo
-            que va a contestar en su nombre.
-          </span>
-        </div>
       </div>
     </>
   )

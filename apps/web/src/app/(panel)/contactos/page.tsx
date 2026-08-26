@@ -155,14 +155,9 @@ async function TableroContactos({
 
   return (
     <>
-      {recortado && (
-        <div className="alert alert-gray" style={{ marginBottom: 14 }}>
-          El tablero muestra hasta 25 tarjetas por columna. Para ver todos y
-          buscar, usá la vista <strong>Lista</strong>.
-        </div>
-      )}
       <p className="tiny muted" style={{ marginBottom: 10 }}>
-        Arrastrá las tarjetas para cambiar de etapa
+        Arrastrá las tarjetas para cambiar de etapa · Hasta 25 por columna;
+        para verlos todos, usá Lista
       </p>
       <Board
         columns={columns.map((c) => ({

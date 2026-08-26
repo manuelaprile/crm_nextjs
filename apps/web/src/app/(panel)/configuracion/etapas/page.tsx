@@ -191,17 +191,6 @@ export default async function EtapasPage({
         </div>
       </div>
 
-      <div className="alert alert-gray">
-        <span>
-          <strong>Entrada</strong> es donde cae un contacto nuevo y hay una
-          sola. <strong>Cierre</strong> es el objetivo del embudo —operarse,
-          firmar, comprar— y también es una sola: es la que mide la conversión
-          en Reportes. Las de <strong>descarte</strong> no cuentan para el
-          embudo y puede haber varias. Una etapa por la que ya pasaron
-          contactos se renombra, no se borra: borrarla se llevaría su
-          historial y el reporte quedaría mal para siempre.
-        </span>
-      </div>
     </>
   )
 }

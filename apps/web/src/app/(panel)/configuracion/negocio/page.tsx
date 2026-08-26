@@ -214,13 +214,6 @@ export default async function NegocioPage({
         </div>
       </div>
 
-      <div className="alert alert-gray" style={{ marginTop: 16 }}>
-        <span>
-          El asistente tiene la instrucción de <strong>no inventar</strong>: si
-          le preguntan algo que no está acá, dice que lo consulta y deriva. Por
-          eso conviene cargar de a poco y bien, en vez de mucho y a medias.
-        </span>
-      </div>
     </>
   )
 }

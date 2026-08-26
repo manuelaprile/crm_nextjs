@@ -46,16 +46,7 @@ export function CanalOficial({ cuentas }: { cuentas: WhatsAppAccount[] }) {
               cargar los datos abajo para reemplazarlo.
             </span>
           </div>
-        ) : (
-          <div className="alert alert-gray" style={{ marginBottom: 14 }}>
-            <span>
-              Para usarlo, el cliente necesita una cuenta de WhatsApp Business
-              en Meta. Los dos datos salen de <strong>WhatsApp Manager →
-              Configuración de la API</strong>. Si preferís seguir con el QR,
-              ignorá esta sección: no hace falta.
-            </span>
-          </div>
-        )}
+        ) : null}
 
         <form action={conectarCloudApi} style={{ display: 'grid', gap: 12 }}>
           <div className="field">

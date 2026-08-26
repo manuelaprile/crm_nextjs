@@ -66,10 +66,10 @@ export function AccionesContacto({
       </div>
       <div className="panel-box-body">
         {archivado && (
-          <div className="alert alert-gray" style={{ marginBottom: 14 }}>
-            Este contacto está archivado: no aparece en el embudo ni en la
-            bandeja. Si vuelve a escribir, reaparece solo.
-          </div>
+          <p className="tiny muted" style={{ marginBottom: 12 }}>
+            Archivado: no aparece en el embudo ni en la bandeja. Si vuelve a
+            escribir, reaparece solo.
+          </p>
         )}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

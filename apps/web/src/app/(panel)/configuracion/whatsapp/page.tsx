@@ -262,14 +262,6 @@ export default async function WhatsAppPage({
 
       {/* {puedeGestionar && <CanalOficial cuentas={accounts} />} */}
 
-      <div className="alert alert-gray" style={{display: 'none'}}>
-        <span>
-          <b style={{ fontWeight: 600 }}>Importante:</b> la vinculación por QR
-          no es una integración oficial de Meta. Usá un número dedicado{' '}
-          {alRubro(etiqueta)} y no el personal. El sistema solo responde a quien
-          escribe primero y nunca hace envíos masivos.
-        </span>
-      </div>
     </>
   )
 }
