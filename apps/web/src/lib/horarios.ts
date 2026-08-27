@@ -125,3 +125,13 @@ export function comoSeLee(fecha: Date, zona: string): string {
   }).format(fecha)
   return `${dia.replace(/-/g, '/')} a las ${horaEnZona(fecha, zona)}`
 }
+
+/** Solo el día, sin hora: "miércoles 2 de septiembre". */
+export function comoSeLeeDia(fecha: Date, zona: string): string {
+  return new Intl.DateTimeFormat('es-AR', {
+    timeZone: zona,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(fecha)
+}

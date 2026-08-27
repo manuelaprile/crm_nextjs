@@ -2,8 +2,10 @@ import 'server-only'
 import type { ToolSpec } from './ai/provider'
 import {
   comoSeLee,
+  comoSeLeeDia,
   configAgenda,
   diaEnZona,
+  estaLibre,
   horaEnZona,
   huecosLibres,
   instanteDe,
@@ -40,7 +42,20 @@ import {
  * procesar tu solicitud".
  */
 
-const MAX_HUECOS = 6
+// Cuántos huecos se piden a la base. Alto a propósito: la lista se agrupa
+// por día, y una jornada de nueve horas con turnos de media hora ya son
+// dieciocho horarios.
+const MAX_HUECOS = 70
+/**
+ * Cuántos días se muestran, y cuántas horas de cada uno.
+ *
+ * El tope por día tiene que alcanzar para una jornada COMPLETA. Con 14 la
+ * lista de un 09:00–18:00 se cortaba en las 15:30, y cualquier pregunta por
+ * la tarde caía en el mismo agujero de antes: el horario no estaba en la
+ * lista y el modelo lo daba por ocupado.
+ */
+const DIAS_A_MOSTRAR = 3
+const HORAS_POR_DIA = 24
 
 export function toolsDeAgenda(): ToolSpec[] {
   return [
@@ -61,6 +76,23 @@ export function toolsDeAgenda(): ToolSpec[] {
               'Omitilo para buscar lo antes posible.',
           },
         },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'esta_libre',
+      description:
+        'Comprueba UN horario puntual. Usar siempre que pregunten por un día ' +
+        'y hora concretos. NUNCA contestes que algo no está disponible sin ' +
+        'haberlo consultado acá: que no aparezca en  no ' +
+        'significa que esté ocupado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dia: { type: 'string', description: 'AAAA-MM-DD, del calendario.' },
+          hora: { type: 'string', description: 'HH:MM en 24 horas' },
+        },
+        required: ['dia', 'hora'],
         additionalProperties: false,
       },
     },
@@ -123,6 +155,7 @@ export function toolsDeAgenda(): ToolSpec[] {
 export function esToolDeAgenda(nombre: string): boolean {
   return [
     'ver_horarios',
+    'esta_libre',
     'agendar',
     'ver_turno',
     'reagendar',
@@ -206,6 +239,12 @@ export function instruccionesDeAgenda(config: ConfigAgenda): string | null {
     'Nunca inventes un horario ni digas "te confirmamos después": o lo ' +
       'reservás en el momento, o derivás.',
     '',
+    'Si te preguntan por un día y hora CONCRETOS —"¿tenés el lunes a las ' +
+      '11?"—, consultá `esta_libre` y contestá con eso. Que un horario no ' +
+      'aparezca en `ver_horarios` NO quiere decir que esté ocupado: esa ' +
+      'lista muestra los primeros días, no todos. Decir "no tengo" sobre un ' +
+      'horario que estaba libre es de las peores cosas que podés hacer acá.',
+    '',
     '## CALENDARIO',
     '',
     'NO calcules fechas ni días de la semana: buscalos en esta tabla. Es la ' +
@@ -288,14 +327,63 @@ export async function ejecutarToolDeAgenda(
           'en este momento no hay disponibilidad y derivá a una persona.'
         )
       }
-      const lista = huecos
-        .map((h) => `- ${comoSeLee(h, config.zona)}  (dia=${diaEnZona(h, config.zona)} hora=${horaEnZona(h, config.zona)})`)
-        .join('\n')
+
+      /**
+       * Agrupado por día y con el día COMPLETO, no seis horarios sueltos.
+       *
+       * Antes devolvía los primeros seis en total: con turnos de media hora
+       * eso llegaba hasta las 11:30 del primer día con lugar. Si alguien
+       * preguntaba por la tarde, o por otro día, el modelo no lo tenía en la
+       * lista y contestaba que no había. Es lo que pasó de verdad con un
+       * "¿tenés el lunes a las 11?" sobre un horario que estaba libre.
+       */
+      const porDia = new Map<string, string[]>()
+      for (const h of huecos) {
+        const dia = diaEnZona(h, config.zona)
+        const lista = porDia.get(dia) ?? []
+        if (lista.length < HORAS_POR_DIA) lista.push(horaEnZona(h, config.zona))
+        porDia.set(dia, lista)
+      }
+
+      const bloques = [...porDia.entries()]
+        .slice(0, DIAS_A_MOSTRAR)
+        .map(([dia, horas]) => {
+          const ancla = instanteDe(dia, '12:00', config.zona)
+          const rotulo = ancla ? comoSeLeeDia(ancla, config.zona) : dia
+          return `${rotulo}  (dia=${dia})\n  ${horas.join('  ')}`
+        })
+
       return (
-        `Horarios libres:\n${lista}\n\n` +
-        'Ofrecé dos o tres de estos, con las palabras de siempre. Para ' +
-        'agendar, usá los valores de `dia` y `hora` tal cual figuran acá.'
+        `Horarios libres:\n\n${bloques.join('\n\n')}\n\n` +
+        'Ofrecé dos o tres, con las palabras de siempre. Para agendar, usá ' +
+        'el `dia` de la línea y la hora tal cual figura. Si te preguntan por ' +
+        'un horario que no está en esta lista, NO supongas que está ocupado: ' +
+        'consultá `esta_libre`.'
       )
+    }
+
+    case 'esta_libre': {
+      const dia = String(input.dia ?? '').trim()
+      const hora = String(input.hora ?? '').trim()
+      const inicio = instanteDe(dia, hora, config.zona)
+      if (!inicio) {
+        return 'Ese día u hora no son válidos. Usá AAAA-MM-DD y HH:MM, sacando el día del calendario de tus instrucciones.'
+      }
+      const motivo = await estaLibre({ tenantId: ctx.tenantId, config, inicio })
+      const cuando = comoSeLee(inicio, config.zona)
+      switch (motivo) {
+        case 'libre':
+          return `SÍ, el ${cuando} está libre. Podés agendarlo con dia=${dia} hora=${hora}.`
+        case 'ocupado':
+          return `NO, el ${cuando} ya está tomado. Ofrecé otro horario de \`ver_horarios\`.`
+        case 'fuera-de-horario':
+          return `NO, el ${cuando} queda fuera del horario de atención. Decile cuáles son los horarios y ofrecé alternativas.`
+        case 'muy-pronto':
+          return `NO, el ${cuando} es demasiado sobre la hora: hay que avisar con ${config.anticipacionHoras} horas de anticipación. Ofrecé algo más adelante.`
+        case 'pasado':
+          return `NO, el ${cuando} ya pasó. Fijate el calendario de tus instrucciones y ofrecé una fecha futura.`
+      }
+      return 'No se pudo comprobar ese horario.'
     }
 
     case 'agendar': {

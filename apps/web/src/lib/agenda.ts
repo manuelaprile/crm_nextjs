@@ -26,6 +26,7 @@ export {
   diaEnZona,
   horaEnZona,
   comoSeLee,
+  comoSeLeeDia,
 } from './horarios'
 
 export type EstadoTurno = 'programada' | 'cumplida' | 'ausente' | 'cancelada'
@@ -305,6 +306,63 @@ export async function huecosLibres(params: {
   }
 
   return libres
+}
+
+/** Por qué un horario no se puede dar. */
+export type MotivoOcupado =
+  | 'libre'
+  | 'pasado'
+  | 'muy-pronto'
+  | 'fuera-de-horario'
+  | 'ocupado'
+
+/**
+ * ¿Está libre ESTE horario puntual?
+ *
+ * Existe porque sin esto no había forma de contestar "¿tenés el lunes a las
+ * 11?". Lo único disponible era la lista de los primeros huecos libres, y si
+ * el horario preguntado no estaba en esa lista —porque era de otro día, o
+ * porque la lista se cortaba antes— el modelo deducía que estaba ocupado.
+ * Deducir una ausencia a partir de una lista incompleta es exactamente lo que
+ * un modelo hace mal y con seguridad: contestaba "no tengo" sobre horarios
+ * que estaban libres.
+ *
+ * Devuelve el MOTIVO y no un booleano: "ya pasó", "es muy sobre la hora" y
+ * "ese día no atendemos" llevan respuestas distintas, y con un `false` a
+ * secas el modelo se inventa el motivo.
+ */
+export async function estaLibre(params: {
+  tenantId: string
+  config: ConfigAgenda
+  inicio: Date
+  duracionMin?: number
+  ahora?: Date
+}): Promise<MotivoOcupado> {
+  const { tenantId, config, inicio } = params
+  const ahora = params.ahora ?? new Date()
+  const fin = new Date(
+    inicio.getTime() + (params.duracionMin ?? config.duracionIaMin) * 60_000,
+  )
+
+  if (inicio.getTime() <= ahora.getTime()) return 'pasado'
+  if (inicio.getTime() < ahora.getTime() + config.anticipacionHoras * 3_600_000) {
+    return 'muy-pronto'
+  }
+  if (!dentroDeHorario(inicio, fin, config)) return 'fuera-de-horario'
+
+  const delDia = await turnosEntre({
+    tenantId,
+    desde: new Date(inicio.getTime() - 12 * 3_600_000),
+    hasta: fin,
+  })
+  const choca = delDia
+    .filter((t) => t.estado === 'programada' || t.estado === 'cumplida')
+    .some(
+      (t) =>
+        inicio.getTime() < new Date(t.termina).getTime() &&
+        fin.getTime() > new Date(t.inicia).getTime(),
+    )
+  return choca ? 'ocupado' : 'libre'
 }
 
 /**
