@@ -9,6 +9,7 @@ import { useSinLeer } from './pulso-provider'
 import { BotonSonido } from './sonido-boton'
 import {
   IconInbox,
+  IconCalendar,
   IconUsers,
   IconChart,
   IconWhatsApp,
@@ -83,6 +84,7 @@ export function Sidebar({
         grp: 'Atención',
         items: [
           { href: '/bandeja', label: 'Bandeja', icon: <IconInbox />, badge: noLeidos },
+          { href: '/agenda', label: 'Agenda', icon: <IconCalendar /> },
           { href: '/contactos', label: 'Contactos', icon: <IconUsers /> },
         ],
       },

@@ -22,7 +22,7 @@ export async function ListaConversaciones({
   /** Id de la conversación abierta, para marcarla. */
   activa?: string
   q?: string
-  atiende?: 'ia' | 'humano'
+  atiende?: 'ia' | 'humano' | 'visita'
   pagina?: number
 }) {
   const datos = await listConversations(session, {
@@ -48,6 +48,7 @@ export async function ListaConversaciones({
     { valor: undefined, label: 'Todas' },
     { valor: 'ia' as const, label: 'IA' },
     { valor: 'humano' as const, label: 'Humano' },
+    { valor: 'visita' as const, label: 'Visita' },
   ]
 
   return (
@@ -101,9 +102,21 @@ export async function ListaConversaciones({
                   </span>
                   <span className="lm">{c.lastBody ?? 'Sin mensajes'}</span>
                   <span className="wa-conv-tags">
-                    <span className={`badge ${c.aiEnabled ? 'b-blue' : 'b-gray'}`}>
+                    {/*
+                      "Humano" en ámbar y no en gris.
+                      Que un hilo haya pasado a una persona es lo único de esta
+                      lista que pide una acción: alguien está esperando que le
+                      contesten. En gris se confundía con el resto y se pasaba
+                      de largo.
+                    */}
+                    <span className={`badge ${c.aiEnabled ? 'b-blue' : 'b-amber'}`}>
                       {c.aiEnabled ? 'IA' : 'Humano'}
                     </span>
+                    {c.proximoTurno ? (
+                      <span className="badge b-green" title={cuandoViene(c.proximoTurno)}>
+                        Visita {cuandoViene(c.proximoTurno)}
+                      </span>
+                    ) : null}
                     {c.unreadCount > 0 ? (
                       <span className="badge b-green">
                         {c.unreadCount} nuevo{c.unreadCount > 1 ? 's' : ''}
@@ -165,4 +178,25 @@ export function cuando(iso: string | null): string {
   return hoy
     ? d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
     : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+}
+
+/**
+ * Cuándo viene, en dos o tres palabras.
+ *
+ * La etiqueta de la lista tiene lugar para muy poco, y lo que se necesita de
+ * un vistazo no es la fecha exacta sino si es hoy: eso cambia lo que hace la
+ * persona que está mirando la bandeja.
+ */
+function cuandoViene(iso: string): string {
+  const d = new Date(iso)
+  const ahora = new Date()
+  const dias = Math.round(
+    (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() -
+      new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()).getTime()) /
+      86_400_000,
+  )
+  const hora = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  if (dias === 0) return `hoy ${hora}`
+  if (dias === 1) return `mañana ${hora}`
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
 }

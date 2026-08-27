@@ -45,6 +45,14 @@ export type ConversationRow = {
   lastBody: string | null
   unreadCount: number
   aiEnabled: boolean
+  /**
+   * Cuándo viene, si tiene un turno por delante.
+   *
+   * Se resuelve en la MISMA consulta y no con una segunda vuelta: la lista se
+   * vuelve a dibujar en cada latido de la bandeja, y una consulta por
+   * conversación se nota enseguida.
+   */
+  proximoTurno: string | null
   stageName: string | null
   stageColor: string | null
 }
@@ -72,8 +80,12 @@ export async function listConversations(
     pagina?: number
     porPagina?: number
     soloNoLeidas?: boolean
-    /** Quién está atendiendo el hilo: la IA o una persona. */
-    atiende?: 'ia' | 'humano'
+    /**
+     * Qué se muestra: quién atiende el hilo, o los que tienen turno.
+     * Van juntos en un solo filtro porque en pantalla son una sola fila de
+     * solapas, y elegir una reemplaza a la otra.
+     */
+    atiende?: 'ia' | 'humano' | 'visita'
   } = {},
 ): Promise<PaginaConversaciones> {
   const porPagina = Math.min(100, Math.max(10, opts.porPagina ?? 25))
@@ -92,6 +104,10 @@ export async function listConversations(
              (select m.body from messages m
                where m.conversation_id = c.id and m.body is not null
                order by m.created_at desc limit 1) as last_body,
+             (select min(a.starts_at) from appointments a
+               where a.contact_id = c.contact_id
+                 and a.status = 'programada' and a.ends_at >= now())
+               as proximo_turno,
              count(*) over () as total
         from conversations c
    left join contacts ct on ct.id = c.contact_id
@@ -105,7 +121,11 @@ export async function listConversations(
          and (${soloNoLeidas} = false or c.unread_count > 0)
          and (${atiende}::text is null
               or (${atiende} = 'ia' and c.ai_enabled)
-              or (${atiende} = 'humano' and not c.ai_enabled))
+              or (${atiende} = 'humano' and not c.ai_enabled)
+              or (${atiende} = 'visita' and exists (
+                    select 1 from appointments a
+                     where a.contact_id = c.contact_id
+                       and a.status = 'programada' and a.ends_at >= now())))
        order by c.last_message_at desc nulls last
        limit ${porPagina} offset ${offset}
     `)
@@ -122,6 +142,7 @@ export async function listConversations(
         lastBody: r.last_body ? String(r.last_body) : null,
         unreadCount: Number(r.unread_count ?? 0),
         aiEnabled: Boolean(r.ai_enabled),
+        proximoTurno: r.proximo_turno ? String(r.proximo_turno) : null,
         stageName: r.stage_name ? String(r.stage_name) : null,
         stageColor: r.stage_color ? String(r.stage_color) : null,
       })),

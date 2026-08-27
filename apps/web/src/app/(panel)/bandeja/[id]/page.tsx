@@ -28,7 +28,10 @@ export default async function ChatPage({
   const session = await requireTenant()
   const { id } = await params
   const { q, atiende, p } = await searchParams
-  const filtro = atiende === 'ia' || atiende === 'humano' ? atiende : undefined
+  const filtro =
+    atiende === 'ia' || atiende === 'humano' || atiende === 'visita'
+      ? atiende
+      : undefined
 
   const conversation = await getConversation(session, id)
   if (!conversation) notFound()

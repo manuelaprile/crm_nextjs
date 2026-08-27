@@ -1367,3 +1367,56 @@ tbody tr.clickable {
     transform: scaleX(1);
   }
 }
+
+/* ---------------------------------------------------------------------
+   Agenda
+   --------------------------------------------------------------------- */
+.agenda-fila {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.agenda-fila .field {
+  flex: 1 1 130px;
+  min-width: 0;
+}
+.agenda-dia {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-muted);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--c-border);
+}
+.agenda-turno {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  flex-wrap: wrap;
+}
+/* La hora es lo que se busca al barrer la lista con la vista: va primero,
+   en ancho fijo, para que todas queden alineadas aunque cambie el título. */
+.agenda-hora {
+  display: flex;
+  flex-direction: column;
+  min-width: 52px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.agenda-hora small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--c-muted);
+}
+.agenda-acciones {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}

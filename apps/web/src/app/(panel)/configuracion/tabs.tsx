@@ -11,6 +11,7 @@ const SECCIONES = [
   // Pegada a "Asistente IA" porque es su otra mitad: acá se carga lo que el
   // asistente sabe, allá cómo se comporta.
   { href: '/configuracion/negocio', label: 'Info del negocio' },
+  { href: '/configuracion/agenda', label: 'Agenda' },
   { href: '/configuracion/whatsapp', label: 'WhatsApp' },
   { href: '/configuracion/ia', label: 'Asistente IA' },
   { href: '/configuracion/usuarios', label: 'Usuarios' },

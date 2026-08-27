@@ -20,7 +20,10 @@ export default async function BandejaPage({
   const session = await requireTenant()
   const etiqueta = etiquetaDe(session)
   const { q, atiende, p } = await searchParams
-  const filtro = atiende === 'ia' || atiende === 'humano' ? atiende : undefined
+  const filtro =
+    atiende === 'ia' || atiende === 'humano' || atiende === 'visita'
+      ? atiende
+      : undefined
 
   /**
    * El centro solo invita a conectar si NO hay ningún número andando.

@@ -140,6 +140,13 @@ export const IconInbox = ({ className }: P) => (
   </svg>
 )
 
+export const IconCalendar = ({ className }: P) => (
+  <svg width="18" height="18" {...base} strokeLinejoin="round" className={className}>
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M3 10h18M8 3v4M16 3v4" />
+  </svg>
+)
+
 export const IconFlask = ({ className }: P) => (
   <svg width="18" height="18" {...base} strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M10 2v6.5L4.5 18a2 2 0 001.7 3h11.6a2 2 0 001.7-3L14 8.5V2" />

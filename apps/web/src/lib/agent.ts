@@ -36,6 +36,13 @@ import { deliverMessage } from './deliver'
 import { isSealed, open as openSecret, type SealedValue } from './crypto'
 import { createProvider, type ChatMessage, type ToolSpec } from './ai/provider'
 import { estimateCost } from './ai/models'
+import {
+  esToolDeAgenda,
+  ejecutarToolDeAgenda,
+  instruccionesDeAgenda,
+  toolsDeAgenda,
+} from './agenda-agente'
+import { configAgenda } from './agenda'
 
 /** Si el mensaje esperó más que esto, no se contesta. Ver CLAUDE.md. */
 const MAX_MESSAGE_AGE_MS = 10 * 60 * 1000
@@ -321,6 +328,22 @@ async function executeTool(
   let stop = false
 
   try {
+    // Las de agenda se despachan aparte: viven en su propio archivo porque
+    // son las únicas que escriben en la agenda real de un negocio.
+    if (esToolDeAgenda(name)) {
+      const texto = await ejecutarToolDeAgenda(
+        {
+          tenantId: ctx.tenantId,
+          conversationId: ctx.conversationId,
+          contactId: ctx.contactId,
+        },
+        name,
+        input,
+      )
+      await registrarTool(ctx, name, input, texto, null, Date.now() - started)
+      return { result: texto, stop: false }
+    }
+
     switch (name) {
       case 'set_stage': {
         if (!ctx.contactId) throw new Error('la conversación no tiene contacto')
@@ -422,17 +445,34 @@ async function executeTool(
     output = { error: error }
   }
 
+  await registrarTool(ctx, name, input, output, error, Date.now() - started)
+  return { result: JSON.stringify(output), stop }
+}
+
+/**
+ * Deja constancia de cada llamada a una herramienta.
+ *
+ * Está aparte porque lo usan los dos caminos —las herramientas de siempre y
+ * las de agenda—, y porque este registro es lo que hace revisable lo que
+ * hizo la IA. Un turno que apareció sin que nadie lo cargara se explica acá.
+ */
+async function registrarTool(
+  ctx: AgentContext,
+  name: string,
+  input: Record<string, unknown>,
+  output: unknown,
+  error: string | null,
+  duracionMs: number,
+): Promise<void> {
   await withSystem((tx) =>
     tx.execute(sql`
       insert into ai_tool_calls
         (tenant_id, conversation_id, tool_name, input, output, error, duration_ms)
       values (${ctx.tenantId}, ${ctx.conversationId}, ${name},
               ${JSON.stringify(input)}::jsonb, ${JSON.stringify(output)}::jsonb,
-              ${error}, ${Date.now() - started})
+              ${error}, ${duracionMs})
     `),
   )
-
-  return { result: JSON.stringify(output), stop }
 }
 
 function clip(value: unknown, max: number): string | null {
@@ -511,7 +551,12 @@ async function run(ctx: AgentContext): Promise<void> {
   if (!messages.length) return
 
   const etapas = await etapasDelTenant(ctx.tenantId)
-  const tools = toolsFor(etapas)
+  // Las herramientas de agenda se ofrecen SOLO si el dueño las habilitó.
+  // No alcanza con que la herramienta rechace la llamada: un modelo que ve
+  // `agendar` en su lista le dice al paciente que le consigue un turno, y
+  // después no puede. Lo que no está, no se promete.
+  const config = await configAgenda(ctx.tenantId)
+  const tools = [...toolsFor(etapas), ...(config.iaAgenda ? toolsDeAgenda() : [])]
 
   let inputTokens = 0
   let outputTokens = 0
@@ -532,11 +577,19 @@ async function run(ctx: AgentContext): Promise<void> {
      * Se arma UNA vez por corrida y no por turno: el prompt no cambia entre
      * turnos y rearmarlo sería consultar la base varias veces por lo mismo.
      */
-    const system = await promptCompleto({
+    const base = await promptCompleto({
       base: ctx.systemPrompt,
       tenantId: ctx.tenantId,
       contactId: ctx.contactId,
     })
+    // Cómo agendar va ÚLTIMO, después del negocio y del contacto: es lo más
+    // específico y lo que más pesa en lo que el modelo termina haciendo.
+    const agenda = instruccionesDeAgenda(config)
+    const system = agenda ? `${base}
+
+---
+
+${agenda}` : base
 
     for (let turno = 0; turno < ctx.maxTurns; turno++) {
       const res = await modelo.complete({
