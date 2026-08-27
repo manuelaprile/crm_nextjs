@@ -234,19 +234,32 @@ export async function huecosLibres(params: {
   tenantId: string
   config: ConfigAgenda
   cuantos?: number
+  /**
+   * No ofrecer nada antes de este momento. Es lo que permite contestar "la
+   * semana que viene" con horarios de la semana que viene.
+   *
+   * Va SEPARADO de `ahora` a propósito. Antes era el mismo valor, y correr el
+   * arranque corría también la anticipación mínima y el horizonte: pedir
+   * turnos para dentro de diez días devolvía huecos del día veinte.
+   */
   desde?: Date
+  /** Solo para pruebas: qué momento se considera "ahora". */
+  ahora?: Date
 }): Promise<Date[]> {
   const { tenantId, config } = params
   const cuantos = params.cuantos ?? 6
-  const ahora = params.desde ?? new Date()
+  const ahora = params.ahora ?? new Date()
   const duracionMs = config.duracionIaMin * 60_000
 
-  const inicioValido = new Date(
-    ahora.getTime() + config.anticipacionHoras * 3_600_000,
-  )
+  const minimo = new Date(ahora.getTime() + config.anticipacionHoras * 3_600_000)
+  const inicioValido =
+    params.desde && params.desde.getTime() > minimo.getTime()
+      ? params.desde
+      : minimo
   const fin = new Date(
     ahora.getTime() + config.horizonteDias * 24 * 3_600_000,
   )
+  if (inicioValido >= fin) return []
 
   const ocupados = await turnosEntre({
     tenantId,
@@ -278,6 +291,10 @@ export async function huecosLibres(params: {
         t + duracionMs <= tFin.getTime() && libres.length < cuantos;
         t += duracionMs
       ) {
+        // El horizonte también corta acá. Empezando a barrer desde una fecha
+        // pedida, el recorrido por días podía pasarse del último día que el
+        // cliente quiere ofrecer.
+        if (t > fin.getTime()) break
         if (t < inicioValido.getTime()) continue
         const choca = rangos.some(([a, b]) => t < b && t + duracionMs > a)
         if (!choca) libres.push(new Date(t))

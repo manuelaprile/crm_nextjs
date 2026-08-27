@@ -84,8 +84,8 @@ export function Sidebar({
         grp: 'Atención',
         items: [
           { href: '/bandeja', label: 'Bandeja', icon: <IconInbox />, badge: noLeidos },
-          { href: '/agenda', label: 'Agenda', icon: <IconCalendar /> },
           { href: '/contactos', label: 'Contactos', icon: <IconUsers /> },
+          { href: '/agenda', label: 'Agenda', icon: <IconCalendar /> },
         ],
       },
       {

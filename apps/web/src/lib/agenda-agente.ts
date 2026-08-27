@@ -7,6 +7,7 @@ import {
   horaEnZona,
   huecosLibres,
   instanteDe,
+  partesEnZona,
   proximoTurnoDe,
   type ConfigAgenda,
 } from './agenda'
@@ -51,11 +52,13 @@ export function toolsDeAgenda(): ToolSpec[] {
       parameters: {
         type: 'object',
         properties: {
-          preferencia: {
+          desde_dia: {
             type: 'string',
             description:
-              'Lo que pidió la persona, con sus palabras: "el martes", ' +
-              '"a la mañana", "lo antes posible". Opcional.',
+              'AAAA-MM-DD. El primer día a partir del cual buscar. Sacalo ' +
+              'del CALENDARIO de tus instrucciones, no lo calcules. Si te ' +
+              'dicen "la semana que viene", poné el lunes de esa semana. ' +
+              'Omitilo para buscar lo antes posible.',
           },
         },
         additionalProperties: false,
@@ -127,6 +130,47 @@ export function esToolDeAgenda(nombre: string): boolean {
   ].includes(nombre)
 }
 
+/** Cuántos días del calendario se le pasan al modelo. */
+const DIAS_DE_CALENDARIO = 16
+
+/**
+ * El calendario de los próximos días, ya resuelto.
+ *
+ * Existe porque los modelos calculan mal las fechas y lo hacen con total
+ * seguridad. Pasó exactamente esto: le pidieron turno "para la semana que
+ * viene" y ofreció el viernes 28, que era el día siguiente; y cuando le
+ * dijeron que estaba mal, corrigió a "jueves 2" cuando el jueves era 3.
+ *
+ * Ninguna instrucción arregla eso, porque el modelo no cree estar
+ * calculando: cree que sabe qué día es. La solución es no pedirle que
+ * calcule. Con la tabla armada, pasa de hacer aritmética a buscar una fila.
+ */
+function calendario(hoy: Date, zona: string): string {
+  const filas: string[] = []
+  for (let i = 0; i < DIAS_DE_CALENDARIO; i++) {
+    const d = new Date(hoy.getTime() + i * 24 * 3_600_000)
+    const dia = diaEnZona(d, zona)
+    const nombre = new Intl.DateTimeFormat('es-AR', {
+      timeZone: zona,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    }).format(d)
+    const marca = i === 0 ? '  <- HOY' : i === 1 ? '  <- mañana' : ''
+    filas.push(`${dia}  ${nombre}${marca}`)
+  }
+  return filas.join('\n')
+}
+
+/** El lunes de la semana siguiente, en la zona del negocio. */
+function lunesQueViene(hoy: Date, zona: string): string {
+  const { diaSemana } = partesEnZona(hoy, zona)
+  // Domingo cuenta como final de semana: para alguien que escribe un domingo,
+  // "la semana que viene" es el lunes de mañana, no el de dentro de ocho días.
+  const faltan = diaSemana === 0 ? 1 : 8 - diaSemana
+  return diaEnZona(new Date(hoy.getTime() + faltan * 24 * 3_600_000), zona)
+}
+
 /**
  * El pedazo de instrucciones que le explica al modelo cómo usar la agenda.
  *
@@ -138,21 +182,47 @@ export function instruccionesDeAgenda(config: ConfigAgenda): string | null {
   if (!config.iaAgenda) return null
 
   const hoy = new Date()
+  const lunes = lunesQueViene(hoy, config.zona)
+  const domingo = diaEnZona(
+    new Date(
+      (instanteDe(lunes, '12:00', config.zona)?.getTime() ?? hoy.getTime()) +
+        6 * 24 * 3_600_000,
+    ),
+    config.zona,
+  )
+
   const partes = [
     '# AGENDAR TURNOS',
     '',
     'Podés reservar turnos vos mismo. Cómo se hace, sin saltear pasos:',
     '',
-    '1. Consultá `ver_horarios` para saber qué hay libre.',
-    '2. Ofrecé DOS o TRES opciones concretas, con día y hora.',
+    '1. Consultá `ver_horarios` para saber qué hay libre. Si te pidieron un ' +
+      'día o una semana en particular, pasale `desde_dia`.',
+    '2. Ofrecé DOS o TRES opciones concretas, copiando el día y la hora tal ' +
+      'como te los devolvió la herramienta.',
     '3. Esperá a que la persona elija.',
     '4. Recién ahí llamá a `agendar`, y confirmá con el día y la hora exactos.',
     '',
     'Nunca inventes un horario ni digas "te confirmamos después": o lo ' +
       'reservás en el momento, o derivás.',
     '',
-    `Hoy es ${comoSeLee(hoy, config.zona)}, hora de la Argentina. Si te ` +
-      'dicen "mañana" o "el martes", resolvelo a partir de esa fecha.',
+    '## CALENDARIO',
+    '',
+    'NO calcules fechas ni días de la semana: buscalos en esta tabla. Es la ' +
+      'única fuente correcta, y tu propia cuenta va a estar mal.',
+    '',
+    '```',
+    calendario(hoy, config.zona),
+    '```',
+    '',
+    `- "hoy" = ${diaEnZona(hoy, config.zona)}`,
+    `- "mañana" = ${diaEnZona(new Date(hoy.getTime() + 24 * 3_600_000), config.zona)}`,
+    `- "esta semana" = hasta el ${diaEnZona(new Date((instanteDe(lunes, '12:00', config.zona)?.getTime() ?? hoy.getTime()) - 24 * 3_600_000), config.zona)}`,
+    `- "la semana que viene" = del ${lunes} al ${domingo}. Para eso, ` +
+      `\`ver_horarios\` con desde_dia=${lunes}.`,
+    '',
+    'Si un día que nombraste no coincide con la tabla, corregite y volvé a ' +
+      'mirar. Confirmar un turno el día equivocado es peor que no agendarlo.',
   ]
 
   if (config.palabrasClave.length) {
@@ -189,16 +259,33 @@ export async function ejecutarToolDeAgenda(
 
   switch (nombre) {
     case 'ver_horarios': {
+      // El parámetro se USA. En la primera versión estaba declarado y no se
+      // leía: el modelo pedía "la semana que viene", recibía los primeros
+      // huecos —que eran del día siguiente— y los presentaba como si fueran
+      // de la semana que viene. Un parámetro que se acepta y se ignora es
+      // peor que no tenerlo: el modelo cree que lo tuvieron en cuenta.
+      const pedido = String(input.desde_dia ?? '').trim()
+      const desde = pedido ? instanteDe(pedido, '00:00', config.zona) : null
+      if (pedido && !desde) {
+        return 'Ese día no es válido. Usá AAAA-MM-DD, sacándolo del calendario de tus instrucciones.'
+      }
+
       const huecos = await huecosLibres({
         tenantId: ctx.tenantId,
         config,
         cuantos: MAX_HUECOS,
+        desde: desde ?? undefined,
       })
       if (!huecos.length) {
+        // Si buscó a partir de una fecha, puede que más adelante haya y
+        // antes también: decirle las dos cosas evita que corte la
+        // conversación con un "no hay nada".
+        const alternativa = desde
+          ? ' a partir de ese día. Probá `ver_horarios` sin `desde_dia` para ver lo primero que haya'
+          : ` en los próximos ${config.horizonteDias} días`
         return (
-          'No hay horarios libres en los próximos ' +
-          `${config.horizonteDias} días. Decile que en este momento no hay ` +
-          'disponibilidad y derivá a una persona.'
+          `No hay horarios libres${alternativa}. Si tampoco hay, decile que ` +
+          'en este momento no hay disponibilidad y derivá a una persona.'
         )
       }
       const lista = huecos
