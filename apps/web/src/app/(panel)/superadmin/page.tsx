@@ -54,6 +54,9 @@ export default async function SuperadminPage({
         <h2>Plataforma</h2>
         <span className="badge b-dark">Superadmin</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <Link href="/superadmin/funciones" className="btn btn-ghost btn-sm">
+            Funciones
+          </Link>
           <Link href="/superadmin/usuarios" className="btn btn-ghost btn-sm">
             Usuarios
           </Link>

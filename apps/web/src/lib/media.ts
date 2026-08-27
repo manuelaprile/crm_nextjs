@@ -14,6 +14,7 @@ import 'server-only'
 import { sql } from 'drizzle-orm'
 import { withSystem } from './db/client'
 import { isSealed, open as openSecret, type SealedValue } from './crypto'
+import { funcionActiva } from './funciones'
 
 /**
  * Tope por archivo. Arriba de esto se guarda la ficha y no el contenido.
@@ -104,10 +105,18 @@ export async function guardarAdjunto(params: {
 
   // La transcripción va DESPUÉS de guardar y sin await del lado de quien
   // ingesta: si OpenAI tarda o falla, el audio ya está a salvo.
+  //
+  // Puede estar apagada por cuenta (superadmin → Funciones). Se consulta acá
+  // y no adentro de `transcribirYGuardar` para que el audio se guarde igual:
+  // apagar la transcripción no puede hacer que se pierda el archivo, que es
+  // lo único irrecuperable.
   if (bytes && adjunto.kind === 'audio') {
-    void transcribirYGuardar(id, tenantId, bytes, mime).catch((err) =>
-      console.error('[media] falló la transcripción', err),
-    )
+    void funcionActiva('transcripcion', tenantId)
+      .then((prendida) => {
+        if (!prendida) return
+        return transcribirYGuardar(id, tenantId, bytes, mime)
+      })
+      .catch((err) => console.error('[media] falló la transcripción', err))
   }
 }
 

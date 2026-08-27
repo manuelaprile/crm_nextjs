@@ -137,6 +137,10 @@ export async function withoutTenant<T>(fn: (tx: Db) => Promise<T>): Promise<T> {
  *   - ingesta         → de `channel_accounts` por el accountId del worker
  *   - deliverMessage  → de `conversations` por el conversationId
  *   - agente          → de la conversación que está atendiendo
+ *   - funciones.ts    → interruptores por cuenta. Los lee la ingesta, que
+ *                       todavía no tiene sesión, y también el panel. El
+ *                       tenantId sale de la sesión del servidor o de una fila
+ *                       ya resuelta, nunca del navegador.
  *
  * REGLAS PARA USARLA
  *   1. NUNCA se llama desde una ruta que reciba datos del navegador.
