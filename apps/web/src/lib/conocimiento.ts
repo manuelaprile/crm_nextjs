@@ -93,6 +93,7 @@ export async function bloqueNegocio(tenantId: string): Promise<string | null> {
  */
 export async function bloqueContacto(
   contactId: string | null,
+  zona = 'America/Argentina/Buenos_Aires',
 ): Promise<string | null> {
   if (!contactId) return null
 
@@ -151,7 +152,11 @@ export async function bloqueContacto(
       by_ai: boolean
       created_at: string
     }[]) {
-      const fecha = new Date(n.created_at).toLocaleDateString('es-AR')
+      // Con la zona del negocio: una nota de anoche a las 22 no puede
+      // aparecerle al asistente fechada al día siguiente.
+      const fecha = new Date(n.created_at).toLocaleDateString('es-AR', {
+        timeZone: zona,
+      })
       const linea = `- (${fecha}) ${n.body.trim()}\n`
       if (textoNotas.length + linea.length > TOPE_NOTAS) break
       textoNotas += linea
@@ -188,10 +193,12 @@ export async function promptCompleto(params: {
   base: string
   tenantId: string
   contactId: string | null
+  /** La zona del negocio, para fechar las notas como las leería una persona. */
+  zona?: string
 }): Promise<string> {
   const [negocio, contacto] = await Promise.all([
     bloqueNegocio(params.tenantId),
-    bloqueContacto(params.contactId),
+    bloqueContacto(params.contactId, params.zona),
   ])
   return [params.base, negocio, contacto].filter(Boolean).join('\n\n---\n\n')
 }

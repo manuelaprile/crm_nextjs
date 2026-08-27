@@ -5,6 +5,7 @@ import { connectWhatsApp, disconnectWhatsApp } from '@/lib/actions'
 import { AutoRefresh } from './auto-refresh'
 import { CanalZernio } from './zernio'
 import { zernioActivo } from '@/lib/zernio'
+import { fechaHora } from '@/lib/fechas'
 // El alta manual del canal oficial de Meta queda ESCONDIDA, no borrada: el
 // código anda y está probado, pero pide que el cliente cree su cuenta en
 // Meta a mano y encima le saca el número de la aplicación del celular. La
@@ -132,7 +133,7 @@ export default async function WhatsAppPage({
                 {acc.connectedAt && acc.status === 'connected' && (
                   <p className="tiny muted" style={{ marginTop: 2 }}>
                     Conectado desde{' '}
-                    {new Date(acc.connectedAt).toLocaleString('es-AR')}
+                    {fechaHora(acc.connectedAt, session.tenantZona)}
                   </p>
                 )}
               </div>

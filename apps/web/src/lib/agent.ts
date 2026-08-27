@@ -581,6 +581,7 @@ async function run(ctx: AgentContext): Promise<void> {
       base: ctx.systemPrompt,
       tenantId: ctx.tenantId,
       contactId: ctx.contactId,
+      zona: config.zona,
     })
     // Cómo agendar va ÚLTIMO, después del negocio y del contacto: es lo más
     // específico y lo que más pesa en lo que el modelo termina haciendo.

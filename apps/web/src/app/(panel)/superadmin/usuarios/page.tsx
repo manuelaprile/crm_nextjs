@@ -5,8 +5,16 @@ import { listarUsuariosPlataforma } from '@/lib/plataforma-usuarios'
 import { IconSearch } from '@/components/icons'
 import { Paginacion } from '@/components/paginacion'
 import { AccionesUsuario, CuentasDelUsuario } from './acciones'
+import { fechaHora } from '@/lib/fechas'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * La vista de plataforma cruza cuentas de husos distintos, así que no existe
+ * "la zona de la cuenta": se muestra todo en la de la plataforma. Es una
+ * decisión, no un olvido — mezclar husos en una misma columna sería peor.
+ */
+const ZONA_PLATAFORMA = 'America/Argentina/Buenos_Aires'
 
 /**
  * Todos los usuarios del sistema, de todas las cuentas.
@@ -171,7 +179,7 @@ export default async function UsuariosPlataformaPage({
                     </td>
                     <td className="tiny muted">
                       {u.ultimoIngreso
-                        ? new Date(u.ultimoIngreso).toLocaleString('es-AR')
+                        ? fechaHora(u.ultimoIngreso, ZONA_PLATAFORMA)
                         : 'Nunca entró'}
                     </td>
                     <td style={{ textAlign: 'right', position: 'relative' }}>

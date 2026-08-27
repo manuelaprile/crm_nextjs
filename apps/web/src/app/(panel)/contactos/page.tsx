@@ -5,6 +5,7 @@ import { getPipeline, getStages, listContacts } from '@/lib/queries'
 import { IconSearch } from '@/components/icons'
 import { Board } from './board'
 import { Paginacion } from '@/components/paginacion'
+import { fecha } from '@/lib/fechas'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,6 +103,7 @@ export default async function ContactosPage({
         {esLista ? (
           <ListaContactos
             session={session}
+            zona={session.tenantZona}
             stages={stages}
             archivados={archivados}
             q={q}
@@ -174,6 +176,7 @@ async function TableroContactos({
 // ---------------------------------------------------------------------
 
 async function ListaContactos({
+  zona,
   session,
   stages,
   archivados,
@@ -183,6 +186,8 @@ async function ListaContactos({
   porPagina,
 }: {
   session: Parameters<typeof listContacts>[0]
+  /** La zona de la cuenta: acá `session` es el contexto de la base. */
+  zona: string
   stages: Awaited<ReturnType<typeof getStages>>
   archivados: boolean
   q?: string
@@ -320,7 +325,7 @@ async function ListaContactos({
                         style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
                       >
                         {c.lastActivityAt
-                          ? new Date(c.lastActivityAt).toLocaleDateString('es-AR')
+                          ? fecha(c.lastActivityAt, zona)
                           : '—'}
                       </td>
                     </tr>

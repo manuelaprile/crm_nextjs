@@ -47,6 +47,7 @@ export default async function BandejaPage({
       <div className="wa">
         <ListaConversaciones
           session={session}
+          zona={session.tenantZona}
           q={q}
           atiende={filtro}
           pagina={Number(p) || 1}

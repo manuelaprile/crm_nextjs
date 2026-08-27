@@ -44,7 +44,18 @@ export type Session = {
   tenantPlural: string | null
   /** 'el' | 'la', para poder escribir "del consultorio" / "de la tienda". */
   tenantArticulo: string | null
+  /**
+   * La zona horaria de la cuenta.
+   *
+   * Va en la sesión porque la necesita CADA pantalla que muestre una fecha, y
+   * sin ella JavaScript usa la del proceso: en el contenedor, UTC. Un turno de
+   * las 10 de la mañana se veía como la una de la tarde.
+   */
+  tenantZona: string
 }
+
+/** Si la cuenta no tiene zona cargada. */
+const ZONA_POR_DEFECTO = 'America/Argentina/Buenos_Aires'
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -183,6 +194,9 @@ export async function getSession(): Promise<Session | null> {
       tenantSingular: row.tenant_singular ? String(row.tenant_singular) : null,
       tenantPlural: row.tenant_plural ? String(row.tenant_plural) : null,
       tenantArticulo: row.tenant_articulo ? String(row.tenant_articulo) : null,
+      // Nunca vacía: una fecha se tiene que poder dibujar igual, y la de
+      // Argentina es la correcta para todos los clientes de hoy.
+      tenantZona: String(row.tenant_timezone || ZONA_POR_DEFECTO),
     }
   })
 }

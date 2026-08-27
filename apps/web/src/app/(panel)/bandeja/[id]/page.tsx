@@ -7,6 +7,7 @@ import { AdjuntoEnMensaje } from './adjunto'
 import { sendReply, toggleAi, setStage, addNote } from '@/lib/actions'
 import { IconSend } from '@/components/icons'
 import { ListaConversaciones, iniciales } from '../lista'
+import { fecha as fmtFecha, hora as fmtHora } from '@/lib/fechas'
 import { AlFinal } from './al-final'
 import { AgendarDesdeChat } from './agendar'
 import { configAgenda, proximoTurnoDe } from '@/lib/agenda'
@@ -65,6 +66,7 @@ export default async function ChatPage({
       <div className="wa">
         <ListaConversaciones
           session={session}
+          zona={session.tenantZona}
           activa={conversation.id}
           q={q}
           atiende={filtro}
@@ -140,10 +142,7 @@ export default async function ChatPage({
                     <AdjuntoEnMensaje key={a.id} a={a} cuerpo={m.body} />
                   ))}
                   <div className="t">
-                    {new Date(m.createdAt).toLocaleTimeString('es-AR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {fmtHora(m.createdAt, session.tenantZona)}
                     {m.senderKind === 'ai' && ' · IA'}
                     {m.status === 'pending' && ' · enviando'}
                     {m.status === 'failed' && ' · falló'}
@@ -238,7 +237,7 @@ export default async function ChatPage({
               </div>
               <div className="kv">
                 <span className="muted">Desde</span>
-                <b>{new Date(contact.createdAt).toLocaleDateString('es-AR')}</b>
+                <b>{fmtFecha(contact.createdAt, session.tenantZona)}</b>
               </div>
 
               <h6>Mover de etapa</h6>
@@ -319,7 +318,7 @@ export default async function ChatPage({
                     <div style={{ fontSize: 12.5 }}>{n.body}</div>
                     <div className="tiny muted" style={{ marginTop: 4 }}>
                       {n.byAi ? 'IA · ' : ''}
-                      {new Date(n.createdAt).toLocaleDateString('es-AR')}
+                      {fmtFecha(n.createdAt, session.tenantZona)}
                     </div>
                   </div>
                 ))}

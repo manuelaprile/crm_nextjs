@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { listConversations } from '@/lib/queries'
 import { IconSearch } from '@/components/icons'
+import { cuandoViene, horaOFecha } from '@/lib/fechas'
 
 /**
  * Columna izquierda de la bandeja: buscador, filtros y las conversaciones.
@@ -13,12 +14,20 @@ import { IconSearch } from '@/components/icons'
  */
 export async function ListaConversaciones({
   session,
+  zona,
   activa,
   q,
   atiende,
   pagina = 1,
 }: {
   session: Parameters<typeof listConversations>[0]
+  /**
+   * La zona de la cuenta, para dibujar las horas.
+   *
+   * Viaja como prop y no sale de `session` porque acá `session` es el
+   * contexto de la base —tenantId, userId, role— y no la sesión completa.
+   */
+  zona: string
   /** Id de la conversación abierta, para marcarla. */
   activa?: string
   q?: string
@@ -98,7 +107,7 @@ export async function ListaConversaciones({
                 <span className="meta">
                   <span className="r1">
                     <span className="nm">{nombre}</span>
-                    <span className="tm">{cuando(c.lastMessageAt)}</span>
+                    <span className="tm">{horaOFecha(c.lastMessageAt, zona)}</span>
                   </span>
                   <span className="lm">{c.lastBody ?? 'Sin mensajes'}</span>
                   <span className="wa-conv-tags">
@@ -113,8 +122,8 @@ export async function ListaConversaciones({
                       {c.aiEnabled ? 'IA' : 'Humano'}
                     </span>
                     {c.proximoTurno ? (
-                      <span className="badge b-green" title={cuandoViene(c.proximoTurno)}>
-                        Visita {cuandoViene(c.proximoTurno)}
+                      <span className="badge b-green" title={cuandoViene(c.proximoTurno, zona)}>
+                        Visita {cuandoViene(c.proximoTurno, zona)}
                       </span>
                     ) : null}
                     {c.unreadCount > 0 ? (
@@ -168,35 +177,4 @@ export function iniciales(nombre: string): string {
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase() ?? '')
     .join('')
-}
-
-/** Hora si es de hoy, día y mes si es más viejo. */
-export function cuando(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const hoy = d.toDateString() === new Date().toDateString()
-  return hoy
-    ? d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
-}
-
-/**
- * Cuándo viene, en dos o tres palabras.
- *
- * La etiqueta de la lista tiene lugar para muy poco, y lo que se necesita de
- * un vistazo no es la fecha exacta sino si es hoy: eso cambia lo que hace la
- * persona que está mirando la bandeja.
- */
-function cuandoViene(iso: string): string {
-  const d = new Date(iso)
-  const ahora = new Date()
-  const dias = Math.round(
-    (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() -
-      new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()).getTime()) /
-      86_400_000,
-  )
-  const hora = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-  if (dias === 0) return `hoy ${hora}`
-  if (dias === 1) return `mañana ${hora}`
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
 }

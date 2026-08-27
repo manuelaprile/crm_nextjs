@@ -5,6 +5,7 @@ import {
   alternarEntrada,
   borrarEntrada,
 } from '@/lib/conocimiento-acciones'
+import { fecha } from '@/lib/fechas'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,7 +153,7 @@ export default async function NegocioPage({
                       className="tiny muted"
                       style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
                     >
-                      {new Date(e.actualizadoEn).toLocaleDateString('es-AR')}
+                      {fecha(e.actualizadoEn, session.tenantZona)}
                     </span>
                   </div>
                   <p

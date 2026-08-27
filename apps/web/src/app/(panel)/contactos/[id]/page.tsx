@@ -7,6 +7,7 @@ import { withTenant } from '@/lib/db/client'
 import { setStage, addNote, updateContact, toggleTag } from '@/lib/actions'
 import { IconBack } from '@/components/icons'
 import { AccionesContacto } from './acciones'
+import { fecha, fechaHora } from '@/lib/fechas'
 
 export const dynamic = 'force-dynamic'
 
@@ -172,7 +173,7 @@ export default async function ContactoPage({
                         <div style={{ fontSize: 13.5 }}>{n.body}</div>
                         <div className="tiny muted" style={{ marginTop: 5 }}>
                           {n.byAi ? 'IA · ' : ''}
-                          {new Date(n.createdAt).toLocaleString('es-AR')}
+                          {fechaHora(n.createdAt, session.tenantZona)}
                         </div>
                       </div>
                     ))}
@@ -199,7 +200,7 @@ export default async function ContactoPage({
                           {h.byAi && <span className="badge b-blue">IA</span>}
                         </span>
                         <span className="tiny muted mono">
-                          {new Date(h.createdAt).toLocaleDateString('es-AR')}
+                          {fecha(h.createdAt, session.tenantZona)}
                         </span>
                       </div>
                     ))}

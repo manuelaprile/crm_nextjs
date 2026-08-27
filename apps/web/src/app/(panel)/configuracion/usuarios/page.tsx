@@ -10,6 +10,7 @@ import {
   quitarUsuario,
   resetearClave,
 } from '@/lib/usuarios'
+import { fecha } from '@/lib/fechas'
 
 export const dynamic = 'force-dynamic'
 
@@ -165,7 +166,7 @@ export default async function UsuariosPage({
                   </td>
                   <td className="tiny muted mono">
                     {u.ultimoIngreso
-                      ? new Date(u.ultimoIngreso).toLocaleDateString('es-AR')
+                      ? fecha(u.ultimoIngreso, session.tenantZona)
                       : 'nunca'}
                   </td>
                   <td style={{ textAlign: 'right' }}>
