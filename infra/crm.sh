@@ -60,6 +60,29 @@ en_web() {
   return $codigo
 }
 
+# Aplica las migraciones con la imagen RECIÉN CONSTRUIDA.
+#
+# `exec` entra al contenedor que está corriendo, y en este punto ese
+# contenedor todavía es el VIEJO: el cambio se hace después, a propósito, para
+# que el código nuevo no se encuentre con un esquema sin migrar.
+#
+# Pero el Dockerfile HORNEA las migraciones dentro de la imagen
+# (`COPY packages/db/migrations`), así que el contenedor viejo tiene la
+# carpeta vieja. `migrate.ts` miraba ahí, no encontraba el archivo nuevo, y
+# decía "Sin cambios pendientes" con toda razón. Un deploy terminó así, con la
+# tabla nueva sin crear y la pantalla que la usaba tirando error.
+#
+# `run --rm` levanta un contenedor descartable A PARTIR DE LA IMAGEN, que
+# después de construir ya es la nueva. Migra con los archivos nuevos sin tocar
+# el servicio que está atendiendo.
+migrar_con_imagen_nueva() {
+  salida=$(docker compose run --rm --no-deps -T \
+    -e MIGRATE_DATABASE_URL="$DB_URL" \
+    web node --experimental-strip-types scripts/migrate.ts 2>&1) && codigo=0 || codigo=$?
+  printf '%s\n' "$salida" | grep -v "$RUIDO" || true
+  return $codigo
+}
+
 esperar_base() {
   printf '  esperando a la base'
   i=0
@@ -141,15 +164,20 @@ conviene_copia() {
 
 # Después de migrar: ¿quedó todo aplicado de verdad?
 #
-# Esto existe por un error que ya pasó, y conviene dejarlo escrito. La versión
-# anterior decidía por su cuenta si correr las migraciones, con una cuenta de
-# archivos que devolvía 0 cuando fallaba. Con 0 archivos concluía que no
-# faltaba nada, se salteaba migrate.ts ENTERO, y terminaba diciendo
-# "Actualizado.". La tabla nueva nunca se creó, la pantalla que la usaba tiró
-# error en producción, y el deploy se había reportado exitoso.
+# Esto existe por un error que ya pasó DOS veces, y las dos terminaron igual:
+# un deploy reportado como exitoso, con una migración sin aplicar y la
+# pantalla que usaba la tabla nueva tirando error en producción.
 #
-# De ahí las dos reglas: migrate.ts corre SIEMPRE —es él quien sabe qué falta,
-# no este script— y además se comprueba el resultado antes de cantar victoria.
+# La primera vez el script decidía por su cuenta si correr migrate.ts, con una
+# cuenta de archivos que devolvía 0 cuando fallaba; con 0 concluía que no
+# faltaba nada y se lo salteaba entero.
+#
+# La segunda fue peor de encontrar: migrate.ts SÍ corría, y contestaba "Sin
+# cambios pendientes" con toda razón, porque corría dentro del contenedor
+# viejo y ahí la migración nueva no existe. Ver migrar_con_imagen_nueva.
+#
+# Las dos las agarró esta comprobación, que es su único trabajo: no confiar en
+# que el paso anterior hizo lo que dijo.
 migraciones_al_dia() {
   contar_migraciones
   if [ -z "$ARCHIVOS" ] || [ -z "$APLICADAS" ]; then
@@ -292,7 +320,7 @@ case "${1:-ayuda}" in
     # registro y cada migración va en su transacción—; este script no tiene
     # por qué opinar. La versión anterior sí opinaba, se equivocó, y un deploy
     # terminó en "Actualizado." con la migración sin aplicar.
-    if ! en_web scripts/migrate.ts; then
+    if ! migrar_con_imagen_nueva; then
       rojo ""
       rojo "Falló una migración. NO se cambió nada: el servidor sigue"
       rojo "andando con la versión anterior."
