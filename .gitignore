@@ -61,6 +61,11 @@ backup*.sql
 backups/
 dumps/
 
+# Qué versión estaba andando antes del último deploy. Lo escribe
+# `./crm.sh actualizar` en el servidor y solo vale para ESE servidor:
+# versionarlo haría que una máquina pise el registro de la otra.
+infra/.version-anterior
+
 # Material de sesión de WhatsApp que alguna librería pueda escribir a disco.
 # Nosotros lo guardamos cifrado en Postgres, pero por si acaso.
 auth_info*/

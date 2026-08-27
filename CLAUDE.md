@@ -91,6 +91,27 @@ silencio, que es mucho peor.
   `current_setting('app.tenant_id')` es la red de seguridad, no la primera línea.
   El `tenant_id` sale del contexto de sesión, NUNCA del body del request.
 
+## Reglas de despliegue
+
+Todos los clientes comparten UN contenedor y UNA base. No existe actualizar a un
+cliente y a otro no: cuando algo sale mal, sale mal para todos a la vez. Lo único
+que se puede acortar es cuánto dura.
+
+- **Las migraciones son ADITIVAS en el deploy que cambia el código.** Nunca borrar
+  ni renombrar una columna en la misma actualización en que el código deja de
+  usarla. Primero se deja de usar y se sube; se borra un deploy después. Así hay
+  siempre un momento en que la versión vieja y la nueva funcionan con el mismo
+  esquema, y ese momento es lo que hace posible volver atrás.
+- **`git revert` no devuelve una columna borrada.** Por eso `./crm.sh actualizar`
+  hace una copia de la base antes de migrar. Es la única red que hay para el daño
+  que no se deshace.
+- **Un deploy que no se puede deshacer se avisa.** Si una migración es destructiva
+  y no hay forma de partirla en dos, se dice antes de subirla.
+- **Lo nuevo y riesgoso sale apagado.** Ver `feature_flags`: se prende primero en
+  una cuenta, se mira, y recién después en todas. Es lo más parecido a un
+  despliegue gradual que permite esta arquitectura, y solo cubre lo que se
+  acordaron de poner detrás del interruptor.
+
 ## Reglas específicas de Baileys (no negociable: conexión por QR)
 
 El cliente exigió conexión por escaneo de QR. Es una librería no oficial y va contra

@@ -34,6 +34,13 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
+    # Nombre de imagen EXPLÍCITO, y no es cosmético: es lo que permite volver
+    # atrás. Sin esta línea Compose inventa el nombre a partir de la carpeta,
+    # y `crm.sh` tendría que adivinarlo para guardar la versión anterior.
+    # Con un nombre fijo, actualizar es "renombrar la que anda a :anterior,
+    # construir la nueva como :actual", y volver es el renombre inverso: sin
+    # reconstruir nada y sin depender de internet ni de git.
+    image: crm-web:actual
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://crm_app:${APP_DB_PASSWORD:?falta APP_DB_PASSWORD}@db:5432/crm
@@ -74,6 +81,7 @@ services:
     build:
       context: ..
       dockerfile: apps/wa-worker/Dockerfile
+    image: crm-worker:actual
     restart: unless-stopped
     environment:
       WORKER_DATABASE_URL: postgres://crm_worker:${WORKER_DB_PASSWORD:?falta WORKER_DB_PASSWORD}@db:5432/crm
