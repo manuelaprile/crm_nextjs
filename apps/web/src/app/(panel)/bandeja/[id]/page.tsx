@@ -8,6 +8,8 @@ import { sendReply, toggleAi, setStage, addNote } from '@/lib/actions'
 import { IconSend } from '@/components/icons'
 import { ListaConversaciones, iniciales } from '../lista'
 import { AlFinal } from './al-final'
+import { AgendarDesdeChat } from './agendar'
+import { configAgenda, proximoTurnoDe } from '@/lib/agenda'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,11 +25,11 @@ export default async function ChatPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ q?: string; atiende?: string; p?: string }>
+  searchParams: Promise<{ q?: string; atiende?: string; p?: string; r?: string; m?: string }>
 }) {
   const session = await requireTenant()
   const { id } = await params
-  const { q, atiende, p } = await searchParams
+  const { q, atiende, p, r, m } = await searchParams
   const filtro =
     atiende === 'ia' || atiende === 'humano' || atiende === 'visita'
       ? atiende
@@ -36,9 +38,13 @@ export default async function ChatPage({
   const conversation = await getConversation(session, id)
   if (!conversation) notFound()
 
-  const [contact, stages] = await Promise.all([
+  const [contact, stages, agenda, proximoTurno] = await Promise.all([
     conversation.contactId ? getContact(session, conversation.contactId) : null,
     getStages(session),
+    configAgenda(session.tenantId),
+    conversation.contactId
+      ? proximoTurnoDe(session.tenantId, conversation.contactId)
+      : null,
   ])
 
   const desconectado = conversation.accountStatus !== 'connected'
@@ -96,7 +102,24 @@ export default async function ChatPage({
                   : 'Devolver a la IA'}
               </button>
             </form>
+
+            <AgendarDesdeChat
+              conversationId={conversation.id}
+              contactId={conversation.contactId}
+              nombre={nombre}
+              zona={agenda.zona}
+              proximo={proximoTurno}
+            />
           </div>
+
+          {m ? (
+            <div
+              className={`alert ${r === 'ok' ? 'alert-green' : 'alert-red'}`}
+              style={{ margin: '12px 18px 0' }}
+            >
+              <span>{m}</span>
+            </div>
+          ) : null}
 
           <div className="wa-msgs">
             {conversation.messages.length === 0 && (

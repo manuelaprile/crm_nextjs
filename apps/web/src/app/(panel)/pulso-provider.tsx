@@ -247,24 +247,43 @@ export function PulsoProvider({
     <Ctx.Provider value={{ sinLeer, refrescar }}>
       {children}
       {aviso && (
-        <Link
-          href={`/bandeja/${aviso.conversacionId}`}
-          onClick={() => setAviso(null)}
+        // El cartel es un DIV con un enlace adentro, y no un enlace con un
+        // botón adentro: un <button> dentro de un <a> es HTML inválido, y en
+        // la práctica cerrar terminaría navegando igual a la conversación.
+        <div
           className="aviso"
           // La barrita de tiempo se consume exactamente lo que dura el
           // cartel. Si algún día se cambia AVISO_MS, la animación acompaña
           // sola en vez de quedar desfasada.
           style={{ '--aviso-ms': `${AVISO_MS}ms` } as React.CSSProperties}
         >
-          <span className="aviso-inicial" aria-hidden>
-            {aviso.quien.trim().charAt(0) || '?'}
-          </span>
-          <span className="aviso-cuerpo">
-            <span className="aviso-titulo">Mensaje nuevo</span>
-            <div className="aviso-quien">{aviso.quien}</div>
-            <div className="aviso-texto">{aviso.texto}</div>
-          </span>
-        </Link>
+          <Link
+            href={`/bandeja/${aviso.conversacionId}`}
+            onClick={() => setAviso(null)}
+            className="aviso-link"
+          >
+            <span className="aviso-inicial" aria-hidden>
+              {aviso.quien.trim().charAt(0) || '?'}
+            </span>
+            <span className="aviso-cuerpo">
+              <span className="aviso-titulo">Mensaje nuevo</span>
+              <div className="aviso-quien">{aviso.quien}</div>
+              <div className="aviso-texto">{aviso.texto}</div>
+            </span>
+          </Link>
+          <button
+            type="button"
+            className="aviso-cerrar"
+            onClick={() => setAviso(null)}
+            aria-label="Cerrar aviso"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"
+              aria-hidden>
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
       )}
     </Ctx.Provider>
   )

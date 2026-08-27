@@ -30,6 +30,20 @@ function volver(tipo: 'ok' | 'error', msg: string, dia?: string): never {
 }
 
 /**
+ * Vuelve a la conversación desde la que se agendó, si vino de una.
+ *
+ * El destino NO se toma del formulario. Llega un id de conversación y la
+ * ruta se arma acá: un campo con la URL de destino es una redirección
+ * abierta —alguien manda un formulario con `volverA=https://otrositio` y el
+ * panel lo manda ahí, con la confianza que da venir del CRM—. Con solo el
+ * id, lo peor que puede pasar es caer en una conversación que no existe.
+ */
+function volverAlChat(id: string, tipo: 'ok' | 'error', msg: string): never {
+  const sp = new URLSearchParams({ r: tipo, m: msg.slice(0, 200) })
+  redirect(`/bandeja/${encodeURIComponent(id)}?${sp.toString()}`)
+}
+
+/**
  * Lee día, hora de inicio y hora de fin de un formulario.
  *
  * El fin puede venir como hora ("11:30") o vacío. Vacío no es un error: se
@@ -62,17 +76,31 @@ async function horarioDelForm(
   return { inicia, termina }
 }
 
-/** Carga un turno a mano. */
+/**
+ * Carga un turno a mano.
+ *
+ * La usan dos pantallas: la agenda y el chat. Cuando viene del chat, el
+ * campo `conversationId` trae de dónde salió, y ahí es donde vuelve: sacar a
+ * alguien de la conversación que está atendiendo para mostrarle la agenda es
+ * hacerle perder el hilo justo cuando está hablando con una persona.
+ */
 export async function guardarTurno(formData: FormData): Promise<void> {
   const session = await requireTenant()
+  const desdeChat = String(formData.get('conversationId') ?? '').trim() || null
+  // El tipo va en la variable y no solo en la flecha: TypeScript necesita la
+  // anotación explícita para saber que llamarla corta el flujo, y sin eso no
+  // estrecha los tipos de abajo.
+  const fallar: (msg: string) => never = (msg) =>
+    desdeChat ? volverAlChat(desdeChat, 'error', msg) : volver('error', msg)
+
   const titulo = String(formData.get('titulo') ?? '').trim()
-  if (!titulo) volver('error', 'Poné de qué es el turno.')
+  if (!titulo) fallar('Poné de qué es el turno.')
   if (titulo.length > MAX_TITULO) {
-    volver('error', `El título no puede pasar de ${MAX_TITULO} caracteres.`)
+    fallar(`El título no puede pasar de ${MAX_TITULO} caracteres.`)
   }
 
   const horario = await horarioDelForm(formData, session.tenantId)
-  if ('error' in horario) volver('error', horario.error)
+  if ('error' in horario) fallar(horario.error)
 
   const contactId = String(formData.get('contactId') ?? '').trim() || null
   // Que el contacto sea DE ESTA CUENTA. El id viaja en un campo oculto del
@@ -81,12 +109,20 @@ export async function guardarTurno(formData: FormData): Promise<void> {
     const existe = await withTenant(session, (tx) =>
       tx.execute(sql`select 1 from contacts where id = ${contactId}`),
     )
-    if (!existe.rows.length) volver('error', 'Ese contacto no existe.')
+    if (!existe.rows.length) fallar('Ese contacto no existe.')
+  }
+  // La conversación también: viene de un campo oculto.
+  if (desdeChat) {
+    const existe = await withTenant(session, (tx) =>
+      tx.execute(sql`select 1 from conversations where id = ${desdeChat}`),
+    )
+    if (!existe.rows.length) volver('error', 'Esa conversación no existe.')
   }
 
   const res = await crearTurno({
     tenantId: session.tenantId,
     contactId,
+    conversationId: desdeChat,
     titulo,
     tipo: String(formData.get('tipo') ?? '').trim() || null,
     notas: String(formData.get('notas') ?? '').trim().slice(0, MAX_NOTAS) || null,
@@ -97,15 +133,17 @@ export async function guardarTurno(formData: FormData): Promise<void> {
     // un sábado, sabe lo que hace.
     validarHorario: false,
   })
-  if (!res.ok) volver('error', res.error)
+  if (!res.ok) fallar(res.error)
 
   revalidatePath('/agenda')
-  volver(
-    'ok',
-    res.etapaMovida
-      ? `Turno agendado. El contacto pasó a «${res.etapaMovida}».`
-      : 'Turno agendado.',
-  )
+  const aviso = res.etapaMovida
+    ? `Turno agendado. El contacto pasó a «${res.etapaMovida}».`
+    : 'Turno agendado.'
+  if (desdeChat) {
+    revalidatePath(`/bandeja/${desdeChat}`)
+    volverAlChat(desdeChat, 'ok', aviso)
+  }
+  volver('ok', aviso)
 }
 
 /** Mueve un turno a otro horario. */
