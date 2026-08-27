@@ -95,6 +95,7 @@ esperar_base() {
 #    3. Terminado el cambio se le pregunta al panel si está vivo. Si no
 #       contesta, el script vuelve solo a la versión anterior.
 # =====================================================================
+MIGRACIONES=../packages/db/migrations
 IMG_WEB=crm-web
 IMG_WORKER=crm-worker
 COPIAS_A_GUARDAR=5
@@ -111,17 +112,56 @@ guardar_version_actual() {
   } > .version-anterior
 }
 
-# ¿Quedan migraciones por aplicar? Compara los archivos con lo registrado.
+# Cuántas migraciones hay escritas y cuántas figuran aplicadas.
 #
-# Se cuenta desde afuera, sin tocar migrate.ts: lo único que hace falta saber
-# es si corresponde la copia de seguridad ANTES de arrancar.
-hay_migraciones_pendientes() {
-  archivos=$(ls ../packages/db/migrations/*.sql 2>/dev/null | wc -l | tr -d ' ')
-  aplicadas=$(docker compose exec -T db psql -U crm_owner -d crm -tAc \
+# Deja los dos números en $ARCHIVOS y $APLICADAS. Cualquiera de los dos puede
+# quedar vacío si no se pudo averiguar, y quien llama TIENE que contemplarlo:
+# la primera versión de esto devolvía 0 archivos cuando algo salía mal, y 0 no
+# se distingue de "no falta nada".
+contar_migraciones() {
+  ARCHIVOS=$(ls "$MIGRACIONES"/*.sql 2>/dev/null | wc -l | tr -d ' \r\n')
+  case "$ARCHIVOS" in ''|*[!0-9]*|0) ARCHIVOS='' ;; esac
+  APLICADAS=$(docker compose exec -T db psql -U crm_owner -d crm -tAc \
     'select count(*) from _migrations' 2>/dev/null | tr -d ' \r\n')
-  # Sin tabla `_migrations` la base está sin migrar: todo está pendiente.
-  [ -z "$aplicadas" ] && aplicadas=0
-  [ "$archivos" -gt "$aplicadas" ]
+  case "$APLICADAS" in ''|*[!0-9]*) APLICADAS='' ;; esac
+}
+
+# ¿Conviene hacer la copia antes de migrar?
+#
+# Ante la duda, SÍ. Una copia de más cuesta unos segundos; una de menos cuesta
+# los datos de todos los clientes.
+conviene_copia() {
+  contar_migraciones
+  if [ -z "$ARCHIVOS" ] || [ -z "$APLICADAS" ]; then
+    echo "  (no se pudo contar las migraciones: se hace la copia igual)"
+    return 0
+  fi
+  [ "$ARCHIVOS" -ne "$APLICADAS" ]
+}
+
+# Después de migrar: ¿quedó todo aplicado de verdad?
+#
+# Esto existe por un error que ya pasó, y conviene dejarlo escrito. La versión
+# anterior decidía por su cuenta si correr las migraciones, con una cuenta de
+# archivos que devolvía 0 cuando fallaba. Con 0 archivos concluía que no
+# faltaba nada, se salteaba migrate.ts ENTERO, y terminaba diciendo
+# "Actualizado.". La tabla nueva nunca se creó, la pantalla que la usaba tiró
+# error en producción, y el deploy se había reportado exitoso.
+#
+# De ahí las dos reglas: migrate.ts corre SIEMPRE —es él quien sabe qué falta,
+# no este script— y además se comprueba el resultado antes de cantar victoria.
+migraciones_al_dia() {
+  contar_migraciones
+  if [ -z "$ARCHIVOS" ] || [ -z "$APLICADAS" ]; then
+    rojo "  No se pudo comprobar el estado de las migraciones."
+    return 1
+  fi
+  if [ "$APLICADAS" -lt "$ARCHIVOS" ]; then
+    rojo "  Quedan migraciones sin aplicar: $APLICADAS de $ARCHIVOS."
+    return 1
+  fi
+  echo "  Migraciones: $APLICADAS de $ARCHIVOS aplicadas."
+  return 0
 }
 
 copia_previa() {
@@ -239,28 +279,43 @@ case "${1:-ayuda}" in
 
     info "4/6  Base de datos"
     esperar_base
-    if hay_migraciones_pendientes; then
-      echo "  Hay migraciones pendientes: primero la copia de seguridad."
+    # La copia va primero y solo si algo cambió, pero ante cualquier duda se
+    # hace igual: cuesta segundos y es lo único que trae de vuelta una columna
+    # borrada.
+    if conviene_copia; then
+      echo "  Va a cambiar el esquema: copia de seguridad antes de migrar."
       copia_previa
-      # Si una migración se cae, se corta ACÁ: el contenedor sigue con la
-      # versión vieja, que es la que anda con el esquema que quedó. Cambiarlo
-      # igual dejaría código nuevo pidiendo columnas que nunca se crearon.
-      if ! en_web scripts/migrate.ts; then
-        rojo ""
-        rojo "Falló una migración. NO se cambió nada: el servidor sigue"
-        rojo "andando con la versión anterior."
-        echo ""
-        echo "  El error de PostgreSQL está arriba de este mensaje."
-        echo "  Arreglalo, subilo, y volvé a correr: ./crm.sh actualizar"
-        echo ""
-        echo "  Cada migración corre en su propia transacción, así que la que"
-        echo "  falló no dejó nada a medio aplicar. Las anteriores SÍ"
-        echo "  quedaron aplicadas; para deshacerlas está la copia:"
-        echo "    $(ls -1t pre-deploy-*.sql.gz 2>/dev/null | head -1)"
-        exit 1
-      fi
     else
-      echo "  Sin migraciones pendientes."
+      echo "  Sin migraciones pendientes: no hace falta copia."
+    fi
+    # migrate.ts corre SIEMPRE. Es él quien sabe qué falta —lleva su propio
+    # registro y cada migración va en su transacción—; este script no tiene
+    # por qué opinar. La versión anterior sí opinaba, se equivocó, y un deploy
+    # terminó en "Actualizado." con la migración sin aplicar.
+    if ! en_web scripts/migrate.ts; then
+      rojo ""
+      rojo "Falló una migración. NO se cambió nada: el servidor sigue"
+      rojo "andando con la versión anterior."
+      echo ""
+      echo "  El error de PostgreSQL está arriba de este mensaje."
+      echo "  Arreglalo, subilo, y volvé a correr: ./crm.sh actualizar"
+      echo ""
+      echo "  Cada migración corre en su propia transacción, así que la que"
+      echo "  falló no dejó nada a medio aplicar. Las anteriores SÍ"
+      echo "  quedaron aplicadas; para deshacerlas está la copia:"
+      echo "    $(ls -1t pre-deploy-*.sql.gz 2>/dev/null | head -1)"
+      exit 1
+    fi
+    # Y se comprueba. Que migrate.ts termine bien no alcanza: si nunca vio los
+    # archivos, también termina bien.
+    if ! migraciones_al_dia; then
+      rojo ""
+      rojo "El esquema no quedó al día. NO se cambia el contenedor: el código"
+      rojo "nuevo pediría cosas que la base todavía no tiene."
+      echo ""
+      echo "  Comprobá que $MIGRACIONES tenga los archivos .sql y que sea la"
+      echo "  ruta correcta desde $(pwd)."
+      exit 1
     fi
 
     info "5/6  Cambiando a la versión nueva"
