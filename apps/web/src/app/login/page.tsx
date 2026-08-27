@@ -6,11 +6,11 @@ export const dynamic = 'force-dynamic'
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; m?: string }>
 }) {
   const yaEntro = await getSession()
   if (yaEntro) redirect(destinoInicial(yaEntro))
-  const { error } = await searchParams
+  const { error, m } = await searchParams
 
   async function action(formData: FormData) {
     'use server'
@@ -53,6 +53,13 @@ export default async function LoginPage({
                 ? 'Demasiados intentos fallidos. Esperá 15 minutos.'
                 : 'Email o contraseña incorrectos.'}
             </div>
+          )}
+
+          {/* Un motivo traído de otra pantalla: por qué lo mandamos acá.
+              Sin esto, a quien se le vence la sesión en medio de algo le
+              aparece el login de la nada y no sabe qué pasó. */}
+          {m && !error && (
+            <div className="alert alert-amber">{m.slice(0, 200)}</div>
           )}
 
           <div className="field">

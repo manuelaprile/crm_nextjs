@@ -17,35 +17,79 @@
  */
 import { NextResponse } from 'next/server'
 import { sql } from 'drizzle-orm'
-import { requireAdmin } from '@/lib/auth'
+import { AuthError, requireAdmin } from '@/lib/auth'
 import { withTenant, withSystem } from '@/lib/db/client'
 import { cuentasConectadas } from '@/lib/zernio'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-function volver(req: Request, tipo: 'ok' | 'error', msg: string) {
-  const url = new URL('/configuracion/whatsapp', req.url)
-  url.searchParams.set('r', tipo)
-  url.searchParams.set('m', msg.slice(0, 200))
-  return NextResponse.redirect(url)
+/**
+ * Vuelve al panel con el resultado.
+ *
+ * La dirección va RELATIVA, y es lo único que hace que esto ande detrás de
+ * Caddy. Antes se armaba con `new URL(ruta, req.url)`, y `req.url` es lo que
+ * ve el proceso adentro del contenedor: `http://0.0.0.0:3000/...`. El
+ * navegador terminaba mandado a esa dirección, que desde afuera no existe.
+ *
+ * Una cabecera `Location` relativa la resuelve el navegador contra la URL que
+ * él pidió —la pública, la real— así que no hay que adivinar nada. La
+ * alternativa sería reconstruirla con `x-forwarded-host`, pero eso es confiar
+ * en una cabecera para decidir a dónde mandar a alguien, y no hace falta: el
+ * destino está en este mismo sitio.
+ */
+function volver(tipo: 'ok' | 'error', msg: string) {
+  const q = new URLSearchParams({ r: tipo, m: msg.slice(0, 200) })
+  return new NextResponse(null, {
+    status: 303,
+    headers: { location: `/configuracion/whatsapp?${q}` },
+  })
 }
 
 export async function GET(req: Request) {
-  const session = await requireAdmin()
+  /**
+   * La sesión puede haber vencido MIENTRAS el cliente estaba en Meta.
+   *
+   * El paso por Facebook lleva varios minutos: elegir el portafolio, la
+   * cuenta, aceptar permisos, esperar el código que llega dentro de la app.
+   * Si la sesión se venció en el medio, `requireAdmin` lanza y el cliente
+   * termina viendo un 500 crudo justo cuando acaba de conectar su WhatsApp,
+   * sin saber si funcionó. Se lo manda a entrar de nuevo, que es lo que
+   * necesita hacer.
+   *
+   * El número igual queda conectado del lado de Zernio: al volver a entrar y
+   * reintentar, el alta lo encuentra y lo guarda.
+   */
+  let session
+  try {
+    session = await requireAdmin()
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return new NextResponse(null, {
+        status: 303,
+        headers: {
+          location:
+            '/login?m=' +
+            encodeURIComponent(
+              'Se venció la sesión mientras conectabas WhatsApp. Entrá de ' +
+                'nuevo y volvé a Configuración → WhatsApp.',
+            ),
+        },
+      })
+    }
+    throw err
+  }
   const q = new URL(req.url).searchParams
 
   const error = q.get('error') ?? q.get('error_description')
   if (error) {
-    return volver(req, 'error', `Meta rechazó la conexión: ${error}`)
+    return volver('error', `Meta rechazó la conexión: ${error}`)
   }
 
   const accountId = q.get('accountId')?.trim()
   const profileId = q.get('profileId')?.trim()
   if (!accountId) {
-    return volver(
-      req,
-      'error',
+    return volver('error',
       'La conexión se canceló o Meta no devolvió ninguna cuenta.',
     )
   }
@@ -59,9 +103,7 @@ export async function GET(req: Request) {
       ?.zernio_profile_id
   })
   if (!propio || (profileId && profileId !== propio)) {
-    return volver(
-      req,
-      'error',
+    return volver('error',
       'Esa conexión no corresponde a esta cuenta. Volvé a empezar desde el botón.',
     )
   }
@@ -86,7 +128,7 @@ export async function GET(req: Request) {
     return fila && fila.tenant_id !== session.tenantId
   })
   if (ocupado) {
-    return volver(req, 'error', 'Ese número ya está conectado en otra cuenta.')
+    return volver('error', 'Ese número ya está conectado en otra cuenta.')
   }
 
   await withTenant(session, (tx) =>
@@ -114,5 +156,5 @@ export async function GET(req: Request) {
     `),
   )
 
-  return volver(req, 'ok', 'WhatsApp conectado.')
+  return volver('ok', 'WhatsApp conectado.')
 }
