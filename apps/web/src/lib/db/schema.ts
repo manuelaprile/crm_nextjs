@@ -226,12 +226,25 @@ export const conversations = pgTable('conversations', {
   lastInboundAt: timestamp('last_inbound_at', { withTimezone: true }),
   unreadCount: integer('unread_count').notNull().default(0),
   aiEnabled: boolean('ai_enabled').notNull().default(true),
+  assignedUserId: uuid('assigned_user_id').references(() => users.id, { onDelete: 'set null' }),
   isGroup: boolean('is_group').notNull().default(false),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique().on(t.provider, t.externalId)])
+
+export const conversationAssignments = pgTable('conversation_assignments', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  conversationId: uuid('conversation_id').notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  fromUserId: uuid('from_user_id').references(() => users.id, { onDelete: 'set null' }),
+  toUserId: uuid('to_user_id').references(() => users.id, { onDelete: 'set null' }),
+  changedBy: uuid('changed_by').references(() => users.id, { onDelete: 'set null' }),
+  byAi: boolean('by_ai').notNull().default(false),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 export const messages = pgTable('messages', {
   id: uuid('id').primaryKey().defaultRandom(),

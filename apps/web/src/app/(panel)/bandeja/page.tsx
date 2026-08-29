@@ -15,11 +15,11 @@ export const dynamic = 'force-dynamic'
 export default async function BandejaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; atiende?: string; p?: string }>
+  searchParams: Promise<{ q?: string; atiende?: string; usuario?: string; p?: string }>
 }) {
   const session = await requireTenant()
   const etiqueta = etiquetaDe(session)
-  const { q, atiende, p } = await searchParams
+  const { q, atiende, usuario, p } = await searchParams
   const filtro =
     atiende === 'ia' || atiende === 'humano' || atiende === 'visita'
       ? atiende
@@ -50,6 +50,7 @@ export default async function BandejaPage({
           zona={session.tenantZona}
           q={q}
           atiende={filtro}
+          usuario={usuario}
           pagina={Number(p) || 1}
         />
 

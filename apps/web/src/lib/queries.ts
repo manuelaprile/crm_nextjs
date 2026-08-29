@@ -9,6 +9,14 @@ import 'server-only'
 import { sql } from 'drizzle-orm'
 import { withTenant, type TenantContext } from './db/client'
 
+/**
+ * Un id que llega por la URL puede ser cualquier cosa. Se valida antes de
+ * meterlo en la consulta: si no tiene forma de uuid, el filtro no se aplica
+ * en vez de romper la pantalla con un error de Postgres.
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export type Stage = {
   id: string
   key: string
@@ -55,6 +63,9 @@ export type ConversationRow = {
   proximoTurno: string | null
   stageName: string | null
   stageColor: string | null
+  /** Quién la tiene a cargo. null = sin asignar, que es como entra todo. */
+  asignadoA: string | null
+  asignadoNombre: string | null
 }
 
 export type PaginaConversaciones = {
@@ -86,6 +97,14 @@ export async function listConversations(
      * solapas, y elegir una reemplaza a la otra.
      */
     atiende?: 'ia' | 'humano' | 'visita'
+    /**
+     * De quién son. Un id de usuario, o `'sin'` para las que no tiene nadie.
+     *
+     * Es un filtro aparte de `atiende` y no otra solapa de la misma fila:
+     * "las de Ana" y "las que atiende la IA" son preguntas distintas y se
+     * combinan. Ver la bandeja para el porqué de que se elijan por separado.
+     */
+    asignado?: string
   } = {},
 ): Promise<PaginaConversaciones> {
   const porPagina = Math.min(100, Math.max(10, opts.porPagina ?? 25))
@@ -93,13 +112,19 @@ export async function listConversations(
   const offset = (pagina - 1) * porPagina
   const soloNoLeidas = Boolean(opts.soloNoLeidas)
   const atiende = opts.atiende ?? null
+  const asignado = opts.asignado?.trim() || null
+  const sinAsignar = asignado === 'sin'
+  // Un valor que no sea 'sin' tiene que ser un id: si llega cualquier cosa
+  // por la URL, el filtro no se aplica en vez de reventar la consulta.
+  const deUsuario = !sinAsignar && asignado && UUID_RE.test(asignado) ? asignado : null
 
   return withTenant(ctx, async (tx) => {
     const search = opts.search?.trim() || null
     const stageKey = opts.stageKey?.trim() || null
     const res = await tx.execute(sql`
       select c.id, c.participant_name, c.participant_phone, c.last_message_at,
-             c.unread_count, c.ai_enabled,
+             c.unread_count, c.ai_enabled, c.assigned_user_id,
+             au.name as assigned_name,
              s.name as stage_name, s.color as stage_color,
              (select m.body from messages m
                where m.conversation_id = c.id and m.body is not null
@@ -112,6 +137,7 @@ export async function listConversations(
         from conversations c
    left join contacts ct on ct.id = c.contact_id
    left join stages s on s.id = ct.stage_id
+   left join users au on au.id = c.assigned_user_id
        where c.archived_at is null
          and (${search}::text is null
               or inmutable_unaccent(c.participant_name)
@@ -126,6 +152,8 @@ export async function listConversations(
                     select 1 from appointments a
                      where a.contact_id = c.contact_id
                        and a.status = 'programada' and a.ends_at >= now())))
+         and (${sinAsignar} = false or c.assigned_user_id is null)
+         and (${deUsuario}::uuid is null or c.assigned_user_id = ${deUsuario})
        order by c.last_message_at desc nulls last
        limit ${porPagina} offset ${offset}
     `)
@@ -145,6 +173,8 @@ export async function listConversations(
         proximoTurno: r.proximo_turno ? String(r.proximo_turno) : null,
         stageName: r.stage_name ? String(r.stage_name) : null,
         stageColor: r.stage_color ? String(r.stage_color) : null,
+        asignadoA: r.assigned_user_id ? String(r.assigned_user_id) : null,
+        asignadoNombre: r.assigned_name ? String(r.assigned_name) : null,
       })),
       total,
       pagina,
@@ -172,6 +202,9 @@ export type ConversationDetail = {
   aiEnabled: boolean
   contactId: string | null
   accountStatus: string
+  /** Quién la tiene a cargo. null = sin asignar. */
+  asignadoA: string | null
+  asignadoNombre: string | null
   messages: MessageRow[]
 }
 
@@ -182,9 +215,11 @@ export async function getConversation(
   return withTenant(ctx, async (tx) => {
     const head = await tx.execute(sql`
       select c.id, c.participant_name, c.participant_phone, c.ai_enabled,
-             c.contact_id, ca.status as account_status
+             c.contact_id, c.assigned_user_id, au.name as assigned_name,
+             ca.status as account_status
         from conversations c
         join channel_accounts ca on ca.id = c.account_id
+   left join users au on au.id = c.assigned_user_id
        where c.id = ${conversationId}
     `)
     const row = head.rows[0] as Record<string, unknown> | undefined
@@ -208,6 +243,8 @@ export async function getConversation(
       aiEnabled: Boolean(row.ai_enabled),
       contactId: row.contact_id ? String(row.contact_id) : null,
       accountStatus: String(row.account_status),
+      asignadoA: row.assigned_user_id ? String(row.assigned_user_id) : null,
+      asignadoNombre: row.assigned_name ? String(row.assigned_name) : null,
       messages: (msgs.rows as Record<string, unknown>[]).map((m) => ({
         id: String(m.id),
         direction: m.direction as 'inbound' | 'outbound',

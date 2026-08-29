@@ -5,6 +5,8 @@ import { getConversation, getContact, getStages } from '@/lib/queries'
 import { adjuntosDe } from '@/lib/media'
 import { AdjuntoEnMensaje } from './adjunto'
 import { sendReply, toggleAi, setStage, addNote } from '@/lib/actions'
+import { usuariosDeLaCuenta, historialDeAsignacion } from '@/lib/asignacion'
+import { AsignarConversacion } from './asignar'
 import { IconSend } from '@/components/icons'
 import { ListaConversaciones, iniciales } from '../lista'
 import { fecha as fmtFecha, hora as fmtHora } from '@/lib/fechas'
@@ -26,11 +28,18 @@ export default async function ChatPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ q?: string; atiende?: string; p?: string; r?: string; m?: string }>
+  searchParams: Promise<{
+    q?: string
+    atiende?: string
+    usuario?: string
+    p?: string
+    r?: string
+    m?: string
+  }>
 }) {
   const session = await requireTenant()
   const { id } = await params
-  const { q, atiende, p, r, m } = await searchParams
+  const { q, atiende, usuario, p, r, m } = await searchParams
   const filtro =
     atiende === 'ia' || atiende === 'humano' || atiende === 'visita'
       ? atiende
@@ -39,14 +48,21 @@ export default async function ChatPage({
   const conversation = await getConversation(session, id)
   if (!conversation) notFound()
 
-  const [contact, stages, agenda, proximoTurno] = await Promise.all([
-    conversation.contactId ? getContact(session, conversation.contactId) : null,
-    getStages(session),
-    configAgenda(session.tenantId),
-    conversation.contactId
-      ? proximoTurnoDe(session.tenantId, conversation.contactId)
-      : null,
-  ])
+  const [contact, stages, agenda, proximoTurno, usuarios, historial] =
+    await Promise.all([
+      conversation.contactId ? getContact(session, conversation.contactId) : null,
+      getStages(session),
+      configAgenda(session.tenantId),
+      conversation.contactId
+        ? proximoTurnoDe(session.tenantId, conversation.contactId)
+        : null,
+      usuariosDeLaCuenta(session),
+      historialDeAsignacion(session, id),
+    ])
+
+  // Derivar es de owner/admin. Un operador ve quién la tiene —eso es lo que
+  // evita que dos personas contesten lo mismo— pero no la mueve.
+  const puedeDerivar = session.role !== 'agent'
 
   const desconectado = conversation.accountStatus !== 'connected'
   const nombre =
@@ -70,6 +86,7 @@ export default async function ChatPage({
           activa={conversation.id}
           q={q}
           atiende={filtro}
+          usuario={usuario}
           pagina={Number(p) || 1}
         />
 
@@ -205,25 +222,65 @@ export default async function ChatPage({
         {/* ---------------- Ficha ---------------- */}
         <aside className="wa-side">
           {contact ? (
-            <>
-              <div className="wa-perfil">
-                <span className="wa-perfil-avatar">
-                  {iniciales(contact.displayName)}
-                </span>
-                <div className="wa-perfil-nombre">{contact.displayName}</div>
-                <div className="tiny muted">
-                  {[contact.city, contact.province].filter(Boolean).join(', ') ||
-                    'Sin zona cargada'}
-                </div>
-                <Link
-                  href={`/contactos/${contact.id}`}
-                  className="btn btn-ghost btn-sm"
-                  style={{ marginTop: 12 }}
-                >
-                  Ver ficha completa
-                </Link>
+            <div className="wa-perfil">
+              <span className="wa-perfil-avatar">
+                {iniciales(contact.displayName)}
+              </span>
+              <div className="wa-perfil-nombre">{contact.displayName}</div>
+              <div className="tiny muted">
+                {[contact.city, contact.province].filter(Boolean).join(', ') ||
+                  'Sin zona cargada'}
               </div>
+              <Link
+                href={`/contactos/${contact.id}`}
+                className="btn btn-ghost btn-sm"
+                style={{ marginTop: 12 }}
+              >
+                Ver ficha completa
+              </Link>
+            </div>
+          ) : null}
 
+          {/* La asignación es de la CONVERSACIÓN, no del contacto: va afuera
+              de la ficha y se ve aunque el hilo todavía no tenga contacto
+              resuelto. */}
+          {puedeDerivar ? (
+            <>
+              <h6>Asignar esta conversación</h6>
+              <AsignarConversacion
+                conversationId={conversation.id}
+                asignadoA={conversation.asignadoA}
+                usuarios={usuarios}
+              />
+            </>
+          ) : (
+            <>
+              <h6>Responsable</h6>
+              <div className="kv">
+                <span className="muted">A cargo</span>
+                <b>{conversation.asignadoNombre ?? 'Sin asignar'}</b>
+              </div>
+            </>
+          )}
+
+          {historial.length > 0 ? (
+            <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+              {historial.map((h) => (
+                <div key={h.id} className="tiny muted">
+                  <span>
+                    {h.de ?? 'Sin asignar'} → <b>{h.a ?? 'Sin asignar'}</b>
+                  </span>
+                  <span style={{ marginLeft: 6 }}>
+                    {h.porIa ? 'IA' : (h.porQuien ?? '—')} ·{' '}
+                    {fmtFecha(h.cuando, session.tenantZona)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {contact ? (
+            <>
               <h6>Resumen</h6>
               <div className="kv">
                 <span className="muted">Etapa</span>

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { listConversations } from '@/lib/queries'
+import { usuariosDeLaCuenta } from '@/lib/asignacion'
 import { IconSearch } from '@/components/icons'
 import { cuandoViene, horaOFecha } from '@/lib/fechas'
 
@@ -18,6 +19,7 @@ export async function ListaConversaciones({
   activa,
   q,
   atiende,
+  usuario,
   pagina = 1,
 }: {
   session: Parameters<typeof listConversations>[0]
@@ -32,19 +34,30 @@ export async function ListaConversaciones({
   activa?: string
   q?: string
   atiende?: 'ia' | 'humano' | 'visita'
+  /** Id del responsable, o 'sin' para las que no tiene nadie. */
+  usuario?: string
   pagina?: number
 }) {
-  const datos = await listConversations(session, {
-    search: q,
-    atiende,
-    pagina,
-    porPagina: 50,
-  })
+  const [datos, usuarios] = await Promise.all([
+    listConversations(session, {
+      search: q,
+      atiende,
+      asignado: usuario,
+      pagina,
+      porPagina: 50,
+    }),
+    usuariosDeLaCuenta(session),
+  ])
+
+  const elegido = usuario ? usuarios.find((u) => u.id === usuario) : undefined
+  const rotuloQuien =
+    usuario === 'sin' ? 'Sin asignar' : (elegido?.nombre ?? 'Todos')
 
   const conFiltros = (extra: Record<string, string | undefined>) => {
     const sp = new URLSearchParams()
     if (q) sp.set('q', q)
     if (atiende) sp.set('atiende', atiende)
+    if (usuario) sp.set('usuario', usuario)
     for (const [k, v] of Object.entries(extra)) {
       if (v === undefined) sp.delete(k)
       else sp.set(k, v)
@@ -72,6 +85,7 @@ export async function ListaConversaciones({
             autoComplete="off"
           />
           {atiende ? <input type="hidden" name="atiende" value={atiende} /> : null}
+          {usuario ? <input type="hidden" name="usuario" value={usuario} /> : null}
         </form>
 
         <div className="wa-filtros">
@@ -84,13 +98,46 @@ export async function ListaConversaciones({
               {f.label}
             </Link>
           ))}
+
+          {/*
+            Quién la tiene a cargo es una pregunta distinta de quién la
+            atiende —una persona puede ser responsable de un hilo que hoy
+            contesta la IA—, así que es un filtro aparte y se combina con el
+            de arriba. Va como desplegable y no como una chip por usuario:
+            con cinco empleados la fila de solapas ya no entra.
+
+            `<details>` y no un componente de cliente: el navegador ya sabe
+            abrir y cerrar esto, y así la lista entera sigue siendo servidor.
+          */}
+          <details className="wa-quien">
+            <summary className={`chip${usuario ? ' on' : ''}`}>
+              Responsable: {rotuloQuien}
+            </summary>
+            <div className="wa-quien-panel">
+              <Link href={conFiltros({ usuario: undefined, p: undefined })}>
+                Todos
+              </Link>
+              <Link href={conFiltros({ usuario: 'sin', p: undefined })}>
+                Sin asignar
+              </Link>
+              {usuarios.map((u) => (
+                <Link
+                  key={u.id}
+                  href={conFiltros({ usuario: u.id, p: undefined })}
+                >
+                  {u.nombre}
+                  {u.deshabilitado ? ' (sin acceso)' : ''}
+                </Link>
+              ))}
+            </div>
+          </details>
         </div>
       </div>
 
       <div className="wa-convs">
         {datos.filas.length === 0 ? (
           <p className="tiny muted" style={{ padding: '22px 16px', margin: 0 }}>
-            {q || atiende
+            {q || atiende || usuario
               ? 'Ninguna conversación coincide con el filtro.'
               : 'Todavía no entró ninguna consulta.'}
           </p>
@@ -121,6 +168,11 @@ export async function ListaConversaciones({
                     <span className={`badge ${c.aiEnabled ? 'b-blue' : 'b-amber'}`}>
                       {c.aiEnabled ? 'IA' : 'Humano'}
                     </span>
+                    {c.asignadoNombre ? (
+                      <span className="badge b-gray" title={`A cargo de ${c.asignadoNombre}`}>
+                        {nombrePila(c.asignadoNombre)}
+                      </span>
+                    ) : null}
                     {c.proximoTurno ? (
                       <span className="badge b-green" title={cuandoViene(c.proximoTurno, zona)}>
                         Visita {cuandoViene(c.proximoTurno, zona)}
@@ -168,6 +220,11 @@ export async function ListaConversaciones({
       ) : null}
     </div>
   )
+}
+
+/** "María Laura Gómez" -> "María". En la lista no entra el nombre entero. */
+function nombrePila(nombre: string): string {
+  return nombre.trim().split(/\s+/)[0] ?? nombre
 }
 
 export function iniciales(nombre: string): string {

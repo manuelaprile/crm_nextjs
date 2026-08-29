@@ -87,6 +87,15 @@ silencio, que es mucho peor.
 - **Al importar historial, el agente NO se dispara.** Contestarle de golpe a
   cientos de pacientes viejos es un desastre difícil de explicar.
 
+- **La conversación tiene un responsable, y verlo no es un permiso.**
+  `conversations.assigned_user_id` dice a quién le toca; va en la conversación
+  y no en el contacto por la regla 2. La bandeja la ve ENTERA cualquiera de la
+  cuenta —el filtro por responsable es para ordenarse, no una pared—, porque
+  el problema que resuelve es que dos personas contesten el mismo mensaje, y
+  para eso hay que poder ver que el hilo ya tiene dueño. Lo que sí es permiso
+  es DERIVAR: solo owner/admin. Cada cambio deja fila en
+  `conversation_assignments`, que no se edita ni se borra.
+
 - **`tenant_id` en el `WHERE` de toda consulta.** RLS con
   `current_setting('app.tenant_id')` es la red de seguridad, no la primera línea.
   El `tenant_id` sale del contexto de sesión, NUNCA del body del request.
