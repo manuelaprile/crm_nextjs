@@ -175,3 +175,56 @@ export const IconGear = ({ className }: P) => (
     <path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-1.8-.3 1.6 1.6 0 00-1 1.5V21a2 2 0 11-4 0v-.1A1.6 1.6 0 008 19.4a1.6 1.6 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00.3-1.8 1.6 1.6 0 00-1.5-1H2a2 2 0 110-4h.1A1.6 1.6 0 004.6 8a1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3H9a1.6 1.6 0 001-1.5V2a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H22a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z" />
   </svg>
 )
+
+// ---------------------------------------------------------------------
+// Tablero de contactos. Mismo trazo que los de arriba: 1.9, remates
+// redondeados, viewBox de 24. Un set distinto se nota al lado del resto.
+// ---------------------------------------------------------------------
+
+export const IconTablero = ({ className }: P) => (
+  <svg width="17" height="17" {...base} strokeLinejoin="round" className={className}>
+    <rect x="3" y="4" width="5.5" height="16" rx="1.4" />
+    <rect x="10.75" y="4" width="5.5" height="11" rx="1.4" />
+    <rect x="18.5" y="4" width="2.5" height="16" rx="1.2" />
+  </svg>
+)
+
+export const IconLista = ({ className }: P) => (
+  <svg width="17" height="17" {...base} strokeLinecap="round" className={className}>
+    <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+  </svg>
+)
+
+export const IconArchivo = ({ className }: P) => (
+  <svg width="17" height="17" {...base} strokeLinejoin="round" className={className}>
+    <rect x="3" y="4" width="18" height="4.5" rx="1.4" />
+    <path d="M5 8.5V19a1.5 1.5 0 001.5 1.5h11A1.5 1.5 0 0019 19V8.5M10 12.5h4" />
+  </svg>
+)
+
+export const IconTelefono = ({ className }: P) => (
+  <svg width="17" height="17" {...base} strokeLinejoin="round" className={className}>
+    <path d="M21 16.9v2.1a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 011.1 3.2 2 2 0 013.1 1h2.1a2 2 0 012 1.7c.1 1 .3 1.9.7 2.8a2 2 0 01-.5 2.1L6.5 8.6a16 16 0 006 6l1-1a2 2 0 012.1-.5c.9.4 1.8.6 2.8.7a2 2 0 011.6 2.1z" />
+  </svg>
+)
+
+export const IconPersona = ({ className }: P) => (
+  <svg width="16" height="16" {...base} strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="8" r="3.6" />
+    <path d="M4.5 20a7.5 7.5 0 0115 0" />
+  </svg>
+)
+
+export const IconPuntos = ({ className }: P) => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <circle cx="12" cy="5" r="1.7" />
+    <circle cx="12" cy="12" r="1.7" />
+    <circle cx="12" cy="19" r="1.7" />
+  </svg>
+)
+
+export const IconMas = ({ className }: P) => (
+  <svg width="16" height="16" {...base} strokeLinecap="round" className={className}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+)

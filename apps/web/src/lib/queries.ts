@@ -267,6 +267,10 @@ export type ContactDetail = {
   province: string | null
   stageId: string | null
   stageName: string | null
+  /** De qué es la consulta, en una línea. */
+  asunto: string | null
+  responsableId: string | null
+  responsableNombre: string | null
   archivado: boolean
   createdAt: string
   tags: { id: string; name: string; color: string }[]
@@ -280,8 +284,10 @@ export async function getContact(
 ): Promise<ContactDetail | null> {
   return withTenant(ctx, async (tx) => {
     const res = await tx.execute(sql`
-      select c.*, s.name as stage_name from contacts c
+      select c.*, s.name as stage_name, u.name as owner_name
+        from contacts c
    left join stages s on s.id = c.stage_id
+   left join users u on u.id = c.owner_user_id
        where c.id = ${contactId}
     `)
     const row = res.rows[0] as Record<string, unknown> | undefined
@@ -310,6 +316,9 @@ export async function getContact(
       province: row.province ? String(row.province) : null,
       stageId: row.stage_id ? String(row.stage_id) : null,
       stageName: row.stage_name ? String(row.stage_name) : null,
+      asunto: row.asunto ? String(row.asunto) : null,
+      responsableId: row.owner_user_id ? String(row.owner_user_id) : null,
+      responsableNombre: row.owner_name ? String(row.owner_name) : null,
       archivado: Boolean(row.archived_at),
       createdAt: String(row.created_at),
       tags: (tagsRes.rows as Record<string, unknown>[]).map((t) => ({
@@ -327,36 +336,167 @@ export async function getContact(
   })
 }
 
+/** Cuántas tarjetas se dibujan por columna. Más que esto no se lee. */
+const POR_COLUMNA = 25
+
+export type TarjetaContacto = {
+  id: string
+  displayName: string
+  city: string | null
+  phone: string | null
+  /** De qué es la consulta, en una línea. */
+  asunto: string | null
+  etiquetas: { id: string; name: string; color: string }[]
+  responsableId: string | null
+  responsableNombre: string | null
+  /** El turno más cercano que tiene por delante. */
+  proximaAccion: { titulo: string; tipo: string | null; inicia: string } | null
+  /** Alguna conversación suya está tomada por una persona (IA apagada). */
+  atiendePersona: boolean
+  /** La conversación más reciente, para el botón de WhatsApp. */
+  conversationId: string | null
+  /** Desde cuándo está en esta etapa: es el "Cerrado el:" de la tarjeta. */
+  enLaEtapaDesde: string
+}
+
 export type PipelineColumn = Stage & {
-  contacts: { id: string; displayName: string; city: string | null; phone: string | null }[]
+  contacts: TarjetaContacto[]
   total: number
 }
 
+/**
+ * El tablero del embudo, con todo lo que muestra cada tarjeta.
+ *
+ * Va en cinco consultas y no en una sola con seis `left join`: los joins
+ * multiplican filas (un contacto con tres etiquetas y dos turnos son seis
+ * filas del mismo contacto) y eso se paga en la base y se vuelve a pagar
+ * armando el resultado. Acá se traen los contactos, se decide cuáles se
+ * dibujan, y recién ahí se piden los datos de ESOS: como mucho 25 por
+ * columna, aunque el embudo tenga mil.
+ */
 export async function getPipeline(
   ctx: TenantContext,
   opts: { archivados?: boolean } = {},
 ): Promise<PipelineColumn[]> {
   const stages = await getStages(ctx)
   const verArchivados = Boolean(opts.archivados)
+
   return withTenant(ctx, async (tx) => {
     const res = await tx.execute(sql`
-      select id, display_name, city, phone, stage_id from contacts
-       where (${verArchivados} = true and archived_at is not null)
-          or (${verArchivados} = false and archived_at is null)
-       order by last_activity_at desc nulls last limit 500
+      select c.id, c.display_name, c.city, c.phone, c.stage_id, c.asunto,
+             c.stage_since, c.owner_user_id, u.name as owner_name
+        from contacts c
+   left join users u on u.id = c.owner_user_id
+       where (${verArchivados} = true and c.archived_at is not null)
+          or (${verArchivados} = false and c.archived_at is null)
+       order by c.last_activity_at desc nulls last limit 500
     `)
     const rows = res.rows as Record<string, unknown>[]
+
+    // Qué contactos se dibujan de verdad. Todo lo que sigue es sobre estos.
+    const porEtapa = new Map<string, Record<string, unknown>[]>()
+    for (const s of stages) porEtapa.set(s.id, [])
+    for (const r of rows) {
+      const lista = porEtapa.get(String(r.stage_id))
+      if (lista) lista.push(r)
+    }
+    const visibles = [...porEtapa.values()].flatMap((l) => l.slice(0, POR_COLUMNA))
+    const ids = visibles.map((r) => String(r.id))
+
+    if (ids.length === 0) {
+      return stages.map((s) => ({ ...s, total: 0, contacts: [] }))
+    }
+
+    const enLista = sql`(${sql.join(ids.map((i) => sql`${i}::uuid`), sql`, `)})`
+
+    const [etiquetas, turnos, hilos] = await Promise.all([
+      tx.execute(sql`
+        select ct.contact_id, t.id, t.name, t.color
+          from contact_tags ct
+          join tags t on t.id = ct.tag_id
+         where ct.contact_id in ${enLista}
+         order by t.name
+      `),
+      // Uno por contacto: el más cercano que sigue en pie.
+      tx.execute(sql`
+        select distinct on (contact_id)
+               contact_id, titulo, tipo, starts_at
+          from appointments
+         where contact_id in ${enLista}
+           and status = 'programada' and ends_at >= now()
+         order by contact_id, starts_at
+      `),
+      // La conversación más reciente para el botón, y si alguna está tomada
+      // por una persona. Son dos preguntas distintas sobre la misma tabla.
+      tx.execute(sql`
+        select contact_id,
+               (array_agg(id order by last_message_at desc nulls last))[1] as conv_id,
+               bool_or(not ai_enabled) as atiende_persona
+          from conversations
+         where contact_id in ${enLista} and archived_at is null
+         group by contact_id
+      `),
+    ])
+
+    const porContacto = <T,>(filas: Record<string, unknown>[], f: (r: Record<string, unknown>) => T) => {
+      const m = new Map<string, T[]>()
+      for (const r of filas) {
+        const k = String(r.contact_id)
+        const l = m.get(k)
+        if (l) l.push(f(r))
+        else m.set(k, [f(r)])
+      }
+      return m
+    }
+
+    const tagsDe = porContacto(etiquetas.rows as Record<string, unknown>[], (r) => ({
+      id: String(r.id),
+      name: String(r.name),
+      color: String(r.color),
+    }))
+    const turnoDe = new Map(
+      (turnos.rows as Record<string, unknown>[]).map((r) => [
+        String(r.contact_id),
+        {
+          titulo: String(r.titulo),
+          tipo: r.tipo ? String(r.tipo) : null,
+          inicia: String(r.starts_at),
+        },
+      ]),
+    )
+    const hiloDe = new Map(
+      (hilos.rows as Record<string, unknown>[]).map((r) => [
+        String(r.contact_id),
+        {
+          conversationId: r.conv_id ? String(r.conv_id) : null,
+          atiendePersona: Boolean(r.atiende_persona),
+        },
+      ]),
+    )
+
     return stages.map((s) => {
-      const mine = rows.filter((r) => String(r.stage_id) === s.id)
+      const mios = porEtapa.get(s.id) ?? []
       return {
         ...s,
-        total: mine.length,
-        contacts: mine.slice(0, 25).map((r) => ({
-          id: String(r.id),
-          displayName: String(r.display_name),
-          city: r.city ? String(r.city) : null,
-          phone: r.phone ? String(r.phone) : null,
-        })),
+        total: mios.length,
+        contacts: mios.slice(0, POR_COLUMNA).map((r) => {
+          const id = String(r.id)
+          const hilo = hiloDe.get(id)
+          return {
+            id,
+            displayName: String(r.display_name),
+            city: r.city ? String(r.city) : null,
+            phone: r.phone ? String(r.phone) : null,
+            asunto: r.asunto ? String(r.asunto) : null,
+            etiquetas: tagsDe.get(id) ?? [],
+            responsableId: r.owner_user_id ? String(r.owner_user_id) : null,
+            responsableNombre: r.owner_name ? String(r.owner_name) : null,
+            proximaAccion: turnoDe.get(id) ?? null,
+            atiendePersona: hilo?.atiendePersona ?? false,
+            conversationId: hilo?.conversationId ?? null,
+            enLaEtapaDesde: String(r.stage_since),
+          }
+        }),
       }
     })
   })

@@ -117,6 +117,7 @@ export const contacts = pgTable('contacts', {
   source: text('source'),
   stageId: uuid('stage_id').references(() => stages.id, { onDelete: 'set null' }),
   stageSince: timestamp('stage_since', { withTimezone: true }).notNull().defaultNow(),
+  asunto: text('asunto'),
   ownerUserId: uuid('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }),
   archivedAt: timestamp('archived_at', { withTimezone: true }),

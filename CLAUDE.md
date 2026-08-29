@@ -96,6 +96,12 @@ silencio, que es mucho peor.
   es DERIVAR: solo owner/admin. Cada cambio deja fila en
   `conversation_assignments`, que no se edita ni se borra.
 
+- **El contacto tiene dueño y arrastra sus conversaciones.**
+  `contacts.owner_user_id` es quién sigue a esa persona. Asignarlo también le
+  pone responsable a las conversaciones suyas SIN asignar; las que ya tenían
+  dueño no se tocan, porque eso lo decidió alguien y no lo pisa un efecto
+  secundario. Cada arrastre deja su fila en `conversation_assignments`.
+
 - **`tenant_id` en el `WHERE` de toda consulta.** RLS con
   `current_setting('app.tenant_id')` es la red de seguridad, no la primera línea.
   El `tenant_id` sale del contexto de sesión, NUNCA del body del request.

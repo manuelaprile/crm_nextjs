@@ -86,6 +86,28 @@ export function cuandoViene(iso: string | Date | null, zona: string): string {
   })
 }
 
+/**
+ * "hoy · 11:00 hs", "mañana · 11:00 hs", "30/05 · 11:00 hs".
+ *
+ * Como `cuandoViene` pero sin perder la hora cuando falta más de un día: en
+ * la tarjeta del contacto la hora ES el dato. Saber que la visita es el 30
+ * no sirve para nada si no se sabe si es a las 9 o a las 18.
+ */
+export function diaYHora(iso: string | Date | null, zona: string): string {
+  const d = aFecha(iso)
+  if (!d) return ''
+  const h = `${hora(d, zona)} hs`
+  const dias = diasEntre(diaDe(new Date(), zona), diaDe(d, zona))
+  if (dias === 0) return `hoy · ${h}`
+  if (dias === 1) return `mañana · ${h}`
+  const dia = d.toLocaleDateString('es-AR', {
+    timeZone: zona,
+    day: '2-digit',
+    month: '2-digit',
+  })
+  return `${dia} · ${h}`
+}
+
 function aFecha(v: string | Date | null): Date | null {
   if (!v) return null
   const d = v instanceof Date ? v : new Date(v)

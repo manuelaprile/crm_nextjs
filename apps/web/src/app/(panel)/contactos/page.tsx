@@ -2,7 +2,14 @@ import Link from 'next/link'
 import { requireTenant } from '@/lib/auth'
 import { etiquetaDe, delRubro, type Etiqueta } from '@/lib/etiquetas'
 import { getPipeline, getStages, listContacts } from '@/lib/queries'
-import { IconSearch } from '@/components/icons'
+import { usuariosDeLaCuenta } from '@/lib/asignacion'
+import { funcionActiva } from '@/lib/funciones'
+import {
+  IconSearch,
+  IconTablero,
+  IconLista,
+  IconArchivo,
+} from '@/components/icons'
 import { Board } from './board'
 import { Paginacion } from '@/components/paginacion'
 import { fecha } from '@/lib/fechas'
@@ -30,11 +37,13 @@ export default async function ContactosPage({
     etapa?: string
     p?: string
     pp?: string
+    r?: string
+    m?: string
   }>
 }) {
   const session = await requireTenant()
   const etiqueta = etiquetaDe(session)
-  const { ver, vista, q, etapa, p, pp } = await searchParams
+  const { ver, vista, q, etapa, p, pp, r, m } = await searchParams
   const archivados = ver === 'archivados'
 
   const stages = await getStages(session)
@@ -69,33 +78,36 @@ export default async function ContactosPage({
       </div>
 
       <div className="content">
+        {m ? (
+          <div
+            className={`alert ${r === 'ok' ? 'alert-green' : 'alert-red'}`}
+            style={{ marginBottom: 14 }}
+          >
+            <span>{m}</span>
+          </div>
+        ) : null}
+
         <div className="toolbar">
           <Link
             href={qs({ vista: 'tablero', p: undefined })}
             className={`btn btn-sm ${esLista ? 'btn-ghost' : 'btn-primary'}`}
           >
+            <IconTablero />
             Tablero
           </Link>
           <Link
             href={qs({ vista: 'lista', p: undefined })}
             className={`btn btn-sm ${esLista ? 'btn-primary' : 'btn-ghost'}`}
           >
+            <IconLista />
             Lista
           </Link>
-
-          <span
-            style={{
-              width: 1,
-              height: 22,
-              background: 'var(--c-border)',
-              margin: '0 4px',
-            }}
-          />
 
           <Link
             href={archivados ? '/contactos' : '/contactos?ver=archivados'}
             className="btn btn-ghost btn-sm"
           >
+            <IconArchivo />
             {archivados ? 'Ver activos' : 'Ver archivados'}
           </Link>
         </div>
@@ -116,6 +128,8 @@ export default async function ContactosPage({
             session={session}
             archivados={archivados}
             etiqueta={etiqueta}
+            zona={session.tenantZona}
+            puedeAsignar={session.role !== 'agent'}
           />
         )}
       </div>
@@ -129,12 +143,20 @@ async function TableroContactos({
   session,
   archivados,
   etiqueta,
+  zona,
+  puedeAsignar,
 }: {
   session: Parameters<typeof getPipeline>[0]
   archivados: boolean
   etiqueta: Etiqueta
+  zona: string
+  puedeAsignar: boolean
 }) {
-  const columns = await getPipeline(session, { archivados })
+  const [columns, usuarios, altaManual] = await Promise.all([
+    getPipeline(session, { archivados }),
+    usuariosDeLaCuenta(session),
+    funcionActiva('alta-manual-contactos', session.tenantId),
+  ])
   const total = columns.reduce((a, c) => a + c.total, 0)
   const recortado = columns.some((c) => c.total > c.contacts.length)
 
@@ -166,8 +188,14 @@ async function TableroContactos({
           name: c.name,
           color: c.color,
           total: c.total,
+          isWon: c.isWon,
+          isLost: c.isLost,
           contacts: c.contacts,
         }))}
+        usuarios={usuarios}
+        puedeAsignar={puedeAsignar}
+        zona={zona}
+        altaManual={altaManual}
       />
     </>
   )

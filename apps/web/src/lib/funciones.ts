@@ -48,6 +48,15 @@ export const FUNCIONES: Funcion[] = [
     // quien hoy lo tiene funcionando.
     porDefecto: true,
   },
+  {
+    codigo: 'alta-manual-contactos',
+    nombre: 'Cargar contactos a mano',
+    detalle:
+      'Agrega "Agregar contacto" al pie de cada columna del tablero. Sirve ' +
+      'para el que llama por teléfono o el referido. Ojo: un contacto ' +
+      'cargado a mano no tiene conversación de WhatsApp.',
+    porDefecto: false,
+  },
 ]
 
 export function buscarFuncion(codigo: string): Funcion | undefined {

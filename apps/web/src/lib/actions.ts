@@ -225,17 +225,21 @@ export async function updateContact(formData: FormData): Promise<void> {
   const name = String(formData.get('displayName') ?? '').trim().slice(0, 200)
   const city = String(formData.get('city') ?? '').trim().slice(0, 120)
   const province = String(formData.get('province') ?? '').trim().slice(0, 120)
+  const asunto = String(formData.get('asunto') ?? '').trim().slice(0, 200)
 
   await withTenant(session, (tx) =>
     tx.execute(sql`
       update contacts set
         display_name = coalesce(nullif(${name}, ''), display_name),
         city         = nullif(${city}, ''),
-        province     = nullif(${province}, '')
+        province     = nullif(${province}, ''),
+        asunto       = nullif(${asunto}, '')
        where id = ${contactId}
     `),
   )
   revalidatePath(`/contactos/${contactId}`)
+  // El asunto se muestra en la tarjeta del tablero.
+  revalidatePath('/contactos')
 }
 
 export async function toggleTag(formData: FormData): Promise<void> {

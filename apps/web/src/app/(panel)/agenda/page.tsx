@@ -41,10 +41,18 @@ const ESTADOS: Record<string, { label: string; badge: string }> = {
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ r?: string; m?: string; d?: string; ver?: string; editar?: string }>
+  searchParams: Promise<{
+    r?: string
+    m?: string
+    d?: string
+    ver?: string
+    editar?: string
+    /** Id de contacto: viene de "Agendar" en la tarjeta del tablero. */
+    contacto?: string
+  }>
 }) {
   const session = await requireTenant()
-  const { r, m, d, ver, editar } = await searchParams
+  const { r, m, d, ver, editar, contacto } = await searchParams
   const config = await configAgenda(session.tenantId)
 
   const hoy = diaEnZona(new Date(), config.zona)
@@ -78,6 +86,11 @@ export default async function AgendaPage({
     `)
     return res.rows as { id: string; display_name: string; phone: string | null }[]
   })
+
+  // Si se vino desde una tarjeta, el formulario arranca con esa persona
+  // puesta y el título escrito. Que alguien vuelva a buscar en el
+  // desplegable a quien acaba de elegir es trabajo repetido.
+  const elegido = contacto ? contactos.find((c) => c.id === contacto) : undefined
 
   // Agrupados por día del negocio.
   const porDia = new Map<string, Turno[]>()
@@ -168,6 +181,7 @@ export default async function AgendaPage({
                     <input
                       id="titulo" name="titulo" className="input" required
                       maxLength={120} placeholder="Consulta inicial, visita a la propiedad…"
+                      defaultValue={elegido ? `Turno de ${elegido.display_name}` : ''}
                     />
                   </div>
                   <div className="field">
@@ -194,7 +208,12 @@ export default async function AgendaPage({
                 </div>
                 <div className="field">
                   <label htmlFor="contactId">Contacto</label>
-                  <select id="contactId" name="contactId" className="select">
+                  <select
+                    id="contactId"
+                    name="contactId"
+                    className="select"
+                    defaultValue={elegido?.id ?? ''}
+                  >
                     <option value="">Sin contacto</option>
                     {contactos.map((c) => (
                       <option key={c.id} value={c.id}>

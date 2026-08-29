@@ -5,6 +5,8 @@ import { requireTenant } from '@/lib/auth'
 import { getContact, getStages } from '@/lib/queries'
 import { withTenant } from '@/lib/db/client'
 import { setStage, addNote, updateContact, toggleTag } from '@/lib/actions'
+import { asignarContacto } from '@/lib/contactos-acciones'
+import { usuariosDeLaCuenta } from '@/lib/asignacion'
 import { IconBack } from '@/components/icons'
 import { AccionesContacto } from './acciones'
 import { fecha, fechaHora } from '@/lib/fechas'
@@ -25,8 +27,9 @@ export default async function ContactoPage({
   const contact = await getContact(session, id)
   if (!contact) notFound()
 
-  const [stages, allTags] = await Promise.all([
+  const [stages, usuarios, allTags] = await Promise.all([
     getStages(session),
+    usuariosDeLaCuenta(session),
     withTenant(session, async (tx) => {
       const res = await tx.execute(sql`select id, name, color from tags order by name`)
       return (res.rows as Record<string, unknown>[]).map((t) => ({
@@ -64,6 +67,12 @@ export default async function ContactoPage({
                 <form action={updateContact} style={{ display: 'grid', gap: 14 }}>
                   <input type="hidden" name="contactId" value={contact.id} />
                   <Campo label="Nombre" name="displayName" value={contact.displayName} />
+                  <Campo
+                    label="Asunto de la consulta"
+                    name="asunto"
+                    value={contact.asunto ?? ''}
+                    placeholder="Consulta por casa en Barrio Norte"
+                  />
                   <Campo label="Ciudad / zona" name="city" value={contact.city ?? ''} />
                   <Campo label="Provincia" name="province" value={contact.province ?? ''} />
                   <div>
@@ -72,6 +81,45 @@ export default async function ContactoPage({
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+
+            <div className="panel-box">
+              <div className="panel-box-head">
+                <h3>Responsable</h3>
+              </div>
+              <div className="panel-box-body">
+                {session.role === 'agent' ? (
+                  <div className="kv">
+                    <span className="muted">A cargo</span>
+                    <b>{contact.responsableNombre ?? 'Sin asignar'}</b>
+                  </div>
+                ) : (
+                  <form action={asignarContacto} style={{ display: 'flex', gap: 8 }}>
+                    <input type="hidden" name="contactId" value={contact.id} />
+                    <select
+                      name="userId"
+                      defaultValue={contact.responsableId ?? ''}
+                      className="select"
+                      style={{ flex: 1 }}
+                    >
+                      <option value="">Sin asignar</option>
+                      {usuarios
+                        .filter(
+                          (u) => !u.deshabilitado || u.id === contact.responsableId,
+                        )
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.nombre}
+                            {u.deshabilitado ? ' (sin acceso)' : ''}
+                          </option>
+                        ))}
+                    </select>
+                    <button type="submit" className="btn btn-ghost btn-sm">
+                      Guardar
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
 
@@ -226,15 +274,23 @@ function Campo({
   label,
   name,
   value,
+  placeholder,
 }: {
   label: string
   name: string
   value: string
+  placeholder?: string
 }) {
   return (
     <div className="field">
       <label htmlFor={name}>{label}</label>
-      <input id={name} name={name} defaultValue={value} className="input" />
+      <input
+        id={name}
+        name={name}
+        defaultValue={value}
+        placeholder={placeholder}
+        className="input"
+      />
     </div>
   )
 }

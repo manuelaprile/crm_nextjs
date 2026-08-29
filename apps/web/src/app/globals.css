@@ -1041,7 +1041,7 @@ tbody tr.clickable {
   padding-bottom: 8px;
 }
 .board-col {
-  width: 268px;
+  width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1119,6 +1119,238 @@ tbody tr.clickable {
   text-align: center;
   font-size: 12px;
   color: var(--c-muted);
+}
+
+/* ---------------------------------------------------------------------
+   La tarjeta del contacto.
+
+   Cinco bloques de arriba a abajo: quién es, de qué es la consulta, en qué
+   anda, a quién le toca, y qué se puede hacer. Separados por líneas finas y
+   no por espacio: la tarjeta es angosta y el aire solo la haría más alta.
+   --------------------------------------------------------------------- */
+.board-card {
+  padding: 13px 14px 11px;
+}
+.bc-nombre {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-nombre:hover {
+  text-decoration: underline;
+}
+/* El asunto va en una caja y no suelto: es lo que se lee después del
+   nombre, y con el resto de los chips al lado se perdía. */
+.bc-asunto {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  font-size: 12px;
+  color: var(--c-muted);
+  line-height: 1.35;
+}
+.bc-asunto svg {
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+.bc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.bc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: var(--r-sm);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  background: var(--c-surface);
+  color: var(--c-muted);
+}
+.bc-chip svg {
+  width: 13px;
+  height: 13px;
+}
+/* Los mismos ámbar y azul de los badges del resto del panel: dos chips que
+   pone el sistema no pueden tener su propia paleta. */
+.bc-chip-turno {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+.bc-chip-humano {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+}
+.bc-linea {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--c-text);
+  line-height: 1.35;
+}
+.bc-linea svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+.bc-sep {
+  height: 1px;
+  background: var(--c-border);
+  margin: 11px -14px;
+}
+.bc-asignado {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  min-width: 0;
+}
+.bc-avatar {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--c-surface-alt);
+  color: var(--c-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bc-quien {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* El desplegable se disfraza de texto: en el diseño es un nombre con una
+   flechita, no un campo de formulario. Sigue siendo un <select> nativo, que
+   es lo que hace que funcione con el dedo y con el teclado. */
+.bc-select {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: var(--c-text);
+  padding: 2px 0;
+  cursor: pointer;
+}
+.bc-select:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+/* Rejilla y no flex: con `flex-wrap` los cuatro botones entraban o no
+   entraban según cuánto midiera cada palabra, y bastaba un nombre un poco
+   más largo para que "más" se cayera solo a la línea de abajo. Con tres
+   columnas iguales y una para el punto, la fila mide siempre lo mismo. */
+.bc-acciones {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 5px;
+}
+.bc-accion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-bg);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bc-accion:hover {
+  background: var(--c-surface);
+}
+.bc-accion svg {
+  width: 13px;
+  height: 13px;
+}
+/* El verde de WhatsApp es la marca, no un estado: es lo que hace que el
+   botón se reconozca antes de leerlo. */
+.bc-accion .bc-wa {
+  color: #25d366;
+}
+.bc-accion.off .bc-wa {
+  color: inherit;
+}
+.bc-accion.off {
+  opacity: 0.4;
+  cursor: default;
+}
+.bc-accion.off:hover {
+  background: var(--c-bg);
+}
+/* Si algún día una palabra no entra en su celda, se recorta: es preferible
+   a que empuje la rejilla y descoloque la fila entera. */
+.bc-accion span,
+.bc-accion {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-mas {
+  margin-left: auto;
+  padding: 6px 6px;
+}
+.bc-mas.on {
+  background: var(--c-surface-alt);
+}
+.bc-menu {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--c-border);
+}
+.bc-menu-item {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text);
+  padding: 6px 2px;
+}
+.bc-menu-item:hover {
+  text-decoration: underline;
+}
+.board-alta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px dashed var(--c-border);
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--c-muted);
+}
+.board-alta:hover {
+  background: var(--c-surface);
+  color: var(--c-text);
 }
 
 /* ===================== BARRAS DEL EMBUDO ===================== */
@@ -1228,6 +1460,11 @@ tbody tr.clickable {
   }
 }
 @media (max-width: 860px) {
+  /* El botón del menú es fijo arriba a la izquierda: sin este hueco se
+     monta sobre el título de TODAS las pantallas. Se veía "☰ ntactos". */
+  .topnav {
+    padding-left: 66px;
+  }
   /* Con el menú colapsado y una sola columna, encerrar la bandeja en 100vh
      deja el chat de tres centímetros. Ahí vuelve a scrollear la página. */
   .main:has(.wa) {
@@ -1264,10 +1501,49 @@ tbody tr.clickable {
     min-width: 640px;
   }
 }
+@media (max-width: 860px) {
+  /* El tablero en un teléfono: una columna por pantalla, con el borde de la
+     siguiente asomando para que se entienda que hay más al costado. El
+     `scroll-snap` es lo que hace que el dedo caiga siempre en una columna
+     entera y no a mitad de camino.
+
+     Arrastrar no existe acá: en táctil el gesto lo toma el scroll. Cambiar
+     de etapa se hace desde el menú de la tarjeta, y por eso ese menú no es
+     opcional. */
+  .board {
+    scroll-snap-type: x mandatory;
+    /* El scroll llega hasta el borde de la pantalla aunque el contenido
+       tenga margen: cortar la columna contra el padding se ve a medio
+       hacer. */
+    margin: 0 -16px;
+    padding: 0 16px 8px;
+  }
+  .board-col {
+    width: 84vw;
+    max-width: 340px;
+    scroll-snap-align: start;
+  }
+}
 @media (max-width: 640px) {
   .stats {
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+  }
+  /* En un teléfono se toca con el dedo: dos filas de dos, con los botones
+     el doble de altos. Apretar algo de 25px de alto con el pulgar es una
+     lotería, y acá abajo la fidelidad al diseño importa menos que eso. */
+  .bc-acciones {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .bc-accion {
+    padding: 10px 8px;
+    font-size: 11.5px;
+  }
+  /* En la rejilla de dos, "más" ocupa su celda entera: pegado al borde
+     derecho y de 30px de ancho no se le acierta. */
+  .bc-mas {
+    margin-left: 0;
   }
   .stat .val {
     font-size: 21px;
