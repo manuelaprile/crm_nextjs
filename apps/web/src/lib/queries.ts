@@ -376,10 +376,11 @@ export type PipelineColumn = Stage & {
  */
 export async function getPipeline(
   ctx: TenantContext,
-  opts: { archivados?: boolean } = {},
+  opts: { archivados?: boolean; soloDe?: string } = {},
 ): Promise<PipelineColumn[]> {
   const stages = await getStages(ctx)
   const verArchivados = Boolean(opts.archivados)
+  const soloDe = opts.soloDe && UUID_RE.test(opts.soloDe) ? opts.soloDe : null
 
   return withTenant(ctx, async (tx) => {
     const res = await tx.execute(sql`
@@ -387,8 +388,9 @@ export async function getPipeline(
              c.stage_since, c.owner_user_id, u.name as owner_name
         from contacts c
    left join users u on u.id = c.owner_user_id
-       where (${verArchivados} = true and c.archived_at is not null)
-          or (${verArchivados} = false and c.archived_at is null)
+       where ((${verArchivados} = true and c.archived_at is not null)
+           or (${verArchivados} = false and c.archived_at is null))
+         and (${soloDe}::uuid is null or c.owner_user_id = ${soloDe})
        order by c.last_activity_at desc nulls last limit 500
     `)
     const rows = res.rows as Record<string, unknown>[]
@@ -675,6 +677,15 @@ export async function listContacts(
     buscar?: string
     etapa?: string
     archivados?: boolean
+    /**
+     * Id de usuario: devuelve solo los contactos a su cargo.
+     *
+     * Lo usa la pantalla de Contactos para un operador. NO es una regla de
+     * acceso a los datos: si abre una conversación desde la bandeja, la
+     * ficha de esa persona la sigue viendo. Es de quién es la pantalla, no
+     * qué puede leer.
+     */
+    soloDe?: string
   } = {},
 ): Promise<PaginaContactos> {
   const porPagina = Math.min(100, Math.max(10, opts.porPagina ?? 25))
@@ -683,6 +694,7 @@ export async function listContacts(
   const buscar = opts.buscar?.trim() || null
   const etapa = opts.etapa?.trim() || null
   const archivados = Boolean(opts.archivados)
+  const soloDe = opts.soloDe && UUID_RE.test(opts.soloDe) ? opts.soloDe : null
 
   return withTenant(ctx, async (tx) => {
     const res = await tx.execute(sql`
@@ -702,6 +714,7 @@ export async function listContacts(
               or inmutable_unaccent(c.city)
                  ilike inmutable_unaccent('%' || ${buscar} || '%'))
          and (${etapa}::text is null or s.key = ${etapa})
+         and (${soloDe}::uuid is null or c.owner_user_id = ${soloDe})
        order by c.last_activity_at desc nulls last, c.created_at desc
        limit ${porPagina} offset ${offset}
     `)

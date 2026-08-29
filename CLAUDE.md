@@ -107,6 +107,15 @@ silencio, que es mucho peor.
   conversación a cargo de alguien. Cada movimiento deja su fila en
   `conversation_assignments`.
 
+- **Contactos es "los míos" para un operador; la bandeja es de todos.**
+  La pantalla de Contactos le muestra a un `agent` solo los que tiene a cargo;
+  owner y admin ven todos. Es el alcance de ESA pantalla y no un permiso sobre
+  los datos: la bandeja sigue mostrando todas las conversaciones —ver que un
+  hilo ya tiene dueño es lo que evita que dos personas contesten lo mismo— y
+  desde un chat un operador puede abrir la ficha de cualquiera. Si algún día
+  hay que cerrarlo de verdad, no alcanza con filtrar la consulta: hay que
+  decidir primero qué pasa con la ficha del contacto dentro del chat.
+
 - **`tenant_id` en el `WHERE` de toda consulta.** RLS con
   `current_setting('app.tenant_id')` es la red de seguridad, no la primera línea.
   El `tenant_id` sale del contexto de sesión, NUNCA del body del request.

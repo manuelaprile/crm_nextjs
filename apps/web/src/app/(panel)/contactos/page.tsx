@@ -48,8 +48,20 @@ export default async function ContactosPage({
 
   const stages = await getStages(session)
 
+  /**
+   * Un operador ve solo los contactos a su cargo; el dueño y los
+   * administradores, todos.
+   *
+   * Es el alcance de ESTA pantalla, no un permiso sobre los datos: la
+   * bandeja sigue siendo de todos —ver que un hilo ya tiene dueño es lo que
+   * evita que dos personas contesten lo mismo— y desde ahí un operador
+   * puede abrir la ficha de cualquiera. Lo que cambia acá es de quién es la
+   * lista: "mis contactos" y no "todos los del negocio".
+   */
+  const soloDe = session.role === 'agent' ? session.userId : undefined
+
   // Un conteo barato para decidir la vista por defecto.
-  const sonda = await listContacts(session, { porPagina: 10, archivados })
+  const sonda = await listContacts(session, { porPagina: 10, archivados, soloDe })
   // A partir de 30 contactos la lista pasa a ser la vista por defecto: el
   // tablero deja de ser cómodo y hay que empezar a buscar en vez de mirar.
   const vistaEfectiva = vista ?? (sonda.total >= 30 ? 'lista' : 'tablero')
@@ -122,6 +134,7 @@ export default async function ContactosPage({
             etapa={etapa}
             pagina={Number(p) || 1}
             porPagina={Number(pp) || 25}
+            soloDe={soloDe}
           />
         ) : (
           <TableroContactos
@@ -130,6 +143,7 @@ export default async function ContactosPage({
             etiqueta={etiqueta}
             zona={session.tenantZona}
             puedeAsignar={session.role !== 'agent'}
+            soloDe={soloDe}
           />
         )}
       </div>
@@ -145,15 +159,18 @@ async function TableroContactos({
   etiqueta,
   zona,
   puedeAsignar,
+  soloDe,
 }: {
   session: Parameters<typeof getPipeline>[0]
   archivados: boolean
   etiqueta: Etiqueta
   zona: string
   puedeAsignar: boolean
+  /** Solo los de este usuario. Ver el comentario en `ContactosPage`. */
+  soloDe?: string
 }) {
   const [columns, usuarios, altaManual] = await Promise.all([
-    getPipeline(session, { archivados }),
+    getPipeline(session, { archivados, soloDe }),
     usuariosDeLaCuenta(session),
     funcionActiva('alta-manual-contactos', session.tenantId),
   ])
@@ -167,11 +184,15 @@ async function TableroContactos({
           <b>
             {archivados
               ? 'No hay contactos archivados'
-              : 'Todavía no hay contactos'}
+              : soloDe
+                ? 'No tenés contactos asignados'
+                : 'Todavía no hay contactos'}
           </b>
           {archivados
             ? 'Cuando archives a alguien desde su ficha, va a aparecer acá.'
-            : `Cuando alguien escriba al WhatsApp ${delRubro(etiqueta)}, aparece acá.`}
+            : soloDe
+              ? 'Acá aparecen los contactos que estén a tu cargo.'
+              : `Cuando alguien escriba al WhatsApp ${delRubro(etiqueta)}, aparece acá.`}
         </div>
       </div>
     )
@@ -212,6 +233,7 @@ async function ListaContactos({
   etapa,
   pagina,
   porPagina,
+  soloDe,
 }: {
   session: Parameters<typeof listContacts>[0]
   /** La zona de la cuenta: acá `session` es el contexto de la base. */
@@ -222,6 +244,7 @@ async function ListaContactos({
   etapa?: string
   pagina: number
   porPagina: number
+  soloDe?: string
 }) {
   const datos = await listContacts(session, {
     pagina,
@@ -229,6 +252,7 @@ async function ListaContactos({
     buscar: q,
     etapa,
     archivados,
+    soloDe,
   })
 
   // Conserva filtros y cantidad por página al saltar de página.
@@ -299,7 +323,9 @@ async function ListaContactos({
             <b>Sin resultados</b>
             {q || etapa
               ? 'Probá con otro filtro.'
-              : 'Todavía no hay contactos acá.'}
+              : soloDe
+                ? 'Todavía no te asignaron ningún contacto.'
+                : 'Todavía no hay contactos acá.'}
           </div>
         ) : (
           <>
