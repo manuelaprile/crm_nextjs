@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { listConversations } from '@/lib/queries'
 import { usuariosDeLaCuenta } from '@/lib/asignacion'
+import { MenuResponsable } from './menu-responsable'
 import { IconSearch } from '@/components/icons'
 import { cuandoViene, horaOFecha } from '@/lib/fechas'
 
@@ -125,31 +126,24 @@ export async function ListaConversaciones({
             de arriba. Va como desplegable y no como una chip por usuario:
             con cinco empleados la fila de solapas ya no entra.
 
-            `<details>` y no un componente de cliente: el navegador ya sabe
-            abrir y cerrar esto, y así la lista entera sigue siendo servidor.
+            Es un `<details>` del navegador; lo único que necesita cliente
+            es cerrarse al elegir, y de eso se ocupa `MenuResponsable`. Las
+            opciones son enlaces del servidor.
           */}
-          <details className="wa-quien">
-            <summary className={`chip${usuario ? ' on' : ''}`}>
-              Responsable: {rotuloQuien}
-            </summary>
-            <div className="wa-quien-panel">
-              <Link href={conFiltros({ usuario: undefined, p: undefined })}>
-                Todos
+          <MenuResponsable rotulo={rotuloQuien} activo={Boolean(usuario)}>
+            <Link href={conFiltros({ usuario: undefined, p: undefined })}>
+              Todos
+            </Link>
+            <Link href={conFiltros({ usuario: 'sin', p: undefined })}>
+              Sin asignar
+            </Link>
+            {usuarios.map((u) => (
+              <Link key={u.id} href={conFiltros({ usuario: u.id, p: undefined })}>
+                {u.nombre}
+                {u.deshabilitado ? ' (sin acceso)' : ''}
               </Link>
-              <Link href={conFiltros({ usuario: 'sin', p: undefined })}>
-                Sin asignar
-              </Link>
-              {usuarios.map((u) => (
-                <Link
-                  key={u.id}
-                  href={conFiltros({ usuario: u.id, p: undefined })}
-                >
-                  {u.nombre}
-                  {u.deshabilitado ? ' (sin acceso)' : ''}
-                </Link>
-              ))}
-            </div>
-          </details>
+            ))}
+          </MenuResponsable>
         </div>
       </div>
 
