@@ -23,10 +23,7 @@ function volverAlChat(id: string, tipo: 'ok' | 'error', msg: string): never {
   redirect(`/bandeja/${encodeURIComponent(id)}?${sp.toString()}`)
 }
 
-type Derivacion =
-  | { error: string }
-  | { sinCambios: true; nombre: string | null }
-  | { nombre: string | null }
+type Derivacion = { error: string } | { ok: true }
 
 /**
  * Derivar: pasarle la conversación a alguien, o devolverla al montón.
@@ -57,7 +54,6 @@ export async function derivarConversacion(formData: FormData): Promise<void> {
     // El destinatario tiene que ser de ESTA cuenta. Sin esto, un id de
     // usuario cualquiera pegado en el formulario deja la conversación a
     // cargo de alguien que no puede verla, y nadie se entera.
-    let nombre: string | null = null
     if (userId) {
       const miembro = await tx.execute(sql`
         select u.name, u.disabled_at
@@ -73,12 +69,11 @@ export async function derivarConversacion(formData: FormData): Promise<void> {
           error: 'Ese usuario está deshabilitado: no puede recibir conversaciones.',
         }
       }
-      nombre = String(miembro.rows[0]!.name)
     }
 
     // Guardar lo mismo que ya estaba no es un cambio: no tiene por qué
     // dejar una fila en el historial.
-    if (antes === userId) return { sinCambios: true, nombre }
+    if (antes === userId) return { ok: true }
 
     await tx.execute(sql`
       update conversations set assigned_user_id = ${userId}
@@ -96,24 +91,18 @@ export async function derivarConversacion(formData: FormData): Promise<void> {
               'conversation', ${conversationId},
               ${JSON.stringify({ de: antes, a: userId })}::jsonb)
     `)
-    return { nombre }
+    return { ok: true }
   })
 
   if ('error' in resultado) {
     volverAlChat(conversationId, 'error', resultado.error)
   }
 
+  // Cuando sale bien NO se redirige. Redirigir reescribe la URL y ahí viven
+  // los filtros de la bandeja: asignar desde "las de Ana" te devolvía a la
+  // lista completa. Y el cartel de confirmación no hacía falta: el
+  // desplegable ya muestra el nombre nuevo y abajo aparece la línea del
+  // historial. El error sí redirige, porque ahí hay algo que leer.
   revalidatePath('/bandeja')
   revalidatePath(`/bandeja/${conversationId}`)
-
-  if ('sinCambios' in resultado) {
-    volverAlChat(conversationId, 'ok', 'No hubo cambios.')
-  }
-  volverAlChat(
-    conversationId,
-    'ok',
-    resultado.nombre
-      ? `La conversación quedó a cargo de ${resultado.nombre}.`
-      : 'La conversación quedó sin asignar.',
-  )
 }

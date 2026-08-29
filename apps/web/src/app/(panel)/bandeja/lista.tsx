@@ -53,17 +53,36 @@ export async function ListaConversaciones({
   const rotuloQuien =
     usuario === 'sin' ? 'Sin asignar' : (elegido?.nombre ?? 'Todos')
 
-  const conFiltros = (extra: Record<string, string | undefined>) => {
+  /**
+   * Los filtros viajan en la URL, así que hay que llevarlos a mano en cada
+   * enlace: sin esto, abrir una conversación de "las de Ana" volvía a la
+   * lista completa, que es lo último que quiere alguien que acaba de filtrar.
+   *
+   * Y con un chat abierto los enlaces vuelven a ÉL y no a la bandeja vacía:
+   * cambiar de filtro o pasar de página no tiene por qué cerrar lo que
+   * estabas leyendo.
+   */
+  const base = activa ? `/bandeja/${activa}` : '/bandeja'
+
+  const conFiltros = (extra: Record<string, string | undefined> = {}) => {
     const sp = new URLSearchParams()
     if (q) sp.set('q', q)
     if (atiende) sp.set('atiende', atiende)
     if (usuario) sp.set('usuario', usuario)
+    if (pagina > 1) sp.set('p', String(pagina))
     for (const [k, v] of Object.entries(extra)) {
       if (v === undefined) sp.delete(k)
       else sp.set(k, v)
     }
     const s = sp.toString()
-    return s ? `/bandeja?${s}` : '/bandeja'
+    return s ? `${base}?${s}` : base
+  }
+
+  /** El mismo juego de filtros, pero abriendo una conversación. */
+  const enlaceA = (id: string) => {
+    const sp = new URLSearchParams(conFiltros().split('?')[1] ?? '')
+    const s = sp.toString()
+    return s ? `/bandeja/${id}?${s}` : `/bandeja/${id}`
   }
 
   const FILTROS = [
@@ -76,7 +95,7 @@ export async function ListaConversaciones({
   return (
     <div className="wa-list">
       <div className="wa-list-head">
-        <form action="/bandeja" className="searchbox">
+        <form action={base} className="searchbox">
           <IconSearch />
           <input
             name="q"
@@ -147,7 +166,7 @@ export async function ListaConversaciones({
             return (
               <Link
                 key={c.id}
-                href={`/bandeja/${c.id}`}
+                href={enlaceA(c.id)}
                 className={`wa-conv${c.id === activa ? ' on' : ''}`}
               >
                 <span className="avatar">{iniciales(nombre)}</span>
