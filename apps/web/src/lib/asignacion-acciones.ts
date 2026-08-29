@@ -44,11 +44,15 @@ export async function derivarConversacion(formData: FormData): Promise<void> {
     // RLS ya acota la conversación a la cuenta; esto es para poder decir
     // "no existe" en vez de actualizar cero filas en silencio.
     const actual = await tx.execute(sql`
-      select assigned_user_id from conversations where id = ${conversationId}
+      select assigned_user_id, contact_id from conversations
+       where id = ${conversationId}
     `)
     if (!actual.rows.length) return { error: 'Esa conversación no existe.' }
     const antes = actual.rows[0]!.assigned_user_id
       ? String(actual.rows[0]!.assigned_user_id)
+      : null
+    const contactId = actual.rows[0]!.contact_id
+      ? String(actual.rows[0]!.contact_id)
       : null
 
     // El destinatario tiene que ser de ESTA cuenta. Sin esto, un id de
@@ -91,6 +95,42 @@ export async function derivarConversacion(formData: FormData): Promise<void> {
               'conversation', ${conversationId},
               ${JSON.stringify({ de: antes, a: userId })}::jsonb)
     `)
+
+    /*
+     * El contacto sigue a su conversación.
+     *
+     * Son la misma pregunta hecha en dos pantallas: si en el chat pasás un
+     * hilo a alguien, la tarjeta de esa persona en el tablero tiene que
+     * decir lo mismo. Antes iba en un solo sentido —asignar el contacto
+     * arrastraba sus conversaciones, pero no al revés— y el tablero
+     * mostraba "Sin asignar" para alguien que ya tenía dueño.
+     *
+     * Manda la ÚLTIMA decisión: derivar a alguien pone a esa persona como
+     * responsable del contacto, aunque antes hubiera otra. Si un contacto
+     * tiene dos hilos con dos responsables distintos, la tarjeta muestra el
+     * del último que se movió; es lo que espera quien acaba de moverlo.
+     *
+     * Soltar un hilo (dejarlo sin asignar) solo deja al contacto sin dueño
+     * si no le queda ninguna otra conversación con responsable: si tiene
+     * otra a cargo de alguien, ese alguien lo sigue teniendo.
+     */
+    if (contactId) {
+      if (userId) {
+        await tx.execute(sql`
+          update contacts set owner_user_id = ${userId} where id = ${contactId}
+        `)
+      } else {
+        await tx.execute(sql`
+          update contacts set owner_user_id = null
+           where id = ${contactId}
+             and not exists (
+               select 1 from conversations
+                where contact_id = ${contactId}
+                  and assigned_user_id is not null
+                  and archived_at is null)
+        `)
+      }
+    }
     return { ok: true }
   })
 
@@ -105,4 +145,7 @@ export async function derivarConversacion(formData: FormData): Promise<void> {
   // historial. El error sí redirige, porque ahí hay algo que leer.
   revalidatePath('/bandeja')
   revalidatePath(`/bandeja/${conversationId}`)
+  // La tarjeta del tablero muestra al responsable: si no se revalida, sigue
+  // diciendo el de antes hasta la próxima navegación.
+  revalidatePath('/contactos')
 }
