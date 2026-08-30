@@ -47,6 +47,18 @@ const config: NextConfig = {
   output: 'standalone',
   // `pg` es nativo: no puede pasar por el bundler del servidor.
   serverExternalPackages: ['pg'],
+  experimental: {
+    /*
+     * Cuánto puede pesar lo que llega por un formulario del servidor.
+     *
+     * El valor de fábrica es 1MB, y con eso adjuntar una lista de precios en
+     * PDF fallaba con un error genérico que no dice qué pasó. El tope real
+     * de un archivo son 10MB (MAX_ARCHIVO_BYTES) y entran hasta cinco por
+     * vez; acá va con margen para el resto del formulario. El rechazo por
+     * tamaño lo hace `guardarArchivo`, que sí puede explicarlo.
+     */
+    serverActions: { bodySizeLimit: '55mb' },
+  },
   poweredByHeader: false,
   async headers() {
     return [

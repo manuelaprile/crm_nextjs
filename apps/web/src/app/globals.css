@@ -2402,3 +2402,97 @@ tbody tr.clickable {
   border: 1px solid var(--c-border);
   border-radius: var(--r-md);
 }
+
+/* ---------------------------------------------------------------
+   Información del negocio: archivos adjuntos y encargado del tema
+   --------------------------------------------------------------- */
+
+/* Encargado y archivos, uno al lado del otro. Es la misma pregunta —qué
+   más lleva este tema— y en dos renglones separados el formulario se hacía
+   largo de más para lo poco que se carga. */
+.kb-dos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+@media (max-width: 700px) {
+  .kb-dos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* El `<input type=file>` con el mismo alto que el resto: el navegador le
+   pone su propio relleno al botón y sin esto quedaba dos píxeles más bajo
+   que el desplegable de al lado. */
+input[type='file'].input {
+  padding: 7px 10px;
+  line-height: 1.5;
+}
+
+.kb-archivos {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.kb-archivo {
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  padding: 9px 11px;
+  background: var(--c-bg);
+}
+.kb-archivo-fila {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.kb-archivo-ico {
+  flex: none;
+  color: var(--c-muted);
+}
+/* `min-width: 0` porque un nombre largo sin espacios —los PDF exportados
+   los tienen— estira el flex y empuja los botones fuera de la tarjeta. */
+.kb-archivo-nombre {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kb-archivo-acciones {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.kb-archivo-error {
+  margin: 7px 0 0;
+  color: #b91c1c;
+  line-height: 1.45;
+}
+
+/* Lo que leyó el asistente. Cerrado por defecto: son listas de precios
+   enteras y abiertas de entrada tapan el resto de la pantalla. */
+.kb-leido {
+  margin-top: 8px;
+}
+.kb-leido > summary {
+  cursor: pointer;
+  color: var(--c-muted);
+  padding: 3px 0;
+}
+.kb-leido pre {
+  margin: 7px 0 0;
+  padding: 10px 12px;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  /* El texto viene con renglones largos: que corte y no que estire la
+     tarjeta a lo ancho de la lista de precios más larga que haya. */
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--c-muted);
+  line-height: 1.5;
+}

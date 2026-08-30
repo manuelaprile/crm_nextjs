@@ -132,6 +132,30 @@ silencio, que es mucho peor.
   que cambia de dueño se lleva sus turnos—. Es el alcance de la pantalla, no
   un permiso, igual que en Contactos.
 
+- **Lo que el asistente sabe del negocio se lee UNA vez, cuando se carga.**
+  Un archivo adjunto a una entrada de `business_knowledge` NO viaja al modelo:
+  viaja su TEXTO, extraído al subirlo (`ai/lector.ts`) y guardado en
+  `business_knowledge_files.texto`. Mandar el PDF en cada conversación sería
+  pagar la lista de precios entera en cada mensaje de cada persona, todos los
+  días. Es la misma decisión que `message_media.transcript` con los audios.
+  Los BYTES igual se guardan, y en Postgres, no en un volumen: entran en el
+  `pg_dump` (regla de la 0019) y permiten releer el archivo el día que el
+  modelo lo lea mal, sin volver a pedírselo al cliente. Lo que el modelo
+  entendió se muestra en pantalla a propósito: un precio mal transcripto es
+  un compromiso comercial, y sale mucho más barato encontrarlo ahí que en un
+  chat.
+
+- **El tema tiene encargado, y la IA elige el TEMA, nunca la persona.**
+  `business_knowledge.assigned_user_id` dice quién atiende ese tema. El
+  asistente recibe una lista cerrada de títulos y devuelve uno; la traducción
+  a un usuario pasa en el servidor. No hay ningún parámetro donde se pueda
+  escribir un id de usuario. La asignación deja fila en
+  `conversation_assignments` con `by_ai = true` —para eso la 0025 dejó esa
+  columna— y **no pisa un responsable que ya exista**: ni el que puso una
+  persona ni el que puso la propia IA tres mensajes antes. Reasignar es
+  permiso de owner/admin, y esa pared no se sortea pidiéndole al modelo que
+  cambie de opinión.
+
 - **`tenant_id` en el `WHERE` de toda consulta.** RLS con
   `current_setting('app.tenant_id')` es la red de seguridad, no la primera línea.
   El `tenant_id` sale del contexto de sesión, NUNCA del body del request.

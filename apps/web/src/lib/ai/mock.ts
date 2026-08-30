@@ -107,6 +107,13 @@ export class MockProvider implements AIProvider {
       const etapa = clasificar(todo)
       const zona = detectarZona(todo)
       const calls: ToolCall[] = [
+        // Si el negocio tiene temas con encargado, se reparte por el primero.
+        // Un modelo real elige el tema que corresponde; el guion no puede
+        // hacer eso, pero sí ejercitar el camino completo —la fila en
+        // `conversation_assignments`, el responsable en la bandeja— sin
+        // clave de API y sin gastar un centavo, que es para lo que existe
+        // este proveedor.
+        ...temaOfrecido(input),
         {
           id: 'mock_info',
           name: 'set_contact_info',
@@ -149,6 +156,24 @@ export class MockProvider implements AIProvider {
       stopReason: 'tool_use',
     }
   }
+}
+
+/**
+ * El primer tema con encargado, si la cuenta tiene alguno.
+ *
+ * Sale del enum de la herramienta y no de una lista escrita acá: los temas
+ * los inventa cada negocio, y hardcodear "Productos" haría que el simulador
+ * funcione en la cuenta de demostración y en ninguna otra.
+ */
+function temaOfrecido(input: CompletionInput): ToolCall[] {
+  const tool = input.tools.find((t) => t.name === 'asignar_tema')
+  if (!tool) return []
+  const props = (tool.parameters as { properties?: Record<string, unknown> })
+    .properties
+  const enumerado = (props?.tema as { enum?: unknown[] } | undefined)?.enum
+  const primero = enumerado?.[0]
+  if (typeof primero !== 'string') return []
+  return [{ id: 'mock_tema', name: 'asignar_tema', input: { tema: primero } }]
 }
 
 /** Clasificación por palabras sueltas. Alcanza para la demostración. */

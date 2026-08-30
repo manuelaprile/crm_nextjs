@@ -43,6 +43,13 @@ import {
   toolsDeAgenda,
 } from './agenda-agente'
 import { configAgenda } from './agenda'
+import {
+  TOOL_TEMA,
+  asignarPorTema,
+  instruccionesDeTemas,
+  temasConEncargado,
+  toolDeTemas,
+} from './conocimiento-agente'
 
 /** Si el mensaje esperó más que esto, no se contesta. Ver CLAUDE.md. */
 const MAX_MESSAGE_AGE_MS = 10 * 60 * 1000
@@ -328,6 +335,22 @@ async function executeTool(
   let stop = false
 
   try {
+    // Repartir por tema vive en `conocimiento-agente.ts`: es lo único que
+    // decide a QUIÉN del equipo le llega una conversación, y conviene poder
+    // leer esa regla de una sola vez y en un solo lugar.
+    if (name === TOOL_TEMA) {
+      const texto = await asignarPorTema(
+        {
+          tenantId: ctx.tenantId,
+          conversationId: ctx.conversationId,
+          contactId: ctx.contactId,
+        },
+        input,
+      )
+      await registrarTool(ctx, name, input, texto, null, Date.now() - started)
+      return { result: texto, stop: false }
+    }
+
     // Las de agenda se despachan aparte: viven en su propio archivo porque
     // son las únicas que escriben en la agenda real de un negocio.
     if (esToolDeAgenda(name)) {
@@ -556,7 +579,14 @@ async function run(ctx: AgentContext): Promise<void> {
   // `agendar` en su lista le dice al paciente que le consigue un turno, y
   // después no puede. Lo que no está, no se promete.
   const config = await configAgenda(ctx.tenantId)
-  const tools = [...toolsFor(etapas), ...(config.iaAgenda ? toolsDeAgenda() : [])]
+  // Repartir por tema solo se ofrece si hay algún tema con encargado. Misma
+  // razón que arriba: una herramienta que no lleva a nadie igual se usa.
+  const temas = await temasConEncargado(ctx.tenantId)
+  const tools = [
+    ...toolsFor(etapas),
+    ...toolDeTemas(temas),
+    ...(config.iaAgenda ? toolsDeAgenda() : []),
+  ]
 
   let inputTokens = 0
   let outputTokens = 0
@@ -583,14 +613,21 @@ async function run(ctx: AgentContext): Promise<void> {
       contactId: ctx.contactId,
       zona: config.zona,
     })
-    // Cómo agendar va ÚLTIMO, después del negocio y del contacto: es lo más
-    // específico y lo que más pesa en lo que el modelo termina haciendo.
-    const agenda = instruccionesDeAgenda(config)
-    const system = agenda ? `${base}
-
----
-
-${agenda}` : base
+    /*
+     * Lo que tiene que HACER va último, después de lo que sabe.
+     *
+     * Cómo agendar y a quién le toca cada tema son instrucciones de
+     * conducta, y lo más específico es lo que más pesa en lo que el modelo
+     * termina haciendo. El orden de acá arriba es: quién sos, qué sabés, a
+     * quién le hablás; y recién entonces, qué hacer.
+     */
+    const system = [
+      base,
+      instruccionesDeTemas(temas),
+      instruccionesDeAgenda(config),
+    ]
+      .filter(Boolean)
+      .join('\n\n---\n\n')
 
     for (let turno = 0; turno < ctx.maxTurns; turno++) {
       const res = await modelo.complete({

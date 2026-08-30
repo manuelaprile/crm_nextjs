@@ -211,6 +211,14 @@ export const IconArchivo = ({ className }: P) => (
   </svg>
 )
 
+/** Una hoja con la esquina doblada: un archivo adjunto, no una caja de archivo. */
+export const IconDocumento = ({ className }: P) => (
+  <svg width="17" height="17" {...base} strokeLinejoin="round" className={className}>
+    <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+    <path d="M14 3v5h5" />
+  </svg>
+)
+
 export const IconTelefono = ({ className }: P) => (
   <svg width="17" height="17" {...base} strokeLinejoin="round" className={className}>
     <path d="M21 16.9v2.1a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 011.1 3.2 2 2 0 013.1 1h2.1a2 2 0 012 1.7c.1 1 .3 1.9.7 2.8a2 2 0 01-.5 2.1L6.5 8.6a16 16 0 006 6l1-1a2 2 0 012.1-.5c.9.4 1.8.6 2.8.7a2 2 0 011.6 2.1z" />

@@ -1,6 +1,7 @@
 import 'server-only'
 import { sql } from 'drizzle-orm'
 import { withSystem } from './db/client'
+import { archivosDe, type ArchivoConocimiento } from './conocimiento-archivos'
 
 /**
  * Lo que el asistente sabe además de las instrucciones y el hilo.
@@ -20,8 +21,16 @@ import { withSystem } from './db/client'
  * hubieran dicho recién.
  */
 
-/** Tope de caracteres por bloque, para no inflar cada llamada sin control. */
-const TOPE_NEGOCIO = 8_000
+/**
+ * Tope de caracteres por bloque, para no inflar cada llamada sin control.
+ *
+ * Eran 8.000 cuando todo se tipeaba a mano. Con archivos adjuntos, un
+ * catálogo de productos solo ya se los come. 24.000 son unos 6.000 tokens:
+ * en Anthropic el prompt del sistema va con `cache_control`, así que se paga
+ * entero la primera vez y a una décima parte en cada turno siguiente. Lo que
+ * no entra se corta por entrada completa, nunca a mitad de una.
+ */
+const TOPE_NEGOCIO = 24_000
 const TOPE_NOTAS = 3_000
 /** Cuántas notas mira. Las más nuevas primero: son las que describen el hoy. */
 const MAX_NOTAS = 15
@@ -33,27 +42,43 @@ export type EntradaConocimiento = {
   activo: boolean
   posicion: number
   actualizadoEn: string
+  /** Quién atiende este tema. null = nadie en particular. */
+  responsableId: string | null
+  responsable: string | null
+  archivos: ArchivoConocimiento[]
 }
 
 export async function conocimientoDelNegocio(
   tenantId: string,
 ): Promise<EntradaConocimiento[]> {
-  return withSystem(async (tx) => {
+  const filas = await withSystem(async (tx) => {
     const res = await tx.execute(sql`
-      select id, titulo, contenido, activo, posicion, updated_at
-        from business_knowledge
-       where tenant_id = ${tenantId}
-       order by posicion, created_at
+      select k.id, k.titulo, k.contenido, k.activo, k.posicion, k.updated_at,
+             k.assigned_user_id, u.name as responsable
+        from business_knowledge k
+   left join users u on u.id = k.assigned_user_id
+       where k.tenant_id = ${tenantId}
+       order by k.posicion, k.created_at
     `)
-    return (res.rows as Record<string, unknown>[]).map((r) => ({
-      id: String(r.id),
-      titulo: String(r.titulo),
-      contenido: String(r.contenido),
-      activo: Boolean(r.activo),
-      posicion: Number(r.posicion ?? 0),
-      actualizadoEn: String(r.updated_at),
-    }))
+    return res.rows as Record<string, unknown>[]
   })
+
+  const porEntrada = await archivosDe(
+    tenantId,
+    filas.map((r) => String(r.id)),
+  )
+
+  return filas.map((r) => ({
+    id: String(r.id),
+    titulo: String(r.titulo),
+    contenido: String(r.contenido),
+    activo: Boolean(r.activo),
+    posicion: Number(r.posicion ?? 0),
+    actualizadoEn: String(r.updated_at),
+    responsableId: r.assigned_user_id ? String(r.assigned_user_id) : null,
+    responsable: r.responsable ? String(r.responsable) : null,
+    archivos: porEntrada.get(String(r.id)) ?? [],
+  }))
 }
 
 /**
@@ -69,7 +94,25 @@ export async function bloqueNegocio(tenantId: string): Promise<string | null> {
 
   let texto = ''
   for (const e of entradas) {
-    const trozo = `## ${e.titulo}\n${e.contenido.trim()}\n\n`
+    /*
+     * Lo que se leyó de los archivos va DENTRO de la entrada, debajo de lo
+     * que escribió el dueño, y con el nombre del archivo adelante.
+     *
+     * Lo primero, porque una lista de precios sin su título ("Productos") es
+     * una lista de números sueltos. Lo segundo, porque si el asistente
+     * después dice algo raro, el nombre del archivo es lo que permite ir a
+     * mirar de dónde lo sacó.
+     *
+     * Solo los que se leyeron bien: un archivo en error no aporta nada, y
+     * uno a medio leer aportaría una lista incompleta, que es peor que
+     * ninguna —el asistente diría que un producto no existe—.
+     */
+    const deArchivos = e.archivos
+      .filter((a) => a.estado === 'listo' && a.texto)
+      .map((a) => `\nDel archivo «${a.nombre}»:\n${a.texto!.trim()}\n`)
+      .join('')
+
+    const trozo = `## ${e.titulo}\n${e.contenido.trim()}\n${deArchivos}\n`
     if (texto.length + trozo.length > TOPE_NEGOCIO) break
     texto += trozo
   }
