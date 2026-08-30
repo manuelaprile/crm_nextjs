@@ -29,7 +29,14 @@ export default async function PruebasPage() {
           </p>
         </div>
 
-        <div className="stats" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+        {/*
+          Sin `gridTemplateColumns` a mano: `.stats` ya son cuatro columnas, y
+          un estilo en línea le gana a cualquier media query. Eran cuatro
+          columnas también en un teléfono, y las cuatro juntas medían más que
+          la pantalla: la página quedaba corrida y se comía el borde
+          izquierdo de todo.
+        */}
+        <div className="stats">
           <div className="stat">
             <div className="lbl">Número simulado</div>
             <div className="val" style={{ fontSize: 17 }}>

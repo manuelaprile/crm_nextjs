@@ -399,9 +399,14 @@ textarea.input:focus {
   margin-top: 3px;
 }
 
+/* `minmax(0, 1fr)` y no `1fr`: por defecto una columna de grilla no baja de
+   lo que mide su contenido, así que un número largo o una palabra sin
+   espacios ensancha la columna, la grilla y la PÁGINA. En un teléfono eso
+   deja todo corrido para la derecha, con el borde izquierdo comido. Es el
+   mismo motivo en las tres reglas de abajo. */
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 20px;
 }
@@ -1613,9 +1618,24 @@ tbody tr.clickable {
 }
 @media (max-width: 860px) {
   /* El botón del menú es fijo arriba a la izquierda: sin este hueco se
-     monta sobre el título de TODAS las pantallas. Se veía "☰ ntactos". */
+     monta sobre el título de TODAS las pantallas. Se veía "☰ ntactos".
+
+     Y la barra pasa a poder ocupar dos renglones. Con 64px fijos y sin
+     `wrap`, un título más dos botones —"Usuarios · Superadmin · Funciones ·
+     Volver a cuentas"— medían más que la pantalla, y como la barra no
+     recorta ni scrollea, lo que se pasaba ensanchaba la PÁGINA ENTERA: el
+     teléfono quedaba corrido para la derecha y se comía el borde izquierdo
+     de todo, incluidas las tarjetas y la tabla de abajo. */
   .topnav {
-    padding-left: 66px;
+    height: auto;
+    min-height: 64px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 10px 16px 10px 66px;
+  }
+  /* El grupo de botones de la derecha, que es lo que empuja. */
+  .topnav > div {
+    flex-wrap: wrap;
   }
   /* Con el menú colapsado y una sola columna, encerrar la bandeja en 100vh
      deja el chat de tres centímetros. Ahí vuelve a scrollear la página. */
@@ -1627,7 +1647,7 @@ tbody tr.clickable {
     min-height: calc(100vh - 64px);
   }
   .stats {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .side {
     transform: translateX(-100%);
@@ -1678,7 +1698,7 @@ tbody tr.clickable {
 }
 @media (max-width: 640px) {
   .stats {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
   }
   /* En un teléfono se toca con el dedo: dos filas de dos, con los botones
