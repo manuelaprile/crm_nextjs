@@ -587,7 +587,7 @@ tbody tr.clickable {
 }
 .wa {
   display: grid;
-  grid-template-columns: 330px 1fr 290px;
+  grid-template-columns: 400px 1fr 290px;
   flex: 1;
   min-height: 0;
   background: var(--c-bg);
@@ -612,35 +612,40 @@ tbody tr.clickable {
    se leen como UNA pregunta con cuatro respuestas y no como cuatro botones
    sueltos al lado del buscador. */
 .wa-filtros {
-  /* Cuatro columnas iguales y no un `flex-wrap`: con flex, la cuarta solapa
-     se caía sola a un segundo renglón apenas faltaban unos píxeles y la fila
-     quedaba coja (tres arriba, una abajo). En grilla siempre son cuatro. */
+  /* Grilla y no `flex-wrap`: con flex, la cuarta solapa se caía sola a un
+     segundo renglón apenas faltaban unos píxeles y la fila quedaba coja
+     (tres arriba, una abajo). En grilla siempre son cuatro.
+     Columnas `auto` y no `1fr`: cada solapa mide lo que dice. Con `1fr`,
+     "IA" quedaba tan ancha como "Humano" y la fila se veía amontonada y
+     desalineada con el texto. El espacio que sobra se reparte entre ellas. */
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding: 5px;
+  grid-template-columns: repeat(4, auto);
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
 }
 .chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 7px;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 7px 13px;
   border-radius: var(--r-full);
   background: var(--c-bg);
   border: 1px solid var(--c-border);
   color: var(--c-text);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
   transition: 0.12s;
 }
 .chip svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex: none;
 }
 /* El icono lleva el color de lo que filtra; el mismo que la chapa que va a
@@ -1547,10 +1552,14 @@ tbody tr.clickable {
   .chip svg {
     display: none;
   }
+  .chip {
+    padding: 7px 11px;
+    font-size: 12.5px;
+  }
 }
 @media (max-width: 1100px) {
   .wa {
-    grid-template-columns: 270px 1fr;
+    grid-template-columns: 300px 1fr;
   }
   .wa-side {
     display: none;
