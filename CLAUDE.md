@@ -116,6 +116,22 @@ silencio, que es mucho peor.
   hay que cerrarlo de verdad, no alcanza con filtrar la consulta: hay que
   decidir primero qué pasa con la ficha del contacto dentro del chat.
 
+- **La agenda es UNA sola del negocio, y el turno tiene responsable.**
+  Son dos cosas distintas y conviene no mezclarlas. Que dos turnos no se
+  pisen lo garantiza `appointments_sin_superposicion` en Postgres, sobre el
+  tenant entero: el recurso escaso es el negocio —el consultorio, la sala, el
+  auto—, no la persona. Si algún día hace falta que dos usuarios atiendan a
+  la misma hora, esa restricción tiene que pasar a incluir el responsable, y
+  eso NO es reversible con un `git revert`. Aparte de eso,
+  `appointments.assigned_user_id` dice a quién le toca; sale de quien ya
+  seguía al contacto (responsable de la conversación, si no dueño del
+  contacto) y puede quedar en null. Cambiarlo es de owner/admin.
+  En la pantalla, un `agent` ve solo los turnos que lo involucran: los que le
+  tocan, los que cargó y los de los contactos que sigue. Los tres caminos
+  hacen falta —una reunión con un proveedor no tiene contacto, y un contacto
+  que cambia de dueño se lleva sus turnos—. Es el alcance de la pantalla, no
+  un permiso, igual que en Contactos.
+
 - **`tenant_id` en el `WHERE` de toda consulta.** RLS con
   `current_setting('app.tenant_id')` es la red de seguridad, no la primera línea.
   El `tenant_id` sale del contexto de sesión, NUNCA del body del request.
