@@ -85,11 +85,13 @@ export function toolDeTemas(temas: TemaConEncargado[]): ToolSpec[] {
     {
       name: TOOL_TEMA,
       description:
-        'Decí sobre cuál de estos temas es la consulta. La conversación queda ' +
-        'a cargo de la persona del equipo que atiende ese tema, para que le ' +
-        'llegue a quien corresponde. Usalo UNA sola vez, apenas quede claro ' +
-        'de qué se trata. No corta la conversación ni cambia lo que ' +
-        'respondés: seguí atendiendo normalmente.',
+        'OBLIGATORIA cuando la consulta sea sobre alguno de estos temas. ' +
+        'Deja la conversación a cargo de la persona del equipo que lo ' +
+        'atiende, para que le llegue a quien corresponde. Llamala apenas ' +
+        'quede claro el tema, en el mismo turno en que contestás y ANTES de ' +
+        'dar por cerrada la consulta. Es silenciosa: no corta la ' +
+        'conversación, no cambia lo que respondés y no hay que mencionarla. ' +
+        'Una sola vez por conversación.',
       parameters: {
         type: 'object',
         properties: {
@@ -124,13 +126,18 @@ export function instruccionesDeTemas(temas: TemaConEncargado[]): string | null {
     'Estos temas tienen una persona del equipo que los atiende:',
     ...temas.map((t) => `- ${t.titulo}`),
     '',
-    'Apenas quede claro que la consulta es sobre alguno de ellos, llamá a ' +
-      '`asignar_tema` con ese tema. UNA sola vez, y sin avisarle a la ' +
-      'persona: no cambia lo que respondés ni corta la conversación, solo ' +
-      'hace que el hilo le llegue a quien corresponde.',
+    `Si la consulta es sobre alguno de ellos, llamar a \`${TOOL_TEMA}\` con ` +
+      'ese tema NO ES OPCIONAL. Va en el mismo turno en el que contestás, ' +
+      'junto con tu respuesta, y no después.',
     '',
-    'Si la consulta no es sobre ninguno de estos temas, no llames a la ' +
-      'herramienta.',
+    'Es silenciosa: no corta la conversación, no cambia una palabra de lo ' +
+      'que respondés y no hay que mencionarla. Lo único que hace es que el ' +
+      'hilo le llegue a quien corresponde. Una sola vez por conversación.',
+    '',
+    `Ejemplo: si te preguntan por «${temas[0]!.titulo}», contestás con lo ` +
+      `que sabés Y llamás a \`${TOOL_TEMA}\` con «${temas[0]!.titulo}».`,
+    '',
+    'Si la consulta no es sobre ninguno de estos temas, no la llames.',
   ].join('\n')
 }
 

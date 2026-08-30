@@ -2,6 +2,7 @@ import 'server-only'
 import { sql } from 'drizzle-orm'
 import { withSystem } from './db/client'
 import { archivosDe, type ArchivoConocimiento } from './conocimiento-archivos'
+import { TOOL_TEMA } from './conocimiento-agente'
 
 /**
  * Lo que el asistente sabe además de las instrucciones y el hilo.
@@ -112,7 +113,27 @@ export async function bloqueNegocio(tenantId: string): Promise<string | null> {
       .map((a) => `\nDel archivo «${a.nombre}»:\n${a.texto!.trim()}\n`)
       .join('')
 
-    const trozo = `## ${e.titulo}\n${e.contenido.trim()}\n${deArchivos}\n`
+    /*
+     * La marca de que este tema tiene encargado va ACÁ ADENTRO, pegada al
+     * título, y no solo en una sección aparte del prompt.
+     *
+     * La primera versión la ponía únicamente al final, en su propio bloque.
+     * Contra un modelo chico y un prompt de negocio real —con nueve
+     * herramientas en la lista— el asistente contestó bárbaro usando este
+     * mismo texto y no llamó a `asignar_tema` ni una vez en nueve corridas.
+     * La instrucción tiene que estar en el renglón que el modelo está
+     * leyendo cuando encuentra la respuesta, no tres pantallas más abajo.
+     *
+     * No se nombra a la persona a propósito: puesto el nombre, el asistente
+     * termina diciéndole al cliente "te paso con Fulano", que es una
+     * promesa que no le toca hacer a él.
+     */
+    const conEncargado = e.responsableId
+      ? `\n[Este tema lo atiende una persona del equipo. Si la consulta es ` +
+        `sobre esto, llamá a \`${TOOL_TEMA}\` con «${e.titulo}».]\n`
+      : ''
+
+    const trozo = `## ${e.titulo}\n${conEncargado}${e.contenido.trim()}\n${deArchivos}\n`
     if (texto.length + trozo.length > TOPE_NEGOCIO) break
     texto += trozo
   }

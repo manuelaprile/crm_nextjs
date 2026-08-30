@@ -588,6 +588,23 @@ async function run(ctx: AgentContext): Promise<void> {
     ...(config.iaAgenda ? toolsDeAgenda() : []),
   ]
 
+  /*
+   * Qué se le ofreció al modelo, en el registro.
+   *
+   * No es ruido: es la pregunta que no se podía contestar. Cuando el
+   * asistente no hace algo que tendría que hacer, hay dos causas muy
+   * distintas —no se le ofreció la herramienta, o se le ofreció y no la
+   * eligió— y sin esta línea las dos se ven exactamente igual desde afuera.
+   * Se perdieron tres rondas de diagnóstico averiguándolo por descarte.
+   *
+   * Una línea por corrida, y una corrida es un mensaje de una persona.
+   */
+  console.log('[agente] herramientas ofrecidas', {
+    conversationId: ctx.conversationId,
+    tools: tools.map((t) => t.name),
+    temas: temas.map((t) => t.titulo),
+  })
+
   let inputTokens = 0
   let outputTokens = 0
   let cacheRead = 0
