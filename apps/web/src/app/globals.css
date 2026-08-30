@@ -587,7 +587,7 @@ tbody tr.clickable {
 }
 .wa {
   display: grid;
-  grid-template-columns: 300px 1fr 290px;
+  grid-template-columns: 330px 1fr 290px;
   flex: 1;
   min-height: 0;
   background: var(--c-bg);
@@ -608,27 +608,66 @@ tbody tr.clickable {
 .wa-list-head .searchbox {
   width: 100%;
 }
+/* Las cuatro solapas viven dentro de una caja, como un control de radio:
+   se leen como UNA pregunta con cuatro respuestas y no como cuatro botones
+   sueltos al lado del buscador. */
 .wa-filtros {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  /* Cuatro columnas iguales y no un `flex-wrap`: con flex, la cuarta solapa
+     se caía sola a un segundo renglón apenas faltaban unos píxeles y la fila
+     quedaba coja (tres arriba, una abajo). En grilla siempre son cuatro. */
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 5px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
 }
 .chip {
-  padding: 5px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 8px;
   border-radius: var(--r-full);
-  background: var(--c-surface);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
   color: var(--c-text);
   font-size: 12.5px;
   font-weight: 600;
   transition: 0.12s;
 }
+.chip svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+/* El icono lleva el color de lo que filtra; el mismo que la chapa que va a
+   aparecer en la lista. Apagado en la solapa activa: sobre el fondo negro
+   pierde contraste y además ya no hace falta distinguirla. */
+.chip.t-blue svg {
+  color: #1d4ed8;
+}
+.chip.t-amber svg {
+  color: #b45309;
+}
+.chip.t-green svg {
+  color: #15803d;
+}
 .chip:hover {
   background: var(--c-surface-alt);
 }
-.chip.on {
+.chip.on,
+.chip.on:hover {
   background: var(--c-primary);
+  border-color: var(--c-primary);
   color: var(--c-on-primary);
 }
+.chip.on svg {
+  color: currentColor;
+}
+
 /* Filtro por responsable. Es un <details> para que la lista siga siendo
    servidor: el navegador ya sabe abrir un desplegable. */
 .wa-quien {
@@ -637,17 +676,60 @@ tbody tr.clickable {
 .wa-quien > summary {
   cursor: pointer;
   list-style: none;
-  white-space: nowrap;
 }
 .wa-quien > summary::-webkit-details-marker {
   display: none;
 }
+/* Fila entera, no una solapa más: filtra otra cosa y se combina con las de
+   arriba. Ver el comentario de `menu-responsable.tsx`. */
+.wa-quien-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+  color: var(--c-muted);
+  transition: 0.12s;
+}
+.wa-quien-btn:hover {
+  background: var(--c-surface);
+}
+.wa-quien-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.wa-quien-rotulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wa-quien-rotulo b {
+  color: var(--c-text);
+  font-weight: 600;
+}
+.wa-quien-btn.on {
+  border-color: var(--c-primary);
+}
+.wa-quien-flecha {
+  color: var(--c-muted);
+  transition: transform 0.12s;
+}
+.wa-quien[open] .wa-quien-flecha {
+  transform: rotate(180deg);
+}
 .wa-quien-panel {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 5px);
   left: 0;
+  right: 0;
   z-index: 40;
-  min-width: 190px;
   max-width: calc(100vw - 32px);
   padding: 6px;
   display: grid;
@@ -709,8 +791,22 @@ tbody tr.clickable {
   flex-wrap: wrap;
 }
 .wa-conv-tags .badge {
-  font-size: 10.5px;
-  padding: 2px 7px;
+  font-size: 11px;
+  padding: 3px 9px;
+  /* Sin `nowrap`: de 1100px para abajo la lista mide 270px y "Agenda
+     registrada · mañana 11:00" no entra en un renglón. Una chapa que no
+     entra se corta y esconde justo la hora; en dos renglones es más fea
+     pero se lee entera. */
+  align-items: flex-start;
+}
+/* El icono de la chapa, más chico que el texto y sin encogerse. */
+.badge svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  /* Con el texto en dos renglones el icono va a la altura del primero y no
+     flotando en el medio de la chapa. */
+  margin-top: 1.5px;
 }
 .wa-conv .meta {
   flex: 1;
@@ -1446,6 +1542,11 @@ tbody tr.clickable {
 /* ===================== RESPONSIVE ===================== */
 .mobile-only {
   display: none;
+}
+@media (max-width: 1100px) and (min-width: 641px) {
+  .chip svg {
+    display: none;
+  }
 }
 @media (max-width: 1100px) {
   .wa {

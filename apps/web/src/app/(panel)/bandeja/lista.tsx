@@ -2,7 +2,15 @@ import Link from 'next/link'
 import { listConversations } from '@/lib/queries'
 import { usuariosDeLaCuenta } from '@/lib/asignacion'
 import { MenuResponsable } from './menu-responsable'
-import { IconSearch } from '@/components/icons'
+import {
+  IconSearch,
+  IconCapas,
+  IconBot,
+  IconPersona,
+  IconCalendar,
+  IconAlerta,
+  IconAgenda,
+} from '@/components/icons'
 import { cuandoViene, horaOFecha } from '@/lib/fechas'
 
 /**
@@ -86,11 +94,20 @@ export async function ListaConversaciones({
     return s ? `/bandeja/${id}?${s}` : `/bandeja/${id}`
   }
 
+  /**
+   * Cada solapa lleva el icono de lo que filtra, y el color del icono es el
+   * MISMO que el de la chapa que van a ver en la lista: azul la IA, ámbar lo
+   * que espera una persona, verde lo que tiene turno. Es lo que hace que la
+   * solapa y el resultado se lean como una sola cosa.
+   *
+   * `Todas` no tiene color propio a propósito: no es un estado, es la
+   * ausencia de filtro.
+   */
   const FILTROS = [
-    { valor: undefined, label: 'Todas' },
-    { valor: 'ia' as const, label: 'IA' },
-    { valor: 'humano' as const, label: 'Humano' },
-    { valor: 'visita' as const, label: 'Visita' },
+    { valor: undefined, label: 'Todas', Icono: IconCapas, tono: '' },
+    { valor: 'ia' as const, label: 'IA', Icono: IconBot, tono: ' t-blue' },
+    { valor: 'humano' as const, label: 'Humano', Icono: IconPersona, tono: ' t-amber' },
+    { valor: 'visita' as const, label: 'Visita', Icono: IconCalendar, tono: ' t-green' },
   ]
 
   return (
@@ -113,38 +130,39 @@ export async function ListaConversaciones({
             <Link
               key={f.label}
               href={conFiltros({ atiende: f.valor, p: undefined })}
-              className={`chip${atiende === f.valor ? ' on' : ''}`}
+              className={`chip${f.tono}${atiende === f.valor ? ' on' : ''}`}
             >
+              <f.Icono />
               {f.label}
             </Link>
           ))}
-
-          {/*
-            Quién la tiene a cargo es una pregunta distinta de quién la
-            atiende —una persona puede ser responsable de un hilo que hoy
-            contesta la IA—, así que es un filtro aparte y se combina con el
-            de arriba. Va como desplegable y no como una chip por usuario:
-            con cinco empleados la fila de solapas ya no entra.
-
-            Es un `<details>` del navegador; lo único que necesita cliente
-            es cerrarse al elegir, y de eso se ocupa `MenuResponsable`. Las
-            opciones son enlaces del servidor.
-          */}
-          <MenuResponsable rotulo={rotuloQuien} activo={Boolean(usuario)}>
-            <Link href={conFiltros({ usuario: undefined, p: undefined })}>
-              Todos
-            </Link>
-            <Link href={conFiltros({ usuario: 'sin', p: undefined })}>
-              Sin asignar
-            </Link>
-            {usuarios.map((u) => (
-              <Link key={u.id} href={conFiltros({ usuario: u.id, p: undefined })}>
-                {u.nombre}
-                {u.deshabilitado ? ' (sin acceso)' : ''}
-              </Link>
-            ))}
-          </MenuResponsable>
         </div>
+
+        {/*
+          Quién la tiene a cargo es una pregunta distinta de quién la
+          atiende —una persona puede ser responsable de un hilo que hoy
+          contesta la IA—, así que es un filtro aparte y se combina con el
+          de arriba. Va como desplegable y no como una chip por usuario:
+          con cinco empleados la fila de solapas ya no entra.
+
+          Es un `<details>` del navegador; lo único que necesita cliente
+          es cerrarse al elegir, y de eso se ocupa `MenuResponsable`. Las
+          opciones son enlaces del servidor.
+        */}
+        <MenuResponsable rotulo={rotuloQuien} activo={Boolean(usuario)}>
+          <Link href={conFiltros({ usuario: undefined, p: undefined })}>
+            Todos
+          </Link>
+          <Link href={conFiltros({ usuario: 'sin', p: undefined })}>
+            Sin asignar
+          </Link>
+          {usuarios.map((u) => (
+            <Link key={u.id} href={conFiltros({ usuario: u.id, p: undefined })}>
+              {u.nombre}
+              {u.deshabilitado ? ' (sin acceso)' : ''}
+            </Link>
+          ))}
+        </MenuResponsable>
       </div>
 
       <div className="wa-convs">
@@ -172,27 +190,44 @@ export async function ListaConversaciones({
                   <span className="lm">{c.lastBody ?? 'Sin mensajes'}</span>
                   <span className="wa-conv-tags">
                     {/*
-                      "Humano" en ámbar y no en gris.
-                      Que un hilo haya pasado a una persona es lo único de esta
-                      lista que pide una acción: alguien está esperando que le
-                      contesten. En gris se confundía con el resto y se pasaba
-                      de largo.
+                      "Necesita humano" en ámbar y no en gris, y con el
+                      triángulo de aviso. Que un hilo haya pasado a una
+                      persona es lo único de esta lista que pide una acción:
+                      alguien está esperando que le contesten. En gris se
+                      confundía con el resto y se pasaba de largo, y "Humano"
+                      a secas se leía como un dato, no como un pendiente.
                     */}
-                    <span className={`badge ${c.aiEnabled ? 'b-blue' : 'b-amber'}`}>
-                      {c.aiEnabled ? 'IA' : 'Humano'}
-                    </span>
+                    {c.aiEnabled ? (
+                      <span className="badge b-blue">IA</span>
+                    ) : (
+                      <span className="badge b-amber">
+                        <IconAlerta />
+                        Necesita humano
+                      </span>
+                    )}
                     {c.asignadoNombre ? (
                       <span className="badge b-gray" title={`A cargo de ${c.asignadoNombre}`}>
                         {nombrePila(c.asignadoNombre)}
                       </span>
                     ) : null}
+                    {/*
+                      El CUÁNDO va en la chapa y no solo en el título: la
+                      gracia de verla en la lista es saber si el turno es hoy
+                      sin abrir nada.
+                    */}
                     {c.proximoTurno ? (
-                      <span className="badge b-green" title={cuandoViene(c.proximoTurno, zona)}>
-                        Visita {cuandoViene(c.proximoTurno, zona)}
+                      <span className="badge b-green">
+                        <IconAgenda />
+                        Agenda registrada · {cuandoViene(c.proximoTurno, zona)}
                       </span>
                     ) : null}
+                    {/*
+                      En negro y no en verde: el verde ahora significa "tiene
+                      turno", y dos chapas verdes en la misma fila queriendo
+                      decir cosas distintas se leen como una sola.
+                    */}
                     {c.unreadCount > 0 ? (
-                      <span className="badge b-green">
+                      <span className="badge b-dark">
                         {c.unreadCount} nuevo{c.unreadCount > 1 ? 's' : ''}
                       </span>
                     ) : null}

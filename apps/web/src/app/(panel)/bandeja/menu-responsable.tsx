@@ -1,9 +1,15 @@
 'use client'
 
 import { useRef, type ReactNode } from 'react'
+import { IconPersona, IconChevron } from '@/components/icons'
 
 /**
- * El desplegable de "Responsable" en la fila de filtros.
+ * El filtro de "Responsable", debajo de las solapas.
+ *
+ * Va en su propia fila y ocupa todo el ancho, no como una solapa más: no
+ * filtra lo mismo que las de arriba —una persona puede ser responsable de un
+ * hilo que hoy contesta la IA— y se combina con ellas. Puestos en la misma
+ * fila parecían cinco opciones excluyentes.
  *
  * Es un `<details>` —el navegador ya sabe abrirlo y cerrarlo— pero elegir una
  * opción no recarga la página: navega del lado del cliente, y el elemento
@@ -26,8 +32,12 @@ export function MenuResponsable({
 
   return (
     <details ref={caja} className="wa-quien">
-      <summary className={`chip${activo ? ' on' : ''}`}>
-        Responsable: {rotulo}
+      <summary className={`wa-quien-btn${activo ? ' on' : ''}`}>
+        <IconPersona />
+        <span className="wa-quien-rotulo">
+          Responsable: <b>{rotulo}</b>
+        </span>
+        <IconChevron className="wa-quien-flecha" />
       </summary>
       {/* Todo lo que hay adentro son enlaces: cualquier clic es una elección. */}
       <div

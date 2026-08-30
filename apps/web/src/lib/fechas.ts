@@ -68,10 +68,17 @@ export function horaOFecha(iso: string | Date | null, zona: string): string {
 }
 
 /**
- * "hoy 15:30", "mañana 09:00", o "01/09".
+ * "hoy 15:30", "mañana 09:00", "01/09 09:00".
  *
  * Para etiquetas cortas donde lo que se necesita de un vistazo no es la fecha
  * exacta sino si es hoy: eso cambia lo que hace quien está mirando.
+ *
+ * Antes se quedaba solo con el día en cuanto faltaba más de uno, y en la chapa
+ * de la bandeja eso dejaba "Agenda registrada · 31/8": el dato a medias obliga
+ * a abrir la conversación justo para lo que la chapa venía a evitar.
+ *
+ * Es más corta que `diaYHora` —sin "·" y sin "hs"— porque acá compite por el
+ * ancho con las otras chapas de la misma fila.
  */
 export function cuandoViene(iso: string | Date | null, zona: string): string {
   const d = aFecha(iso)
@@ -79,11 +86,12 @@ export function cuandoViene(iso: string | Date | null, zona: string): string {
   const dias = diasEntre(diaDe(new Date(), zona), diaDe(d, zona))
   if (dias === 0) return `hoy ${hora(d, zona)}`
   if (dias === 1) return `mañana ${hora(d, zona)}`
-  return d.toLocaleDateString('es-AR', {
+  const dia = d.toLocaleDateString('es-AR', {
     timeZone: zona,
     day: '2-digit',
     month: '2-digit',
   })
+  return `${dia} ${hora(d, zona)}`
 }
 
 /**

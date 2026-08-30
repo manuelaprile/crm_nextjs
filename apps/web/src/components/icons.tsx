@@ -237,3 +237,60 @@ export const IconMas = ({ className }: P) => (
     <path d="M12 5v14M5 12h14" />
   </svg>
 )
+
+// ---------------------------------------------------------------------
+// Bandeja: solapas de filtro y chapas de estado. Mismo trazo que el resto
+// (1.9, remates redondeados, viewBox de 24); el tamaño lo pone el CSS de
+// `.chip` y `.badge`, así el mismo icono sirve en los dos lugares.
+// ---------------------------------------------------------------------
+
+export const IconCapas = ({ className }: P) => (
+  <svg width="16" height="16" {...base} strokeLinejoin="round" className={className}>
+    <path d="M12 3l9 4.4-9 4.4-9-4.4L12 3z" />
+    <path d="M3 12.2l9 4.4 9-4.4" />
+    <path d="M3 16.8l9 4.4 9-4.4" />
+  </svg>
+)
+
+export const IconAlerta = ({ className }: P) => (
+  <svg
+    width="16"
+    height="16"
+    {...base}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M12 4.2L21.2 19.8H2.8L12 4.2z" />
+    <path d="M12 10.2v4.1M12 17.2h.01" />
+  </svg>
+)
+
+/** Calendario con tilde: hay un turno tomado, no solo una fecha. */
+export const IconAgenda = ({ className }: P) => (
+  <svg
+    width="16"
+    height="16"
+    {...base}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M3 10h18M8 3v4M16 3v4" />
+    <path d="M9 14.8l2.1 2.1 3.9-3.9" />
+  </svg>
+)
+
+export const IconChevron = ({ className }: P) => (
+  <svg
+    width="16"
+    height="16"
+    {...base}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M6 9.5l6 6 6-6" />
+  </svg>
+)
