@@ -23,6 +23,29 @@ import {
 const MAX_TITULO = 120
 const MAX_NOTAS = 2_000
 
+/**
+ * Valida que un usuario pueda quedar a cargo de un turno.
+ *
+ * El id viaja en un `<select>`, o sea que es entrada del navegador: sin este
+ * chequeo alguien manda el id de un usuario de otra cuenta y le aparece un
+ * turno ajeno en su agenda. Va con `withTenant`, así que RLS ya recorta
+ * `tenant_users` a la cuenta de la sesión.
+ */
+async function puedeQuedarACargo(
+  session: Awaited<ReturnType<typeof requireTenant>>,
+  userId: string,
+): Promise<boolean> {
+  const res = await withTenant(session, (tx) =>
+    tx.execute(sql`
+      select 1 from tenant_users tu
+        join users u on u.id = tu.user_id
+       where tu.user_id = ${userId}
+         and u.is_superadmin = false and u.disabled_at is null
+    `),
+  )
+  return res.rows.length > 0
+}
+
 function volver(tipo: 'ok' | 'error', msg: string, dia?: string): never {
   const sp = new URLSearchParams({ r: tipo, m: msg.slice(0, 200) })
   if (dia) sp.set('d', dia)
@@ -119,6 +142,31 @@ export async function guardarTurno(formData: FormData): Promise<void> {
     if (!existe.rows.length) volver('error', 'Esa conversación no existe.')
   }
 
+  /**
+   * Quién queda a cargo.
+   *
+   * Un operador no elige: el turno es suyo. Podría cargar uno para un
+   * contacto que no sigue —desde el chat se puede abrir cualquiera— y
+   * dejárselo a otro sin querer.
+   *
+   * Un dueño o un admin sí eligen, y dejar el campo vacío NO es "sin
+   * responsable": es "el que ya viene siguiendo a este contacto", que es lo
+   * que hace `crearTurno` cuando no se le dice nada. Por eso `undefined` y
+   * no `null`.
+   */
+  let asignadoA: string | null | undefined
+  if (session.role === 'agent') {
+    asignadoA = session.userId
+  } else {
+    const elegido = String(formData.get('asignadoA') ?? '').trim()
+    if (elegido) {
+      if (!(await puedeQuedarACargo(session, elegido))) {
+        fallar('Esa persona no puede quedar a cargo de un turno.')
+      }
+      asignadoA = elegido
+    }
+  }
+
   const res = await crearTurno({
     tenantId: session.tenantId,
     contactId,
@@ -129,6 +177,7 @@ export async function guardarTurno(formData: FormData): Promise<void> {
     inicia: horario.inicia,
     termina: horario.termina,
     userId: session.userId,
+    asignadoA,
     // A una persona no se le validan los horarios de atención: si carga algo
     // un sábado, sabe lo que hace.
     validarHorario: false,
@@ -167,6 +216,45 @@ export async function moverTurno(formData: FormData): Promise<void> {
 
   revalidatePath('/agenda')
   volver('ok', 'Turno movido.')
+}
+
+/**
+ * Cambiar a quién le toca un turno.
+ *
+ * Solo owner/admin, igual que derivar una conversación: si un operador
+ * pudiera reasignar, estaría sacándose trabajo de encima o poniéndoselo a
+ * otro sin que nadie lo decida.
+ *
+ * No redirige cuando sale bien: la URL de la agenda lleva la vista, el día y
+ * el filtro, y reescribirla para mostrar un cartel te saca de donde estabas.
+ */
+export async function asignarTurno(formData: FormData): Promise<void> {
+  const session = await requireAdmin()
+  const id = String(formData.get('id') ?? '').trim()
+  const userId = String(formData.get('userId') ?? '').trim() || null
+  if (!id) volver('error', 'Falta el turno.')
+
+  if (userId && !(await puedeQuedarACargo(session, userId))) {
+    volver('error', 'Esa persona no puede quedar a cargo de un turno.')
+  }
+
+  const hecho = await withTenant(session, async (tx) => {
+    const res = await tx.execute(sql`
+      update appointments set assigned_user_id = ${userId}
+       where id = ${id}
+       returning id
+    `)
+    if (!res.rows.length) return false
+    await tx.execute(sql`
+      insert into audit_log (tenant_id, actor_user_id, action, entity, entity_id, diff)
+      values (${session.tenantId}, ${session.userId}, 'agenda.asignado',
+              'appointment', ${id}, ${JSON.stringify({ a: userId })}::jsonb)
+    `)
+    return true
+  })
+  if (!hecho) volver('error', 'Ese turno no existe.')
+
+  revalidatePath('/agenda')
 }
 
 const ESTADOS = ['programada', 'cumplida', 'ausente', 'cancelada'] as const

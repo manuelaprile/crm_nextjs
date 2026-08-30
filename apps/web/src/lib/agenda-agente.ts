@@ -110,6 +110,19 @@ export function toolsDeAgenda(): ToolSpec[] {
             type: 'string',
             description: 'De qué es el turno, en pocas palabras.',
           },
+          /*
+            Qué clase de encuentro es. Texto libre y no una lista fija:
+            para un consultorio es "consulta", para una inmobiliaria "visita
+            a la propiedad". Una lista cerrada acá sería un rubro escrito a
+            mano en el código (ver CLAUDE.md).
+          */
+          tipo: {
+            type: 'string',
+            description:
+              'Qué clase de encuentro es, en una o dos palabras: visita, ' +
+              'llamada, reunión, consulta. Usá la palabra con la que se ' +
+              'habló en la conversación.',
+          },
         },
         required: ['dia', 'hora', 'motivo'],
         additionalProperties: false,
@@ -402,7 +415,7 @@ export async function ejecutarToolDeAgenda(
         contactId: ctx.contactId,
         conversationId: ctx.conversationId,
         titulo: motivo.slice(0, 120),
-        tipo: null,
+        tipo: String(input.tipo ?? '').trim().slice(0, 60) || null,
         notas: null,
         inicia,
         termina,

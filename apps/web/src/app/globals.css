@@ -1852,6 +1852,12 @@ tbody tr.clickable {
   border: 1px solid var(--c-border);
   border-radius: var(--r-md);
   flex-wrap: wrap;
+  color: inherit;
+  transition: 0.12s;
+}
+.agenda-turno:hover {
+  background: var(--c-surface);
+  border-color: var(--c-muted);
 }
 /* La hora es lo que se busca al barrer la lista con la vista: va primero,
    en ancho fijo, para que todas queden alineadas aunque cambie el título. */
@@ -1915,4 +1921,340 @@ tbody tr.clickable {
   box-shadow:
     0 2px 6px rgba(17, 17, 17, 0.06),
     0 14px 40px rgba(17, 17, 17, 0.18);
+}
+
+/* ---------------------------------------------------------------------
+   AGENDA — barra de vistas y grillas de calendario
+
+   Todo servidor: no hay JavaScript detrás de esto. Las posiciones de los
+   turnos las calcula el componente y viajan en `style`, porque dependen de
+   la franja horaria de cada cuenta y eso no se puede escribir en una hoja
+   de estilos.
+   --------------------------------------------------------------------- */
+.ag-barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.ag-vistas {
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+}
+.ag-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ag-titulo {
+  margin-left: 6px;
+  font-size: 14px;
+}
+/* `Intl` devuelve "martes, 1 de septiembre" en minúscula. Va la primera y
+   nada más: `capitalize` lo dejaba en "Martes, 1 De Septiembre". */
+.ag-titulo::first-letter {
+  text-transform: uppercase;
+}
+.ag-quien {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+.ag-quien label {
+  white-space: nowrap;
+}
+.ag-mios {
+  margin-left: auto;
+}
+.select-sm {
+  padding: 5px 9px;
+  font-size: 12.5px;
+  max-width: 170px;
+}
+/* El formulario de alta, plegado. El resumen es la cabecera de la caja. */
+.ag-nuevo > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.ag-nuevo > summary::-webkit-details-marker {
+  display: none;
+}
+.ag-nuevo > summary::after {
+  content: '+';
+  margin-left: auto;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--c-muted);
+}
+.ag-nuevo[open] > summary::after {
+  content: '−';
+}
+
+/* ---- Grilla de semana y de día ---- */
+
+/* La grilla no se achica: en una semana de siete días con 40px por columna
+   no se lee nada. Scrollea en horizontal, que es lo que hace cualquier
+   calendario en un teléfono. */
+.cal-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.cal {
+  display: grid;
+  /* Columna de horas + una por día. `minmax` es lo que fuerza el scroll en
+     vez de comprimir las columnas hasta lo ilegible. */
+  grid-template-columns: 46px repeat(var(--dias), minmax(110px, 1fr));
+  min-width: 100%;
+}
+.cal-1 {
+  --dias: 1;
+}
+.cal-7 {
+  --dias: 7;
+}
+.cal-esq {
+  border-bottom: 1px solid var(--c-border);
+}
+.cal-cab {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--c-border);
+  border-left: 1px solid var(--c-border);
+}
+.cal-cab-dia {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-muted);
+}
+.cal-cab-num {
+  font-size: 16px;
+  font-weight: 700;
+}
+.cal-cab.hoy .cal-cab-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+  font-size: 13.5px;
+}
+.cal-horas {
+  position: relative;
+}
+.cal-hora {
+  display: block;
+  padding: 2px 7px 0 0;
+  text-align: right;
+  font-size: 11px;
+  color: var(--c-muted);
+}
+/* Fuera de hora, apagado. El blanco lo pinta `.cal-abierto` encima. */
+.cal-col {
+  position: relative;
+  border-left: 1px solid var(--c-border);
+  background: var(--c-surface-alt);
+}
+/* Las rayas van con z-index para quedar POR ENCIMA del sombreado: es
+   absoluto, y sin esto lo taparía y la grilla perdería las horas. */
+.cal-linea {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--c-border);
+}
+/* Las horas de atención. Sin esto, "no hay nada a las 8" y "no atendemos a
+   las 8" se ven igual. */
+.cal-abierto {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  background: var(--c-bg);
+  pointer-events: none;
+}
+.cal-turno {
+  position: absolute;
+  z-index: 2;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 6px;
+  border-radius: var(--r-sm);
+  border-left: 3px solid #1d4ed8;
+  background: rgba(37, 99, 235, 0.1);
+  color: #14306e;
+  font-size: 11px;
+  line-height: 1.3;
+  transition: 0.12s;
+}
+.cal-turno:hover {
+  filter: brightness(0.96);
+}
+/* Las tres líneas no se comprimen: se cortan. Un turno de media hora entra
+   en 33px y ahí solo hay lugar para el título; con flex repartiendo el alto
+   las tres quedaban cortadas por la mitad y no se leía ninguna. */
+.cal-turno > * {
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-turno b {
+  font-size: 11.5px;
+}
+.cal-quien {
+  font-weight: 600;
+  opacity: 0.75;
+}
+.cal-turno.est-cumplida {
+  border-left-color: #15803d;
+  background: rgba(22, 163, 74, 0.1);
+  color: #12502a;
+}
+.cal-turno.est-ausente {
+  border-left-color: #b45309;
+  background: rgba(217, 119, 6, 0.12);
+  color: #6b3708;
+}
+/* Cancelado: se ve, pero se ve que no cuenta. El horario quedó libre y eso
+   es justamente lo que alguien está mirando en el calendario. */
+.cal-turno.est-cancelada {
+  border-left-color: var(--c-muted);
+  background: var(--c-surface-alt);
+  color: var(--c-muted);
+}
+.cal-turno.est-cancelada b {
+  text-decoration: line-through;
+}
+
+/* ---- Grilla de mes ---- */
+.mes {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--c-border);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.mes-cab {
+  padding: 7px 8px;
+  background: var(--c-surface);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-muted);
+  text-align: center;
+}
+.mes-celda {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 96px;
+  padding: 5px 5px 7px;
+  background: var(--c-bg);
+  color: inherit;
+  transition: 0.12s;
+}
+.mes-celda:hover {
+  background: var(--c-surface);
+}
+/* Los días del mes de al lado. Se muestran para que la grilla quede llena,
+   pero apagados: no son de este mes. */
+.mes-celda.fuera {
+  background: var(--c-surface);
+  color: var(--c-muted);
+}
+.mes-celda.fuera:hover {
+  background: var(--c-surface-alt);
+}
+.mes-num {
+  align-self: flex-start;
+  min-width: 21px;
+  height: 21px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mes-celda.hoy .mes-num {
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+}
+.mes-turno {
+  display: flex;
+  gap: 5px;
+  padding: 1px 5px;
+  border-radius: var(--r-sm);
+  background: rgba(37, 99, 235, 0.1);
+  color: #14306e;
+  font-size: 10.5px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mes-turno i {
+  font-style: normal;
+  opacity: 0.7;
+  flex: none;
+}
+.mes-turno.est-cumplida {
+  background: rgba(22, 163, 74, 0.1);
+  color: #12502a;
+}
+.mes-turno.est-ausente {
+  background: rgba(217, 119, 6, 0.12);
+  color: #6b3708;
+}
+.mes-turno.est-cancelada {
+  background: var(--c-surface-alt);
+  color: var(--c-muted);
+  text-decoration: line-through;
+}
+.mes-mas {
+  padding-left: 5px;
+  font-size: 10.5px;
+  color: var(--c-muted);
+}
+
+@media (max-width: 860px) {
+  .ag-quien,
+  .ag-mios {
+    margin-left: 0;
+  }
+  .mes-celda {
+    min-height: 68px;
+  }
+  /* En un teléfono no entra ni el título del turno: queda el punto de color,
+     y el día se abre tocándolo. */
+  .mes-turno {
+    height: 5px;
+    padding: 0;
+    border-radius: 3px;
+    /* `font-size: 0` y no `color: transparent`: con el texto medido, las
+       colas de las letras asomaban por debajo de la barrita. */
+    font-size: 0;
+  }
+  .mes-turno i,
+  .mes-mas {
+    display: none;
+  }
 }

@@ -128,6 +128,14 @@ export async function crearTurno(params: {
   inicia: Date
   termina: Date
   userId?: string | null
+  /**
+   * A quién le toca atenderlo.
+   *
+   * `undefined` no es lo mismo que `null`: sin el campo, se deduce de quién
+   * viene siguiendo a esa persona (ver `responsableDeducido`); con `null`
+   * explícito, el turno queda sin responsable porque así se pidió.
+   */
+  asignadoA?: string | null
   porIa?: boolean
   validarHorario?: boolean
 }): Promise<ResultadoTurno> {
@@ -140,17 +148,26 @@ export async function crearTurno(params: {
     }
   }
 
+  const asignado =
+    params.asignadoA !== undefined
+      ? params.asignadoA
+      : await responsableDeducido(
+          params.tenantId,
+          params.contactId,
+          params.conversationId ?? null,
+        )
+
   let id: string
   try {
     id = await withSystem(async (tx) => {
       const res = await tx.execute(sql`
         insert into appointments
           (tenant_id, contact_id, conversation_id, titulo, tipo, notas,
-           starts_at, ends_at, creado_por, creado_por_ia)
+           starts_at, ends_at, creado_por, creado_por_ia, assigned_user_id)
         values (${params.tenantId}, ${params.contactId}, ${params.conversationId ?? null},
                 ${params.titulo}, ${params.tipo ?? null}, ${params.notas ?? null},
                 ${params.inicia.toISOString()}, ${params.termina.toISOString()},
-                ${params.userId ?? null}, ${params.porIa ?? false})
+                ${params.userId ?? null}, ${params.porIa ?? false}, ${asignado})
         returning id
       `)
       return String(res.rows[0]!.id)
@@ -266,5 +283,40 @@ export async function borrarTurno(
       returning id
     `)
     return res.rows.length > 0
+  })
+}
+
+/**
+ * A quién le toca un turno que nadie atribuyó.
+ *
+ * Es el caso de la IA: agenda sola, en medio de una conversación, y no tiene
+ * a quién preguntarle. La respuesta sale de quien ya venía siguiendo a esa
+ * persona —primero el responsable de la conversación, después el dueño del
+ * contacto— porque esas dos cosas ya se mantienen sincronizadas entre sí
+ * (ver CLAUDE.md) y son la única definición de "a quién le toca" que hay en
+ * el sistema. Inventar una segunda acá sería tener dos respuestas distintas
+ * a la misma pregunta.
+ *
+ * Devuelve null cuando el contacto no lo tomó nadie todavía, que es
+ * frecuente: el turno queda "de la casa" y lo ven el dueño y los admin, que
+ * son justamente quienes pueden asignarlo.
+ */
+async function responsableDeducido(
+  tenantId: string,
+  contactId: string | null,
+  conversationId: string | null,
+): Promise<string | null> {
+  if (!contactId && !conversationId) return null
+  return withSystem(async (tx) => {
+    const res = await tx.execute(sql`
+      select coalesce(
+               (select v.assigned_user_id from conversations v
+                 where v.id = ${conversationId}::uuid and v.tenant_id = ${tenantId}),
+               (select c.owner_user_id from contacts c
+                 where c.id = ${contactId}::uuid and c.tenant_id = ${tenantId})
+             ) as quien
+    `)
+    const quien = res.rows[0]?.quien
+    return quien ? String(quien) : null
   })
 }

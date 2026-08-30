@@ -45,6 +45,9 @@ export type Turno = {
   conversationId: string | null
   creadoPorIa: boolean
   creadoPor: string | null
+  /** A quién le toca atenderlo. null = de la casa, no lo tomó nadie. */
+  responsableId: string | null
+  responsable: string | null
 }
 
 export type ConfigAgenda = {
@@ -98,9 +101,20 @@ export async function configAgenda(tenantId: string): Promise<ConfigAgenda> {
 
 const CAMPOS = sql`
   a.id, a.titulo, a.tipo, a.notas, a.starts_at, a.ends_at, a.status,
-  a.contact_id, a.conversation_id, a.creado_por_ia,
+  a.contact_id, a.conversation_id, a.creado_por_ia, a.assigned_user_id,
   c.display_name as contacto, c.phone as telefono,
-  u.name as creado_por
+  u.name as creado_por, r.name as responsable
+`
+
+/**
+ * Los dos `join` que necesita CAMPOS. Van juntos y en una constante porque
+ * son cuatro consultas distintas: la que se olvide uno rompe con un error de
+ * columna, y siempre se olvida la cuarta.
+ */
+const JOINS = sql`
+  left join contacts c on c.id = a.contact_id
+  left join users u on u.id = a.creado_por
+  left join users r on r.id = a.assigned_user_id
 `
 
 function aTurno(r: Record<string, unknown>): Turno {
@@ -118,7 +132,31 @@ function aTurno(r: Record<string, unknown>): Turno {
     conversationId: r.conversation_id ? String(r.conversation_id) : null,
     creadoPorIa: Boolean(r.creado_por_ia),
     creadoPor: r.creado_por ? String(r.creado_por) : null,
+    responsableId: r.assigned_user_id ? String(r.assigned_user_id) : null,
+    responsable: r.responsable ? String(r.responsable) : null,
   }
+}
+
+/**
+ * Qué cuenta como "este turno lo involucra".
+ *
+ * Tres caminos, y hacen falta los tres:
+ *
+ *  - Le toca a esa persona (`assigned_user_id`). Es el caso normal.
+ *  - Lo cargó ella. Una reunión con un proveedor no tiene contacto y puede
+ *    no tener responsable, pero quien la puso en la agenda tiene que verla.
+ *  - El contacto es suyo. Cubre lo que pasa DESPUÉS: si un contacto se le
+ *    pasa a otra persona, sus turnos viejos se van con él. Si esto saliera
+ *    solo de `assigned_user_id`, el turno quedaría en la agenda de quien ya
+ *    no lo atiende.
+ *
+ * No es una barrera de seguridad, es el alcance de la pantalla: owner y
+ * admin ven la agenda entera. Misma idea que en Contactos (ver CLAUDE.md).
+ */
+function involucraA(userId: string) {
+  return sql`(a.assigned_user_id = ${userId}
+              or a.creado_por = ${userId}
+              or c.owner_user_id = ${userId})`
 }
 
 /**
@@ -126,24 +164,29 @@ function aTurno(r: Record<string, unknown>): Turno {
  *
  * Los cancelados quedan afuera salvo que se pidan: son ruido en la lista del
  * día, pero se guardan porque "se canceló" es información comercial.
+ *
+ * `soloDe` recorta a los de una persona. Lo usan dos cosas distintas: el
+ * recorte por rol de un operador, y el filtro que un dueño elige a mano para
+ * mirar la agenda de alguien de su equipo.
  */
 export async function turnosEntre(params: {
   tenantId: string
   desde: Date
   hasta: Date
   incluirCancelados?: boolean
+  soloDe?: string
 }): Promise<Turno[]> {
-  const { tenantId, desde, hasta, incluirCancelados } = params
+  const { tenantId, desde, hasta, incluirCancelados, soloDe } = params
   return withSystem(async (tx) => {
     const res = await tx.execute(sql`
       select ${CAMPOS}
         from appointments a
-        left join contacts c on c.id = a.contact_id
-        left join users u on u.id = a.creado_por
+        ${JOINS}
        where a.tenant_id = ${tenantId}
          and a.starts_at >= ${desde.toISOString()}
          and a.starts_at < ${hasta.toISOString()}
          ${incluirCancelados ? sql`` : sql`and a.status <> 'cancelada'`}
+         ${soloDe ? sql`and ${involucraA(soloDe)}` : sql``}
        order by a.starts_at
     `)
     return (res.rows as Record<string, unknown>[]).map(aTurno)
@@ -158,8 +201,7 @@ export async function turnoPorId(
     const res = await tx.execute(sql`
       select ${CAMPOS}
         from appointments a
-        left join contacts c on c.id = a.contact_id
-        left join users u on u.id = a.creado_por
+        ${JOINS}
        where a.tenant_id = ${tenantId} and a.id = ${id}
     `)
     const r = res.rows[0] as Record<string, unknown> | undefined
@@ -205,8 +247,7 @@ export async function proximoTurnoDe(
     const res = await tx.execute(sql`
       select ${CAMPOS}
         from appointments a
-        left join contacts c on c.id = a.contact_id
-        left join users u on u.id = a.creado_por
+        ${JOINS}
        where a.tenant_id = ${tenantId} and a.contact_id = ${contactId}
          and a.status = 'programada' and a.ends_at >= now()
        order by a.starts_at
