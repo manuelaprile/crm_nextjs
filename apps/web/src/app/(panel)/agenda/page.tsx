@@ -18,6 +18,7 @@ import {
   eliminarTurno,
   asignarTurno,
 } from '@/lib/agenda-acciones'
+import { IconLista } from '@/components/icons'
 import {
   Grilla,
   Mes,
@@ -40,11 +41,20 @@ const ESTADOS: Record<string, { label: string; badge: string }> = {
   cancelada: { label: 'Cancelada', badge: 'b-gray' },
 }
 
+/**
+ * Las cuatro vistas.
+ *
+ * «Lista» lleva icono y las otras tres no, y eso es a propósito: las tres
+ * primeras son el mismo calendario con más o menos zoom, y la cuarta es otra
+ * cosa. Puestas las cuatro iguales, la única que no era un calendario pasaba
+ * desapercibida. Es el mismo icono que el de Contactos, que ya significa
+ * "verlo como lista" en este panel.
+ */
 const VISTAS = [
-  { id: 'mes', label: 'Mes' },
-  { id: 'semana', label: 'Semana' },
-  { id: 'dia', label: 'Día' },
-  { id: 'lista', label: 'Lista' },
+  { id: 'mes', label: 'Mes', icono: false },
+  { id: 'semana', label: 'Semana', icono: false },
+  { id: 'dia', label: 'Día', icono: false },
+  { id: 'lista', label: 'Lista', icono: true },
 ] as const
 
 type Vista = (typeof VISTAS)[number]['id']
@@ -218,6 +228,7 @@ export default async function AgendaPage({
                 href={href({ vista: x.id === 'semana' ? undefined : x.id, turno: undefined })}
                 className={`chip${v === x.id ? ' on' : ''}`}
               >
+                {x.icono ? <IconLista /> : null}
                 {x.label}
               </Link>
             ))}

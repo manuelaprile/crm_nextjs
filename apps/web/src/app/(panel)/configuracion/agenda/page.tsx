@@ -64,16 +64,16 @@ export default async function ConfigAgendaPage({
                 {DIAS.map((d) => {
                   const tramo = config.horarios[d.n]?.[0]
                   return (
-                    <div key={d.n} className="agenda-fila" style={{ alignItems: 'center' }}>
-                      <span style={{ minWidth: 92, fontSize: 13.5 }}>{d.label}</span>
-                      <div className="field" style={{ flex: '0 1 130px' }}>
+                    <div key={d.n} className="horario">
+                      <span className="horario-dia">{d.label}</span>
+                      <div className="field">
                         <label htmlFor={`abre_${d.n}`} className="tiny">Abre</label>
                         <input
                           id={`abre_${d.n}`} name={`abre_${d.n}`} type="time"
                           className="input" defaultValue={tramo?.[0] ?? ''}
                         />
                       </div>
-                      <div className="field" style={{ flex: '0 1 130px' }}>
+                      <div className="field">
                         <label htmlFor={`cierra_${d.n}`} className="tiny">Cierra</label>
                         <input
                           id={`cierra_${d.n}`} name={`cierra_${d.n}`} type="time"

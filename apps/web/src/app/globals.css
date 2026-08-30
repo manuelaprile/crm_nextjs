@@ -773,7 +773,7 @@ tbody tr.clickable {
 .wa-conv {
   display: flex;
   gap: 11px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--c-border);
   cursor: pointer;
   transition: 0.12s;
@@ -792,7 +792,7 @@ tbody tr.clickable {
 .wa-conv-tags {
   display: flex;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 5px;
   flex-wrap: wrap;
 }
 .wa-conv-tags .badge {
@@ -835,13 +835,40 @@ tbody tr.clickable {
   color: var(--c-muted);
   flex-shrink: 0;
 }
+/* `display: block` no es cosmético: es un `<span>`, y en un elemento en
+   línea el navegador ignora `overflow`, `text-overflow` y `margin`. El
+   resultado era que el último mensaje se pasaba de largo del ancho de la
+   lista —hasta 175px afuera en un teléfono—, sin puntos suspensivos y
+   pegado al borde. Ahora se corta donde termina la fila. */
 .wa-conv .lm {
+  display: block;
   font-size: 12.5px;
   color: var(--c-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 2px;
+}
+/* Barra de scroll finita y separada del borde. La lista es alta por
+   naturaleza —una fila por conversación— y con la barra del sistema pegada
+   al divisor parecía que la pantalla estaba cortada. */
+.wa-convs {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-border) transparent;
+}
+.wa-convs::-webkit-scrollbar {
+  width: 8px;
+}
+.wa-convs::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border-radius: var(--r-full);
+  /* El borde transparente deja la barra flotando adentro en vez de pegada. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.wa-convs::-webkit-scrollbar-thumb:hover {
+  background: var(--c-muted);
+  background-clip: content-box;
 }
 .wa-chat {
   display: flex;
@@ -1124,12 +1151,24 @@ tbody tr.clickable {
   justify-content: flex-end;
 }
 @media (max-width: 900px) {
+  /* Dos columnas, y las tres partes de la derecha APILADAS en la segunda.
+     Antes solo `.etapa-datos` se mandaba a la columna 2: `.etapa-papel`
+     caía por acomodo automático en la de 30px de las flechas y quedaba
+     aplastada encima del contador, que es lo que se veía como "5A". */
   .etapa {
-    grid-template-columns: 30px 1fr;
+    grid-template-columns: 30px minmax(0, 1fr);
   }
+  .etapa-orden {
+    grid-row: 1 / -1;
+    align-self: start;
+  }
+  .etapa-nombre,
+  .etapa-papel,
   .etapa-datos {
     grid-column: 2;
-    justify-content: flex-start;
+  }
+  .etapa-datos {
+    justify-content: space-between;
   }
 }
 
@@ -1548,11 +1587,14 @@ tbody tr.clickable {
 .mobile-only {
   display: none;
 }
+/* Solo las solapas de la BANDEJA: entre 641 y 1100px su lista mide 300px y
+   los cuatro iconos no entran. Las de la agenda tienen la pantalla entera y
+   no tienen por qué perder el suyo. */
 @media (max-width: 1100px) and (min-width: 641px) {
-  .chip svg {
+  .wa-filtros .chip svg {
     display: none;
   }
-  .chip {
+  .wa-filtros .chip {
     padding: 7px 11px;
     font-size: 12.5px;
   }
@@ -1829,6 +1871,10 @@ tbody tr.clickable {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  /* Los campos se alinean por abajo. Cuando un rótulo ocupa dos renglones
+     —"Anticipación mínima (horas)"— su campo quedaba más abajo que el de al
+     lado y la fila se veía escalonada. */
+  align-items: flex-end;
 }
 .agenda-fila .field {
   flex: 1 1 130px;
@@ -2257,4 +2303,82 @@ tbody tr.clickable {
   .mes-mas {
     display: none;
   }
+}
+
+/* ---------------------------------------------------------------------
+   Horarios de atención, una fila por día
+   --------------------------------------------------------------------- */
+
+/* Grilla y no `flex-wrap`: con flex, apenas los dos campos de hora no
+   entraban a lo ancho, se caía uno solo al renglón siguiente y quedaba el
+   día arriba, "Abre" al medio y "Cierra" abajo, cada uno empezando en un
+   lugar distinto. En grilla las columnas están donde están. */
+.horario {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  /* Al pie: los rótulos van arriba de cada campo y los campos tienen que
+     quedar a la misma altura que el nombre del día. */
+  align-items: end;
+}
+.horario-dia {
+  font-size: 13.5px;
+  padding-bottom: 8px;
+}
+@media (max-width: 560px) {
+  /* El día pasa a ser el encabezado de su par de campos. Con 92px fijos
+     para el nombre no quedaba ancho útil para las dos horas. */
+  .horario {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 10px;
+  }
+  .horario-dia {
+    grid-column: 1 / -1;
+    padding-bottom: 0;
+    font-weight: 600;
+  }
+  .horario + .horario {
+    margin-top: 6px;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Acciones de una cuenta en la vista de plataforma
+   --------------------------------------------------------------------- */
+.sa-acciones {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  /* Al tope: abierto el panel, el `<details>` se estira hacia abajo y los
+     otros dos botones tienen que quedarse arriba, no centrarse contra él. */
+  align-items: flex-start;
+}
+.sa-borrar > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 6px 4px;
+}
+.sa-borrar > summary::-webkit-details-marker {
+  display: none;
+}
+/* Abierto, el `<details>` se pasa a su propio renglón: la columna de
+   acciones es angosta y un panel de 300px arrancando desde el «⋯» se salía
+   de la tabla por la derecha. En su renglón entra entero y queda alineado
+   con los botones de arriba. */
+.sa-borrar[open] {
+  flex: 1 0 100%;
+}
+/* El panel crece hacia abajo dentro de la celda y estira la fila. Ver el
+   comentario de `acciones.tsx`: flotando quedaba recortado por la tabla. */
+.sa-borrar-panel {
+  width: 300px;
+  max-width: 100%;
+  margin-left: auto;
+  margin-top: 6px;
+  padding: 14px;
+  text-align: left;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
 }

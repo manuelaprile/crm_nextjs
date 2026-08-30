@@ -23,7 +23,7 @@ export function AccionesCuenta({
     cuenta.status === 'suspended' || cuenta.status === 'cancelled'
 
   return (
-    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+    <div className="sa-acciones">
       {!suspendida && (
         <form action={entrarACuenta}>
           <input type="hidden" name="tenantId" value={cuenta.id} />
@@ -58,29 +58,20 @@ export function AccionesCuenta({
         </button>
       </form>
 
-      <details>
-        <summary
-          className="tiny muted"
-          style={{ cursor: 'pointer', listStyle: 'none', padding: '6px 4px' }}
-          title="Eliminar la cuenta"
-        >
+      {/*
+        El panel crece HACIA ABAJO dentro de la fila y no flotando encima.
+        La tabla vive en un `.table-scroll` con `overflow-x: auto`, y eso hace
+        que el navegador recorte también en vertical: el cartel se abría, se
+        veían dos líneas y el resto —incluido el campo de confirmación y el
+        botón— quedaba cortado por el borde de la tabla. Es el mismo problema
+        que tenían los menús de las tarjetas del tablero, y la misma
+        solución. Ver `.bc-menu`.
+      */}
+      <details className="sa-borrar">
+        <summary className="tiny muted" title="Eliminar la cuenta">
           ⋯
         </summary>
-        <div
-          style={{
-            position: 'absolute',
-            right: 16,
-            zIndex: 10,
-            marginTop: 6,
-            width: 300,
-            textAlign: 'left',
-            background: 'var(--c-surface)',
-            border: '1px solid var(--c-border)',
-            borderRadius: 'var(--r-md)',
-            padding: 14,
-            boxShadow: '0 8px 24px rgb(0 0 0 / 0.18)',
-          }}
-        >
+        <div className="sa-borrar-panel">
           <p className="tiny" style={{ marginTop: 0, marginBottom: 10 }}>
             <strong>Eliminar «{cuenta.name}»</strong> borra también sus{' '}
             {cuenta.contactos} contactos, {cuenta.conversaciones}{' '}
