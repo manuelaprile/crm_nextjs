@@ -70,7 +70,7 @@ export function CuentasDelUsuario({ usuario }: { usuario: UsuarioPlataforma }) {
  */
 export function AccionesUsuario({ usuario }: { usuario: UsuarioPlataforma }) {
   return (
-    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+    <div className="sa-acciones">
       <form action={habilitarUsuario}>
         <input type="hidden" name="userId" value={usuario.id} />
         <input type="hidden" name="quien" value={usuario.name} />
@@ -93,30 +93,19 @@ export function AccionesUsuario({ usuario }: { usuario: UsuarioPlataforma }) {
         </button>
       </form>
 
+      {/*
+        El cartel crece hacia abajo dentro de la fila y no flotando encima. La
+        tabla vive en un `.table-scroll` con `overflow-x: auto`, y eso hace
+        que el navegador recorte también en vertical: se abría, se veían tres
+        líneas, y el campo de confirmación y el botón quedaban afuera de la
+        tabla. Mismo caso que en la tabla de cuentas. Ver `.sa-borrar`.
+      */}
       {!usuario.soyYo && !usuario.esSuperadmin && (
-        <details>
-          <summary
-            className="tiny muted"
-            style={{ cursor: 'pointer', listStyle: 'none', padding: '6px 4px' }}
-            title="Eliminar el usuario"
-          >
+        <details className="sa-borrar">
+          <summary className="tiny muted" title="Eliminar el usuario">
             ⋯
           </summary>
-          <div
-            style={{
-              position: 'absolute',
-              right: 16,
-              zIndex: 10,
-              marginTop: 6,
-              width: 320,
-              textAlign: 'left',
-              background: 'var(--c-surface)',
-              border: '1px solid var(--c-border)',
-              borderRadius: 'var(--r-md)',
-              padding: 14,
-              boxShadow: '0 8px 24px rgb(0 0 0 / 0.18)',
-            }}
-          >
+          <div className="sa-borrar-panel">
             <p className="tiny" style={{ marginTop: 0, marginBottom: 10 }}>
               <strong>Eliminar a {usuario.name}</strong> lo borra para siempre
               y deja <strong>sin autor</strong> todo lo que hizo en la
