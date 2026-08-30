@@ -43,6 +43,7 @@ import {
   toolsDeAgenda,
 } from './agenda-agente'
 import { configAgenda } from './agenda'
+import type { TemaConEncargado } from './conocimiento-agente'
 import {
   TOOL_TEMA,
   asignarPorTema,
@@ -259,7 +260,10 @@ async function overBudget(tenantId: string): Promise<boolean> {
  * propósito: descartar a alguien es una decisión de la persona que atiende,
  * no del modelo.
  */
-function toolsFor(etapas: { key: string; name: string }[]): ToolSpec[] {
+function toolsFor(
+  etapas: { key: string; name: string }[],
+  temas: TemaConEncargado[],
+): ToolSpec[] {
   const claves = etapas.map((e) => e.key)
   const listado = etapas.map((e) => `${e.key} = ${e.name}`).join('; ')
 
@@ -313,10 +317,41 @@ function toolsFor(etapas: { key: string; name: string }[]): ToolSpec[] {
     name: 'handoff',
     description:
       'Pasa la conversación a un humano y deja de responder. Usar ante ' +
-      'cualquier duda, síntoma, urgencia o pedido de hablar con alguien.',
+      'cualquier duda, síntoma, urgencia o pedido de hablar con alguien.' +
+      (temas.length
+        ? ' Si estás derivando por alguno de los temas que tienen encargado, ' +
+          'pasá cuál en `tema`: así le llega directo a esa persona en vez de ' +
+          'caer en el montón.'
+        : ''),
     parameters: {
       type: 'object',
-      properties: { reason: { type: 'string' } },
+      properties: {
+        reason: { type: 'string' },
+        /*
+         * El tema, acá adentro.
+         *
+         * `handoff` CORTA el turno: cuando el modelo deriva y no llama a
+         * nada más, la corrida termina y `asignar_tema` no llega a
+         * ejecutarse nunca. Con un prompt que manda derivar ante cualquier
+         * pregunta de precio —que es lo normal en una cuenta de venta— eso
+         * pasa siempre, y la conversación cae en el montón general
+         * justo en el momento en que más importa que caiga en la persona
+         * correcta.
+         *
+         * Duplicar el dato en dos herramientas es feo. Perder la derivación
+         * es peor.
+         */
+        ...(temas.length
+          ? {
+              tema: {
+                type: 'string',
+                enum: temas.map((t) => t.titulo),
+                description:
+                  'El tema de la consulta, si es alguno de estos. Opcional.',
+              },
+            }
+          : {}),
+      },
       required: ['reason'],
       additionalProperties: false,
     },
@@ -454,8 +489,27 @@ async function executeTool(
       }
 
       case 'handoff': {
+        /*
+         * Primero se asigna y después se apaga la IA. Al revés, un error
+         * apagando dejaría la conversación derivada y sin dueño, que es el
+         * estado que estamos tratando de evitar.
+         *
+         * `asignarPorTema` no pisa a nadie: si el hilo ya tiene responsable,
+         * lo dice y no toca nada.
+         */
+        const tema = clip(input.tema, 80)
+        const asignado = tema
+          ? await asignarPorTema(
+              {
+                tenantId: ctx.tenantId,
+                conversationId: ctx.conversationId,
+                contactId: ctx.contactId,
+              },
+              { tema },
+            )
+          : null
         await handoff(ctx, clip(input.reason, 500) ?? 'Derivación solicitada')
-        output = { ok: true }
+        output = { ok: true, tema, asignado }
         stop = true
         break
       }
@@ -583,7 +637,7 @@ async function run(ctx: AgentContext): Promise<void> {
   // razón que arriba: una herramienta que no lleva a nadie igual se usa.
   const temas = await temasConEncargado(ctx.tenantId)
   const tools = [
-    ...toolsFor(etapas),
+    ...toolsFor(etapas, temas),
     ...toolDeTemas(temas),
     ...(config.iaAgenda ? toolsDeAgenda() : []),
   ]
@@ -694,6 +748,28 @@ async function run(ctx: AgentContext): Promise<void> {
         await deliverMessage({
           conversationId: ctx.conversationId,
           text: res.text,
+          senderKind: 'ai',
+        })
+      } else if (cortar) {
+        /*
+         * Derivó y no escribió una palabra.
+         *
+         * `handoff` no manda nada por su cuenta porque se asumía que el
+         * modelo escribe su propio cierre. No siempre lo hace: con un prompt
+         * que ordena derivar ante cualquier pregunta de precio, el modelo
+         * llama a la herramienta sola y listo. Lo que ve el cliente es que
+         * preguntó cuánto sale una remera y NO LE CONTESTÓ NADIE. Se queda
+         * mirando el chat sin saber si llegó el mensaje.
+         *
+         * El mismo acuse que ya se usa en las derivaciones que ocurren antes
+         * del modelo —palabra clave, tope de gasto, error técnico—, y por la
+         * misma razón.
+         */
+        await deliverMessage({
+          conversationId: ctx.conversationId,
+          text:
+            'Gracias por escribir. En un momento te responde una persona ' +
+            'del equipo.',
           senderKind: 'ai',
         })
       }

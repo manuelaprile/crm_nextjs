@@ -137,6 +137,10 @@ export function instruccionesDeTemas(temas: TemaConEncargado[]): string | null {
     `Ejemplo: si te preguntan por «${temas[0]!.titulo}», contestás con lo ` +
       `que sabés Y llamás a \`${TOOL_TEMA}\` con «${temas[0]!.titulo}».`,
     '',
+    'Y si además vas a derivar, pasá el mismo tema en el parámetro `tema` ' +
+      'de `handoff`. Es lo que hace que la derivación caiga en la persona ' +
+      'que atiende ese tema y no en el montón general.',
+    '',
     'Si la consulta no es sobre ninguno de estos temas, no la llames.',
   ].join('\n')
 }
