@@ -11,6 +11,7 @@ import {
   resetearClave,
 } from '@/lib/usuarios'
 import { fecha } from '@/lib/fechas'
+import { cupoDeUsuariosDeCuenta } from '@/lib/cupo'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,10 @@ export default async function UsuariosPage({
   })
   const usuarios = datos.filas
   const esDueno = session.role === 'owner'
+  // El tope del plan, a la vista. Antes solo aparecía al chocarse con él
+  // —"alcanzaste el límite de tu plan" después de cargar el formulario
+  // entero—, que es la peor forma de enterarse de algo que se compró.
+  const cupo = await cupoDeUsuariosDeCuenta(session.tenantId)
 
   const link = (n: number) => {
     const sp = new URLSearchParams({ p: String(n) })
@@ -91,7 +96,10 @@ export default async function UsuariosPage({
       <div className="panel-box" style={{ marginBottom: 16 }}>
         <div className="panel-box-head">
           <h3>Quién tiene acceso</h3>
-          <span className="badge b-gray mono">{datos.total}</span>
+          <span className={`badge mono ${cupo.hayLugar ? 'b-gray' : 'b-amber'}`}>
+            {cupo.usados}
+            {cupo.max === null ? '' : ` / ${cupo.max}`}
+          </span>
         </div>
         <div className="table-scroll">
           <table>

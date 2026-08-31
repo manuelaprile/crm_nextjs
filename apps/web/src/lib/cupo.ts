@@ -119,3 +119,28 @@ export async function cupoDeIa(tx: Db, tenantId: string): Promise<CupoIa> {
 export async function cupoDeIaDeCuenta(tenantId: string): Promise<CupoIa> {
   return withSystem((tx) => cupoDeIa(tx, tenantId))
 }
+
+/**
+ * Cuántos usuarios tiene la cuenta y cuántos permite el plan.
+ *
+ * Solo para MOSTRARLO. El control de verdad está en `crearUsuario`, del lado
+ * del servidor y dentro de la misma transacción que el alta: un cupo leído
+ * para pintar una pantalla nunca puede ser lo que autoriza.
+ */
+export type CupoUsuarios = { usados: number; max: number | null; hayLugar: boolean }
+
+export async function cupoDeUsuariosDeCuenta(
+  tenantId: string,
+): Promise<CupoUsuarios> {
+  return withSystem(async (tx) => {
+    const res = await tx.execute(sql`
+      select (select max_users from tenants where id = ${tenantId}) as max,
+             (select count(*)::int from tenant_users
+               where tenant_id = ${tenantId}) as usados
+    `)
+    const fila = res.rows[0] as { max: number | null; usados: number } | undefined
+    const max = fila?.max === null || fila?.max === undefined ? null : Number(fila.max)
+    const usados = Number(fila?.usados ?? 0)
+    return { usados, max, hayLugar: dentroDelTope(usados, max) }
+  })
+}
