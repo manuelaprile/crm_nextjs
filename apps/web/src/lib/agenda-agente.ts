@@ -278,10 +278,32 @@ export function instruccionesDeAgenda(config: ConfigAgenda): string | null {
   ]
 
   if (config.palabrasClave.length) {
+    /*
+     * Los temas NO son un filtro de texto: no hay ninguna comparación contra
+     * el mensaje en todo el sistema. Entran acá como prosa y el modelo los
+     * lee como temas, que es lo que hace que "cuándo puedo pasar a verla"
+     * caiga adentro sin estar escrito en la lista.
+     *
+     * Lo segundo —consultar en el mismo turno— salió de probarlo con un
+     * modelo real: entendía perfecto el tema y contestaba "¿para cuándo te
+     * gustaría?" en vez de mirar la agenda. No está mal, pero es un mensaje
+     * perdido: la agenda la va a tener que mirar igual, y mientras tanto la
+     * persona espera.
+     */
     partes.push(
       '',
-      'Ofrecé turno sin que te lo pidan cuando aparezca algo de esto: ' +
-        config.palabrasClave.join(', ') + '.',
+      'Ofrecé turno sin que te lo pidan cuando la consulta sea sobre algo ' +
+        'de esto: ' + config.palabrasClave.join(', ') + '.',
+      '',
+      'No hace falta que usen esas palabras exactas ni en esa forma: lo que ' +
+        'cuenta es el tema. "Me gustaría visitarla", "¿cuándo puedo pasar?" ' +
+        'y "¿podemos juntarnos?" son todas lo mismo.',
+      '',
+      'Cuando pase, consultá `ver_horarios` en ESE MISMO turno y ofrecé dos ' +
+        'o tres opciones concretas. No preguntes "¿para cuándo te ' +
+        'gustaría?" antes de mirar la agenda: la vas a tener que mirar igual, ' +
+        'y hacés esperar un mensaje de más. Si te dijeron un día, pasáselo ' +
+        'en `desde_dia`.',
     )
   }
 

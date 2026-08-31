@@ -95,6 +95,23 @@ export const TODO_EL_DIA: Record<string, [string, string][]> = {
 }
 
 /**
+ * Con qué arranca el textarea "Ofrecer turno cuando aparezca".
+ *
+ * NO son un filtro. En ningún lado se compara el mensaje contra esta lista:
+ * el texto entra tal cual en el prompt, como "ofrecé turno cuando aparezca
+ * algo de esto". El modelo las lee como TEMAS, no como palabras exactas, así
+ * que "quiero visitarla", "podemos juntarnos" o "cuándo puedo pasar" caen
+ * dentro sin estar escritas acá. Por eso alcanza con siete y no hacen falta
+ * las conjugaciones.
+ *
+ * En minúscula a propósito: van dentro de una oración del prompt, y en
+ * mayúscula el modelo las lee como énfasis y ofrece turno de más.
+ */
+export const PALABRAS_POR_DEFECTO = [
+  'visita', 'reunión', 'turno', 'cita', 'agenda', 'reserva', 'entrevista',
+]
+
+/**
  * ¿Hay algún día con horario de verdad?
  *
  * Un objeto vacío y uno con los siete días en lista vacía son lo mismo: en
@@ -108,14 +125,26 @@ function sinHorarios(h: Record<string, [string, string][]>): boolean {
 /**
  * La configuración, con valores por defecto si la cuenta nunca la tocó.
  *
- * Nunca devuelve null: una cuenta sin configurar tiene agenda igual, solo
- * que sin horarios cargados y con la IA apagada. Devolver null obligaría a
- * cada pantalla a decidir qué hacer con eso, y alguna se olvidaría.
+ * Nunca devuelve null: una cuenta sin configurar tiene agenda igual, con el
+ * asistente reservando, abierta las 24 h y con las palabras de arranque.
+ * Devolver null obligaría a cada pantalla a decidir qué hacer con eso, y
+ * alguna se olvidaría.
+ *
+ * QUÉ CUENTA COMO "SIN CONFIGURAR", que acá no es lo mismo para todo:
+ *
+ *  - Para el asistente y las palabras: que NO EXISTA la fila. Apretar
+ *    Guardar es una decisión, y "que el asistente no reserve" y "no ofrezcas
+ *    turno salvo que te lo pidan" son estados que alguien puede querer. Si
+ *    los pisáramos con el default, no habría forma de elegirlos.
+ *  - Para los horarios: que no haya ningún día cargado, exista la fila o no.
+ *    Ahí "cerrado siempre" no es un estado que nadie quiera —para eso está
+ *    el interruptor del asistente—, es la agenda muerta. Ver `TODO_EL_DIA`.
  */
 export async function configAgenda(tenantId: string): Promise<ConfigAgenda> {
   return withSystem(async (tx) => {
     const res = await tx.execute(sql`
-      select c.ia_agenda, c.duracion_ia_min, c.anticipacion_horas,
+      select c.tenant_id as configurada,
+             c.ia_agenda, c.duracion_ia_min, c.anticipacion_horas,
              c.horizonte_dias, c.horarios, c.etapa_al_agendar,
              c.palabras_clave, t.timezone
         from tenants t
@@ -123,17 +152,20 @@ export async function configAgenda(tenantId: string): Promise<ConfigAgenda> {
        where t.id = ${tenantId}
     `)
     const r = res.rows[0] as Record<string, unknown> | undefined
+    const configurada = Boolean(r?.configurada)
     const cargados = (r?.horarios as ConfigAgenda['horarios']) ?? {}
     const porDefecto = sinHorarios(cargados)
     return {
-      iaAgenda: Boolean(r?.ia_agenda),
+      iaAgenda: configurada ? Boolean(r?.ia_agenda) : true,
       duracionIaMin: Number(r?.duracion_ia_min ?? 30),
       anticipacionHoras: Number(r?.anticipacion_horas ?? 2),
       horizonteDias: Number(r?.horizonte_dias ?? 30),
       horarios: porDefecto ? TODO_EL_DIA : cargados,
       horariosPorDefecto: porDefecto,
       etapaAlAgendar: r?.etapa_al_agendar ? String(r.etapa_al_agendar) : null,
-      palabrasClave: (r?.palabras_clave as string[]) ?? [],
+      palabrasClave: configurada
+        ? ((r?.palabras_clave as string[]) ?? [])
+        : PALABRAS_POR_DEFECTO,
       zona: String(r?.timezone || ZONA_POR_DEFECTO),
     }
   })
