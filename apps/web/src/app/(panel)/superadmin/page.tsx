@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { listarCuentas } from '@/lib/usuarios'
 import { AccionesCuenta } from './acciones'
+import { CambiarPlan } from './plan'
 import { IconSearch } from '@/components/icons'
 import { Paginacion } from '@/components/paginacion'
 
@@ -140,9 +141,11 @@ export default async function SuperadminPage({
                   <th>Cuenta</th>
                   <th>Rubro</th>
                   <th>Estado</th>
+                  <th>Plan</th>
                   <th style={{ textAlign: 'right' }}>Usuarios</th>
                   <th style={{ textAlign: 'right' }}>Contactos</th>
                   <th style={{ textAlign: 'right' }}>Conversaciones</th>
+                  <th style={{ textAlign: 'right' }}>Cupo IA</th>
                   <th style={{ textAlign: 'right' }}>IA mes</th>
                   <th></th>
                 </tr>
@@ -152,6 +155,10 @@ export default async function SuperadminPage({
                   const gasto = Number(c.costoIaMes)
                   const tope = Number(c.topeIa)
                   const cerca = tope > 0 && gasto / tope > 0.8
+                  // El cupo que se vende. Se marca antes que el de gasto:
+                  // es el que el cliente conoce y por el que va a llamar.
+                  const cupoJusto =
+                    c.cupoIa !== null && c.iaUsadas / c.cupoIa > 0.8
                   return (
                     <tr key={c.id}>
                       <td>
@@ -174,10 +181,27 @@ export default async function SuperadminPage({
                           {c.status}
                         </span>
                       </td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{c.usuarios}</td>
+                      <td style={{ position: 'relative' }}>
+                        <CambiarPlan cuenta={c} />
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {c.usuarios}
+                        <span className="muted">/{c.maxUsuarios ?? '∞'}</span>
+                      </td>
                       <td className="mono" style={{ textAlign: 'right' }}>{c.contactos}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {c.conversaciones}
+                      </td>
+                      <td
+                        className="mono"
+                        style={{
+                          textAlign: 'right',
+                          color: cupoJusto ? 'var(--c-danger)' : undefined,
+                          fontWeight: cupoJusto ? 600 : undefined,
+                        }}
+                      >
+                        {c.iaUsadas}
+                        <span className="muted">/{c.cupoIa ?? '∞'}</span>
                       </td>
                       <td
                         className="mono"

@@ -345,6 +345,13 @@ export type FilaCuenta = {
   costoIaMes: string
   topeIa: string
   creado: string
+  /** Los cuatro límites del plan. null = sin tope. */
+  maxUsuarios: number | null
+  maxNumeros: number | null
+  cupoIa: number | null
+  /** Conversaciones que la IA atendió este mes. La misma cuenta que ve el
+   *  cliente en su medidor: si dieran distinto, el soporte sería imposible. */
+  iaUsadas: number
 }
 
 /**
@@ -397,6 +404,10 @@ export async function listarCuentas(
       costoIaMes: String(r.costo_ia_mes ?? '0'),
       topeIa: String(r.tope_ia ?? '0'),
       creado: String(r.created_at),
+      maxUsuarios: r.max_users === null ? null : Number(r.max_users),
+      maxNumeros: r.max_wa === null ? null : Number(r.max_wa),
+      cupoIa: r.cupo_ia === null ? null : Number(r.cupo_ia),
+      iaUsadas: Number(r.ia_usadas ?? 0),
     }))
 
     return {

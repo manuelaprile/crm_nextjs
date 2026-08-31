@@ -2519,3 +2519,31 @@ input[type='file'].input {
 }
 .med-aviso .medidor-lleno { background: #d97706; }
 .med-critico .medidor-lleno { background: #b91c1c; }
+
+/* ---------------------------------------------------------------------
+   PLAN DE UNA CUENTA (plataforma)
+   El nombre del plan es también el disparador del panel: la columna es
+   angosta y un botón aparte al lado del texto la partía en dos.
+   --------------------------------------------------------------------- */
+.sa-plan > summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.sa-plan > summary::-webkit-details-marker {
+  display: none;
+}
+/* El panel se ancla a la IZQUIERDA, al revés que el de eliminar: esta
+   columna está en el medio de la tabla y no contra el borde derecho. Se
+   reusa `.sa-borrar-panel` para el resto del recuadro. */
+.sa-plan .sa-borrar-panel {
+  margin-left: 0;
+}
+/* Cuatro números en dos filas. En una sola quedan de 40px y no se leen. */
+.sa-plan-nums {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
