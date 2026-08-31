@@ -318,7 +318,7 @@ async function importarChat(
         ${pushName}, ${phone}, ${isGroup},
         ${ultimo}, ${ultimoEntrante}, 0
       )
-      on conflict (provider, external_id) do update set
+      on conflict (account_id, external_id) do update set
         last_message_at = greatest(
           coalesce(conversations.last_message_at, excluded.last_message_at),
           excluded.last_message_at),

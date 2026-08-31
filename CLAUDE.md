@@ -42,6 +42,18 @@ Si se rompe acá, no se arregla después.
    teléfono puede venir nulo o cambiar (LID): anclamos en el JID que da el
    proveedor, y el teléfono es un atributo, no la clave.
 
+   **Y el `external_id` es de la persona, así que la CUENTA va siempre en la
+   clave.** La conversación es única por `(account_id, external_id)`, nunca por
+   `(provider, external_id)`: la misma persona le puede escribir a dos clientes
+   distintos de la plataforma, y sin la cuenta esos dos hilos son la misma fila.
+   Cuando eso pasó, el `on conflict do update` agarró la conversación del otro
+   cliente y el mensaje quedó guardado con un `tenant_id` y un
+   `conversation_id` de cuentas distintas: invisible desde los dos paneles, sin
+   un solo error. Las llaves compuestas de la 0031
+   (`messages(conversation_id, tenant_id)` y
+   `conversations(account_id, tenant_id)`) están para que la próxima vez falle
+   en vez de perderse.
+
 4. **El PIPELINE es la primitiva que hace multi-vertical al producto.**
    Las 4 etapas del cirujano, las etapas de admisión de un colegio y el embudo de
    pedidos de una tienda son la misma tabla `stages` + `stage_history`. Eso da el

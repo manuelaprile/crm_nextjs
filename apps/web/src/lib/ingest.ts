@@ -241,7 +241,13 @@ async function ingest(payload: InboundPayload) {
     }
 
     // ---- 4b. Conversación ------------------------------------------
-    // Única por (provider, external_id). Ver CLAUDE.md.
+    // Única por (account_id, external_id). Ver CLAUDE.md.
+    //
+    // La cuenta va en la clave y NO se puede sacar. `external_id` es el JID
+    // de quien escribe, así que sin ella la misma persona escribiéndole a
+    // dos clientes de la plataforma es la misma fila: el `do update` agarra
+    // la conversación del otro cliente y el mensaje se guarda ahí. Pasó, y
+    // no falla nada. Ver la 0031.
     const convRes = await tx.execute(sql`
       insert into conversations (
         tenant_id, channel, provider, account_id, external_id, contact_id,
@@ -252,7 +258,7 @@ async function ingest(payload: InboundPayload) {
         ${msg.pushName ?? null}, ${phone}, ${isGroup},
         ${sentAt}, ${sentAt}, 1, ${JSON.stringify(payload.metadata ?? {})}::jsonb
       )
-      on conflict (provider, external_id) do update set
+      on conflict (account_id, external_id) do update set
         archived_at = null,
         -- Se fusiona, no se pisa: la atribución del anuncio que trajo al
         -- paciente vive acá y no puede desaparecer porque escribió de nuevo.
