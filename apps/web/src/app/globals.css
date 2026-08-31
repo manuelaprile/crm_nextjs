@@ -2496,3 +2496,26 @@ input[type='file'].input {
   color: var(--c-muted);
   line-height: 1.5;
 }
+
+/* ---------------------------------------------------------------------
+   MEDIDOR DE CUPO
+   Una barra y nada más. El color cambia solo cuando falta poco: si avisara
+   siempre, dejaría de avisar.
+   --------------------------------------------------------------------- */
+.medidor {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--c-border);
+  overflow: hidden;
+}
+.medidor-lleno {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--c-primary);
+  /* Un cupo en 0 no puede verse igual que uno en 1: sin esto la barra
+     desaparece y parece que el medidor no cargó. */
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+.med-aviso .medidor-lleno { background: #d97706; }
+.med-critico .medidor-lleno { background: #b91c1c; }

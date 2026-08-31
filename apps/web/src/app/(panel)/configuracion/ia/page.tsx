@@ -1,6 +1,7 @@
 import { requireTenant } from '@/lib/auth'
 import { getAjustesIA } from '@/lib/ai-settings'
 import { FormIA, type Aviso } from './form'
+import { MedidorDeCupo } from './medidor'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,7 @@ export default async function IAPage({
           secretaria
         </p>
       </div>
+      <MedidorDeCupo tenantId={session.tenantId} />
       {ajustes ? (
         <FormIA
           inicial={ajustes}

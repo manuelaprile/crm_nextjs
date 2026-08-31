@@ -1,6 +1,7 @@
 import 'server-only'
 import { sql } from 'drizzle-orm'
-import type { Db } from './db/client'
+import { withSystem, type Db } from './db/client'
+import { dentroDelTope } from './planes'
 
 /**
  * Estados en los que un número NO ocupa lugar en el plan.
@@ -27,7 +28,8 @@ import type { Db } from './db/client'
 
 export type Cupo = {
   usados: number
-  max: number
+  /** null = sin tope (plan Business). */
+  max: number | null
   hayLugar: boolean
   /** Cuántos hay que no ocupan lugar, para poder explicarlo en pantalla. */
   inactivos: number
@@ -52,12 +54,68 @@ export async function cupoDeWhatsApp(tx: Db, tenantId: string): Promise<Cupo> {
   const fila = res.rows[0] as
     | { max: number | null; usados: number; inactivos: number }
     | undefined
-  const max = Number(fila?.max ?? 1)
+  // `max` en null es SIN TOPE, y hay que distinguirlo de "no vino la fila".
+  // Un `?? 1` acá le pondría límite 1 a una cuenta Business.
+  const max = fila === undefined ? 1 : fila.max === null ? null : Number(fila.max)
   const usados = Number(fila?.usados ?? 0)
   return {
     usados,
     max,
     inactivos: Number(fila?.inactivos ?? 0),
-    hayLugar: usados < max,
+    hayLugar: dentroDelTope(usados, max),
   }
+}
+
+// =====================================================================
+// EL CUPO DE IA
+// =====================================================================
+/**
+ * Cuántas conversaciones atendió la IA este mes, y cuántas entran.
+ *
+ * Una CONVERSACIÓN distinta, no una respuesta: es la unidad con la que se
+ * venden los planes ("500 conversaciones atendidas por IA / mes") y es lo que
+ * entiende el cliente. Hoy una conversación son unas cinco respuestas del
+ * modelo, así que las dos formas de contar dan números que no se parecen.
+ *
+ * El mes es CALENDARIO, no los últimos 30 días. Un cupo que se mueve todos
+ * los días no se puede explicar en una factura, y "se renueva el 1º" sí.
+ *
+ * Las lecturas de archivo quedan afuera solas: se registran con
+ * `conversation_id` en null (ver `ai/lector.ts`). Cuestan plata pero no
+ * atienden a nadie, así que suman al tope de gasto y no a este.
+ *
+ * Depende de la 0033. Con la llave foránea que había antes, borrar un
+ * contacto vaciaba las corridas de su conversación y el cliente se bajaba el
+ * contador solo.
+ */
+export type CupoIa = {
+  usadas: number
+  /** null = sin tope (Business). */
+  max: number | null
+  hayLugar: boolean
+}
+
+export async function cupoDeIa(tx: Db, tenantId: string): Promise<CupoIa> {
+  const res = await tx.execute(sql`
+    select (select ai_monthly_conversation_cap from tenants where id = ${tenantId}) as max,
+           (select count(distinct conversation_id)::int from ai_runs
+             where tenant_id = ${tenantId}
+               and conversation_id is not null
+               and created_at >= date_trunc('month', now())) as usadas
+  `)
+  const fila = res.rows[0] as { max: number | null; usadas: number } | undefined
+  const max = fila?.max === null || fila?.max === undefined ? null : Number(fila.max)
+  const usadas = Number(fila?.usadas ?? 0)
+  return { usadas, max, hayLugar: dentroDelTope(usadas, max) }
+}
+
+/**
+ * El cupo de IA de una cuenta, para mostrarlo en pantalla.
+ *
+ * Va por `withSystem` como `funcionesDe`: `ai_runs` no se consulta desde el
+ * panel en ningún otro lado, y el `tenantId` sale de la sesión del servidor,
+ * nunca del navegador. Ver las reglas de `withSystem` en `db/client.ts`.
+ */
+export async function cupoDeIaDeCuenta(tenantId: string): Promise<CupoIa> {
+  return withSystem((tx) => cupoDeIa(tx, tenantId))
 }

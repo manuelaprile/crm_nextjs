@@ -18,6 +18,7 @@ import { cookies } from 'next/headers'
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { requireAdmin, getSession } from './auth'
+import { dentroDelTope } from './planes'
 import { etiquetaDe, delRubro } from './etiquetas'
 import type { TenantRole } from './db/client'
 import { withTenant, withoutTenant } from './db/client'
@@ -131,13 +132,17 @@ export async function crearUsuario(formData: FormData): Promise<void> {
   }
 
   // El límite del plan se controla acá, no en la interfaz.
+  //
+  // `max_users` en null es SIN TOPE (Business). Va por `dentroDelTope` y no
+  // por un `>=` a mano: en JavaScript `5 >= null` es `true`, así que
+  // comparar directo bloquearía justo a la cuenta que no tiene límite.
   const lleno = await withTenant(session, async (tx) => {
     const r = await tx.execute(sql`
       select (select max_users from tenants where id = ${session.tenantId}) as max,
              (select count(*)::int from tenant_users) as usados
     `)
-    const row = r.rows[0] as { max: number; usados: number }
-    return row.usados >= row.max
+    const row = r.rows[0] as { max: number | null; usados: number }
+    return !dentroDelTope(Number(row.usados), row.max === null ? null : Number(row.max))
   })
   if (lleno) {
     volver('error', 'Alcanzaste el límite de usuarios de tu plan.')

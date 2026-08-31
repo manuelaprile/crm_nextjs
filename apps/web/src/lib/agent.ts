@@ -43,6 +43,7 @@ import {
   toolsDeAgenda,
 } from './agenda-agente'
 import { configAgenda } from './agenda'
+import { cupoDeIa } from './cupo'
 import type { TemaConEncargado } from './conocimiento-agente'
 import {
   TOOL_TEMA,
@@ -99,12 +100,30 @@ export async function runAgentForConversation(
     return
   }
 
-  // ---- Tope de gasto del plan -------------------------------------
-  if (await overBudget(ctx.tenantId)) {
-    console.warn('[agente] tope de IA alcanzado', { tenantId: ctx.tenantId })
+  // ---- Topes del plan ---------------------------------------------
+  //
+  // Dos topes, y los dos derivan a una persona en vez de cortar. Al que
+  // escribe no se le rompe nada: lo atiende alguien del equipo.
+  //
+  //  - Conversaciones: es lo que se vende y lo que ve el cliente en el
+  //    medidor.
+  //  - Dólares: la red contra lo que el otro no atrapa. Un catálogo enorme
+  //    releído en loop gasta muchísimo en UNA conversación, y el contador de
+  //    conversaciones ni se entera.
+  //
+  // El motivo va al log con nombre propio: "alcanzó el cupo del plan" y "algo
+  // está gastando de más" son dos llamados distintos al cliente.
+  const tope = await topeAlcanzado(ctx.tenantId)
+  if (tope) {
+    console.warn('[agente] tope del plan alcanzado', {
+      tenantId: ctx.tenantId,
+      tope,
+    })
     await handoff(
       ctx,
-      'Tope mensual de IA alcanzado',
+      tope === 'conversaciones'
+        ? 'Cupo mensual de conversaciones alcanzado'
+        : 'Tope mensual de gasto de IA alcanzado',
       'Gracias por escribir. En un momento te responde una persona del equipo.',
     )
     return
@@ -224,8 +243,21 @@ function matchesHandoff(text: string, keywords: string[]): boolean {
   )
 }
 
-async function overBudget(tenantId: string): Promise<boolean> {
+/**
+ * ¿Se acabó algo del plan? Devuelve qué, o null si hay lugar.
+ *
+ * El orden importa poco para el resultado pero mucho para el mensaje: se
+ * mira primero el cupo de conversaciones, que es lo que el cliente compró y
+ * entiende. Que el aviso diga "gasto de IA" cuando en realidad llegó a las
+ * 500 conversaciones de su plan es una llamada al soporte garantizada.
+ */
+type TopeDelPlan = 'conversaciones' | 'gasto'
+
+async function topeAlcanzado(tenantId: string): Promise<TopeDelPlan | null> {
   return withSystem(async (tx) => {
+    const cupo = await cupoDeIa(tx, tenantId)
+    if (!cupo.hayLugar) return 'conversaciones'
+
     const res = await tx.execute(sql`
       select t.ai_monthly_cost_cap as cap,
              coalesce(sum(r.cost_usd), 0) as spent
@@ -236,9 +268,13 @@ async function overBudget(tenantId: string): Promise<boolean> {
        where t.id = ${tenantId}
        group by t.ai_monthly_cost_cap
     `)
-    const row = res.rows[0] as { cap: string; spent: string } | undefined
-    if (!row) return true
-    return Number(row.spent) >= Number(row.cap)
+    const row = res.rows[0] as { cap: string | null; spent: string } | undefined
+    // Sin fila la cuenta no existe: no se atiende. Es el comportamiento que
+    // ya tenía y hay que conservarlo.
+    if (!row) return 'gasto'
+    // `cap` en null es sin tope de gasto, no tope cero.
+    if (row.cap === null) return null
+    return Number(row.spent) >= Number(row.cap) ? 'gasto' : null
   })
 }
 
