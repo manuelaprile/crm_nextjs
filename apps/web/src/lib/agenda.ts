@@ -57,12 +57,53 @@ export type ConfigAgenda = {
   horizonteDias: number
   /** Por día de la semana (0 = domingo), pares "HH:MM". */
   horarios: Record<string, [string, string][]>
+  /**
+   * Los horarios de arriba NO los cargó nadie: son el 24 h por defecto.
+   *
+   * Lo necesitan las dos pantallas que muestran horarios. La de
+   * configuración, para no dibujar como elegidos unos horarios que nadie
+   * eligió; y el calendario, para no estirar la grilla a 24 filas de alto
+   * cuando la cuenta simplemente no configuró nada.
+   */
+  horariosPorDefecto: boolean
   etapaAlAgendar: string | null
   palabrasClave: string[]
   zona: string
 }
 
 const ZONA_POR_DEFECTO = 'America/Argentina/Buenos_Aires'
+
+/**
+ * Lo que vale mientras nadie cargue horarios: abierto siempre.
+ *
+ * Antes valía lo contrario —sin horarios, ningún día abría— y eso dejaba la
+ * agenda en un estado muerto: el cliente prendía "que el asistente reserve
+ * turnos", el asistente consultaba, no encontraba un solo hueco en ningún
+ * día, y contestaba que no hay disponibilidad. Nada fallaba y no había
+ * forma de darse cuenta desde afuera de que faltaba un paso.
+ *
+ * Abierto es el default correcto porque el que no configuró nada todavía no
+ * dijo que cierre: cerrar en su nombre es inventarle una restricción. Y el
+ * error se ve —ofrece un turno a horario raro— en vez de esconderse.
+ *
+ * `24:00` es el final del día, no las 23:59: ver `instanteDe`.
+ */
+export const TODO_EL_DIA: Record<string, [string, string][]> = {
+  0: [['00:00', '24:00']], 1: [['00:00', '24:00']], 2: [['00:00', '24:00']],
+  3: [['00:00', '24:00']], 4: [['00:00', '24:00']], 5: [['00:00', '24:00']],
+  6: [['00:00', '24:00']],
+}
+
+/**
+ * ¿Hay algún día con horario de verdad?
+ *
+ * Un objeto vacío y uno con los siete días en lista vacía son lo mismo: en
+ * los dos casos nadie eligió nada. El formulario produce el primero, pero
+ * una cuenta vieja puede tener el segundo.
+ */
+function sinHorarios(h: Record<string, [string, string][]>): boolean {
+  return !Object.values(h ?? {}).some((tramos) => (tramos ?? []).length > 0)
+}
 
 /**
  * La configuración, con valores por defecto si la cuenta nunca la tocó.
@@ -82,12 +123,15 @@ export async function configAgenda(tenantId: string): Promise<ConfigAgenda> {
        where t.id = ${tenantId}
     `)
     const r = res.rows[0] as Record<string, unknown> | undefined
+    const cargados = (r?.horarios as ConfigAgenda['horarios']) ?? {}
+    const porDefecto = sinHorarios(cargados)
     return {
       iaAgenda: Boolean(r?.ia_agenda),
       duracionIaMin: Number(r?.duracion_ia_min ?? 30),
       anticipacionHoras: Number(r?.anticipacion_horas ?? 2),
       horizonteDias: Number(r?.horizonte_dias ?? 30),
-      horarios: (r?.horarios as ConfigAgenda['horarios']) ?? {},
+      horarios: porDefecto ? TODO_EL_DIA : cargados,
+      horariosPorDefecto: porDefecto,
       etapaAlAgendar: r?.etapa_al_agendar ? String(r.etapa_al_agendar) : null,
       palabrasClave: (r?.palabras_clave as string[]) ?? [],
       zona: String(r?.timezone || ZONA_POR_DEFECTO),

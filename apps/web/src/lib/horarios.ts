@@ -79,6 +79,50 @@ export function instanteDe(
   const [, hh, mm] = mh
   const h = Number(hh)
   const min = Number(mm)
+
+  // Que el día exista, antes de nada.
+  //
+  // Lo comprobaba la vuelta de más abajo, pero esa comparación no sirve para
+  // `24:00`, que cae a propósito en el día siguiente. Validar la fecha acá
+  // deja las dos cosas cubiertas: el 30 de febrero sigue sin existir.
+  const soloFecha = new Date(Date.UTC(Number(a), Number(m) - 1, Number(d)))
+  if (diaEnZona(soloFecha, 'UTC') !== dia) return null
+
+  /**
+   * `24:00` es el final de ESTE día, no una hora inválida.
+   *
+   * Un negocio abierto todo el día cierra a las 24:00, no a las 23:59: con
+   * 23:59 el último turno de media hora se pierde, porque 23:30 + 30 se pasa
+   * del cierre por un minuto. Es medianoche del día siguiente, que es la
+   * misma marca de tiempo y se calcula sola con la zona correcta.
+   */
+  if (h === 24 && min === 0) {
+    const siguiente = diaEnZona(
+      new Date(Date.UTC(Number(a), Number(m) - 1, Number(d) + 1)),
+      'UTC',
+    )
+    /*
+     * Casi siempre esto es medianoche del día siguiente. Pero el domingo que
+     * empieza el horario de verano, en varias zonas la medianoche NO EXISTE:
+     * en Santiago, el 6/9/2026 el reloj salta de las 23:59 a la 01:00. Ahí
+     * `instanteDe` devuelve null —y hace bien, esa hora no ocurrió— y un
+     * negocio abierto las 24 h quedaría cerrado todo ese día, una vez al año.
+     *
+     * El límite entre los dos días existe igual: es el primer instante que ya
+     * pertenece al día siguiente. Se lo busca avanzando de a un cuarto de
+     * hora, que cubre cualquier salto real (media hora en Lord Howe, una en
+     * casi todos lados) sin suponer cuánto dura.
+     */
+    for (let salto = 0; salto <= 180; salto += 15) {
+      const t = instanteDe(
+        siguiente,
+        `${String(Math.floor(salto / 60)).padStart(2, '0')}:${String(salto % 60).padStart(2, '0')}`,
+        zona,
+      )
+      if (t) return t
+    }
+    return null
+  }
   if (h > 23 || min > 59) return null
 
   const ingenuo = Date.UTC(Number(a), Number(m) - 1, Number(d), h, min)

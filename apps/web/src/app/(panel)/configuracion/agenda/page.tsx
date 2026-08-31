@@ -54,7 +54,19 @@ export default async function ConfigAgendaPage({
         <fieldset disabled={!puedeEditar} style={{ border: 0, padding: 0, margin: 0 }}>
           <div className="panel-box" style={{ marginBottom: 16 }}>
             <div className="panel-box-head">
-              <h3>Horarios de atención</h3>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                Horarios de atención
+                {/*
+                  El estado en el que está HOY, no una explicación de la
+                  regla. Sin horarios cargados el negocio queda abierto
+                  siempre, y eso tiene que verse: es la diferencia entre que
+                  el asistente ofrezca un turno a las 3 de la mañana y que
+                  alguien se entere de por qué.
+                */}
+                {config.horariosPorDefecto && (
+                  <span className="badge b-blue">Abierto las 24 h</span>
+                )}
+              </h3>
               <span className="tiny muted" style={{ marginLeft: 'auto' }}>
                 {config.zona}
               </span>
@@ -62,7 +74,13 @@ export default async function ConfigAgendaPage({
             <div className="panel-box-body">
               <div style={{ display: 'grid', gap: 8 }}>
                 {DIAS.map((d) => {
-                  const tramo = config.horarios[d.n]?.[0]
+                  // Los campos quedan vacíos cuando el 24 h es el valor por
+                  // defecto: llenarlos con 00:00 y 24:00 haría parecer que
+                  // alguien eligió eso, y el primer guardado convertiría un
+                  // default en una decisión que nadie tomó.
+                  const tramo = config.horariosPorDefecto
+                    ? undefined
+                    : config.horarios[d.n]?.[0]
                   return (
                     <div key={d.n} className="horario">
                       <span className="horario-dia">{d.label}</span>

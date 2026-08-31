@@ -68,10 +68,16 @@ export function franja(
 ): { desde: number; hasta: number } {
   let desde = 24
   let hasta = 0
-  for (const tramos of Object.values(config.horarios)) {
-    for (const [a, b] of tramos) {
-      desde = Math.min(desde, Number(a.slice(0, 2)))
-      hasta = Math.max(hasta, Math.ceil(Number(b.slice(0, 2)) + (b.slice(3) === '00' ? 0 : 1)))
+  // Los horarios por defecto son 24 h, y dibujarlos daría una grilla de
+  // veinticuatro filas para una cuenta que no configuró nada. Ahí manda la
+  // franja de siempre, que igual se estira más abajo con los turnos que
+  // existan: si hay uno a las 3 de la mañana, se ve.
+  if (!config.horariosPorDefecto) {
+    for (const tramos of Object.values(config.horarios)) {
+      for (const [a, b] of tramos) {
+        desde = Math.min(desde, Number(a.slice(0, 2)))
+        hasta = Math.max(hasta, Math.ceil(Number(b.slice(0, 2)) + (b.slice(3) === '00' ? 0 : 1)))
+      }
     }
   }
   if (desde > hasta) {
@@ -191,8 +197,15 @@ export function Grilla({
               El sombreado de las horas de atención. Es lo que hace legible
               un hueco: sin él, "no hay nada el martes a las 8" y "no
               atendemos el martes a las 8" se ven exactamente igual.
+
+              Sin horarios cargados no hay nada cerrado, así que no hay nada
+              que distinguir: sombrear el día entero es lo mismo que no
+              sombrear, pero más sucio.
             */}
-            {(config.horarios[String(diaSemana(dia))] ?? []).map(([a, b], i) => {
+            {(config.horariosPorDefecto
+              ? []
+              : (config.horarios[String(diaSemana(dia))] ?? [])
+            ).map(([a, b], i) => {
               const arr = (Number(a.slice(0, 2)) * 60 + Number(a.slice(3)) - desde * 60)
               const fin = (Number(b.slice(0, 2)) * 60 + Number(b.slice(3)) - desde * 60)
               return (
