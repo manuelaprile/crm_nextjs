@@ -329,7 +329,7 @@ export async function desarchivarContacto(formData: FormData): Promise<void> {
  *
  * Borra el contacto, sus identidades, notas, etiquetas, historial de etapas
  * **y sus conversaciones con todos los mensajes**. Lo último es a propósito:
- * si quedara la conversación, la clave única (provider, external_id) haría
+ * si quedara la conversación, la clave única (account_id, external_id) haría
  * que el mismo número volviera a caer en el hilo viejo. Sin eso no se puede
  * repetir una prueba con el mismo teléfono.
  *
