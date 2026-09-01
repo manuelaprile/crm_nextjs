@@ -74,6 +74,20 @@ a {
   color: inherit;
   text-decoration: none;
 }
+/* Un enlace que TIENE que verse como enlace.
+   El `a` de arriba hereda el color y no subraya, que es lo correcto adentro
+   del panel —una tabla llena de celdas azules subrayadas es ilegible— pero
+   deja invisible al enlace suelto dentro de un texto. Este es para esos: el
+   de los términos en el login, y cualquier otro que haya que poder
+   distinguir de la frase que lo rodea.
+   El azul es el mismo #1d4ed8 que ya usan las etiquetas y los chips. */
+.enlace {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+.enlace:hover {
+  color: #1e40af;
+}
 img,
 svg {
   display: block;

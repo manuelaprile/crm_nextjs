@@ -99,6 +99,7 @@ export function FormularioLogin({
           Acepto los{' '}
           <a
             href="https://www.impulxy.com/terminos.html"
+            className="enlace"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -107,6 +108,7 @@ export function FormularioLogin({
           y la{' '}
           <a
             href="https://www.impulxy.com/privacidad.html"
+            className="enlace"
             target="_blank"
             rel="noopener noreferrer"
           >
