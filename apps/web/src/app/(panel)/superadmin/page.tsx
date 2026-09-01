@@ -182,9 +182,9 @@ export default async function SuperadminPage({
                   <th style={{ textAlign: 'right' }}>Contactos</th>
                   <th
                     style={{ textAlign: 'right' }}
-                    title="Conversaciones de la cuenta, en total"
+                    title="Todas las conversaciones que tuvo la cuenta desde que existe. NO sigue al desplegable de arriba: es lo que la cuenta tiene, no lo que pasó en un mes."
                   >
-                    Conversaciones
+                    Conversaciones · total
                   </th>
                   <th
                     style={{ textAlign: 'right' }}
