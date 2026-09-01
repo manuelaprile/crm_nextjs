@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { destinoInicial, getSession, login } from '@/lib/auth'
+import { FormularioLogin } from './formulario'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,16 @@ export default async function LoginPage({
 
   async function action(formData: FormData) {
     'use server'
+    // Los términos se validan ACÁ, no solo en el navegador. El checkbox del
+    // formulario es comodidad: cualquiera puede mandar un POST sin él, y una
+    // aceptación que se puede saltear no acepta nada.
+    //
+    // Va antes de mirar la contraseña a propósito: si no aceptó, no hay por
+    // qué gastar un intento de login ni acercarlo al bloqueo por intentos
+    // fallidos.
+    if (formData.get('terminos') !== 'si') {
+      redirect('/login?error=terminos')
+    }
     const email = String(formData.get('email') ?? '')
     const password = String(formData.get('password') ?? '')
     const result = await login(email, password)
@@ -42,54 +53,7 @@ export default async function LoginPage({
           </p>
         </div>
 
-        <form
-          action={action}
-          className="login-card"
-          style={{ display: 'grid', gap: 16 }}
-        >
-          {error && (
-            <div className="alert alert-red">
-              {error === 'bloqueado'
-                ? 'Demasiados intentos fallidos. Esperá 15 minutos.'
-                : 'Email o contraseña incorrectos.'}
-            </div>
-          )}
-
-          {/* Un motivo traído de otra pantalla: por qué lo mandamos acá.
-              Sin esto, a quien se le vence la sesión en medio de algo le
-              aparece el login de la nada y no sabe qué pasó. */}
-          {m && !error && (
-            <div className="alert alert-amber">{m.slice(0, 200)}</div>
-          )}
-
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="username"
-              className="input"
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="password">Contraseña</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              className="input"
-            />
-          </div>
-
-          <button type="submit" className="btn btn-primary btn-block">
-            Ingresar
-          </button>
-        </form>
+        <FormularioLogin action={action} error={error} aviso={m} />
       </div>
     </main>
   )
