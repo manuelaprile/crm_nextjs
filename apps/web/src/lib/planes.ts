@@ -67,7 +67,10 @@ export type Plan = {
 
 export const PLANES: Plan[] = [
   {
-    codigo: 'start',
+    // `starter`, no `start`: es el default de la columna desde la 0001 y lo
+    // que ya tienen todas las cuentas. El código es interno —lo que se
+    // muestra es `nombre`— así que se acomoda el catálogo y no los datos.
+    codigo: 'starter',
     nombre: 'Start',
     precioUsd: 79,
     maxUsuarios: 3,
