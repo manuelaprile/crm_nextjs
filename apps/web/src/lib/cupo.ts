@@ -77,14 +77,17 @@ export async function cupoDeWhatsApp(tx: Db, tenantId: string): Promise<Cupo> {
  * entiende el cliente. Hoy una conversación son unas cinco respuestas del
  * modelo, así que las dos formas de contar dan números que no se parecen.
  *
- * El mes es CALENDARIO, no los últimos 30 días. Un cupo que se mueve todos
- * los días no se puede explicar en una factura, y "se renueva el 1º" sí.
+ * El período es el CICLO DEL PLAN, no el mes calendario: los planes se
+ * cobran por fecha de contratación, así que el que contrata un 10 tiene su
+ * cupo del 10 al 10. Con el mes calendario, quien contrataba un 25 tenía sus
+ * conversaciones hasta fin de mes y otras tantas el 1º —el doble adentro del
+ * primer mes que pagó— y "te quedan 40 hasta que se renueve" no se podía
+ * decir con precisión. El ancla es `tenants.plan_desde` (0038).
  *
- * Y el 1º es el de la CUENTA, no el de UTC. Con `date_trunc('month', now())`
- * a secas el cupo se renovaba a las 21:00 del último día en Argentina, y el
- * mismo mes le daba distinto a esta pantalla que a la del superadmin. El
- * corte lo hacen `mes_en_curso` / `mes_desde` (0036), que son las mismas
- * funciones que usa `superadmin_resumen`.
+ * Y el día del ciclo es el de la CUENTA, no el de UTC: con la zona del
+ * servidor el cupo se le renovaría a las nueve de la noche del día anterior.
+ * El corte lo hacen `ciclo_desde` / `ciclo_hasta`, las mismas funciones que
+ * usa `superadmin_resumen`.
  *
  * Las lecturas de archivo quedan afuera solas: se registran con
  * `conversation_id` en null (ver `ai/lector.ts`). Cuestan plata pero no
@@ -99,23 +102,37 @@ export type CupoIa = {
   /** null = sin tope (Business). */
   max: number | null
   hayLugar: boolean
+  /** Cuándo se renueva, en `YYYY-MM-DD`. Sale de la base y no de un cálculo
+   *  en JavaScript: es la misma fecha que decide el corte. */
+  renuevaEl: string
 }
 
 export async function cupoDeIa(tx: Db, tenantId: string): Promise<CupoIa> {
   const res = await tx.execute(sql`
     select t.ai_monthly_conversation_cap as max,
+           to_char(ciclo_hasta(t.plan_desde, t.timezone), 'YYYY-MM-DD') as renueva,
            (select count(distinct r.conversation_id)::int from ai_runs r
              where r.tenant_id = t.id
                and r.conversation_id is not null
-               and r.created_at >= mes_desde(mes_en_curso(t.timezone), t.timezone))
+               and r.created_at >= mes_desde(
+                     ciclo_desde(t.plan_desde, t.timezone), t.timezone)
+               and r.created_at < mes_desde(
+                     ciclo_hasta(t.plan_desde, t.timezone), t.timezone))
              as usadas
       from tenants t
      where t.id = ${tenantId}
   `)
-  const fila = res.rows[0] as { max: number | null; usadas: number } | undefined
+  const fila = res.rows[0] as
+    | { max: number | null; usadas: number; renueva: string }
+    | undefined
   const max = fila?.max === null || fila?.max === undefined ? null : Number(fila.max)
   const usadas = Number(fila?.usadas ?? 0)
-  return { usadas, max, hayLugar: dentroDelTope(usadas, max) }
+  return {
+    usadas,
+    max,
+    hayLugar: dentroDelTope(usadas, max),
+    renuevaEl: fila?.renueva ?? '',
+  }
 }
 
 /**

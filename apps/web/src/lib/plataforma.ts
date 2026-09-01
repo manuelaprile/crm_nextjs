@@ -151,16 +151,22 @@ function topeODefecto(v: FormDataEntryValue | null): number | null {
 }
 
 /**
- * Cambiar el plan de una cuenta y sus cuatro límites.
+ * Cambiar el plan de una cuenta, sus cuatro límites y desde cuándo corre.
  *
  * Los cuatro viajan juntos y NINGUNO se deduce del nombre del plan: el
  * catálogo lo aplica la pantalla al elegir, y desde ahí se puede ajustar
  * cualquiera. Así "Start pero con 5 usuarios" es un cambio de un campo y no
  * un plan nuevo en el código.
  *
- * La escritura pasa por `superadmin_cambiar_plan` (0035). `crm_app` no tiene
- * permiso de update sobre esas columnas y no lo tiene que tener: es lo que
- * impide que un admin de una cuenta se suba su propio límite.
+ * `planDesde` es la fecha de contratación y es el ancla del ciclo de cupo:
+ * si es un 10, el cupo se renueva todos los 10. No es cosmética —mueve el día
+ * en que al cliente se le renuevan las conversaciones— así que se manda
+ * siempre y la valida la base.
+ *
+ * La escritura pasa por `superadmin_cambiar_plan` (0035, ampliada en la
+ * 0038). `crm_app` no tiene permiso de update sobre esas columnas y no lo
+ * tiene que tener: es lo que impide que un admin de una cuenta se suba su
+ * propio límite.
  */
 export async function cambiarPlanCuenta(formData: FormData): Promise<void> {
   const session = await getSession()
@@ -175,6 +181,9 @@ export async function cambiarPlanCuenta(formData: FormData): Promise<void> {
   const maxNumeros = topeODefecto(formData.get('maxNumeros'))
   const cupoIa = topeODefecto(formData.get('cupoIa'))
   const topeGasto = topeODefecto(formData.get('topeGasto'))
+  // Del `<input type="date">` viene 'YYYY-MM-DD' o vacío. Vacío se rechaza
+  // en la base, que es donde tiene que estar la regla.
+  const planDesde = String(formData.get('planDesde') ?? '').trim() || null
 
   const hash = await tokenDeSesion()
   if (!hash) volver('error', 'Sesión vencida. Volvé a entrar.')
@@ -184,7 +193,8 @@ export async function cambiarPlanCuenta(formData: FormData): Promise<void> {
       sql`select superadmin_cambiar_plan(
             ${hash}, ${tenantId}::uuid, ${plan},
             ${maxUsuarios}::int, ${maxNumeros}::int,
-            ${cupoIa}::int, ${topeGasto}::numeric) as ok`,
+            ${cupoIa}::int, ${topeGasto}::numeric,
+            ${planDesde}::date) as ok`,
     )
     return Boolean(r.rows[0]?.ok)
   })
@@ -193,7 +203,8 @@ export async function cambiarPlanCuenta(formData: FormData): Promise<void> {
     volver(
       'error',
       'No se pudo cambiar el plan. Revisá que los números sean razonables ' +
-        '(usuarios 1 a 10.000, números 1 a 100) o volvé a entrar.',
+        '(usuarios 1 a 10.000, números 1 a 100) y que la fecha de ' +
+        'contratación no esté vacía ni en el futuro, o volvé a entrar.',
     )
   }
 

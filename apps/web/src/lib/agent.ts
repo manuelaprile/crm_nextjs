@@ -264,7 +264,12 @@ async function topeAlcanzado(tenantId: string): Promise<TopeDelPlan | null> {
         from tenants t
    left join ai_runs r
           on r.tenant_id = t.id
-         and r.created_at >= mes_desde(mes_en_curso(t.timezone), t.timezone)
+         -- Por CICLO, igual que el cupo de conversaciones. Los dos topes
+         -- tienen que renovarse el mismo día: si uno corta el 1º y el otro
+         -- el 10, hay una semana en la que el cliente ve cupo disponible y
+         -- el asistente no contesta.
+         and r.created_at >= mes_desde(ciclo_desde(t.plan_desde, t.timezone),
+                                       t.timezone)
        where t.id = ${tenantId}
        group by t.ai_monthly_cost_cap
     `)

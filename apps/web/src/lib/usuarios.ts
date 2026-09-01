@@ -351,10 +351,19 @@ export type FilaCuenta = {
   maxUsuarios: number | null
   maxNumeros: number | null
   cupoIa: number | null
-  /** Conversaciones que la IA atendió en el período. Con el mes en curso es
-   *  la misma cuenta que ve el cliente en su medidor: si dieran distinto, el
-   *  soporte sería imposible. */
+  /** Conversaciones que la IA atendió en el MES elegido. Es la mirada de
+   *  costo: se compara contra la factura del proveedor, que viene por mes
+   *  calendario. */
   iaUsadas: number
+  /** Desde cuándo corre el plan, en `YYYY-MM-DD`. Ancla del ciclo de cupo. */
+  planDesde: string
+  /** El ciclo vigente del cliente, en `YYYY-MM-DD`. */
+  cicloInicio: string
+  cicloFin: string
+  /** Conversaciones del CICLO vigente: el mismo número que ve el cliente en
+   *  su medidor. Si dieran distinto, el soporte sería imposible. No cambia
+   *  con el desplegable de meses: el ciclo vigente es uno solo. */
+  iaCiclo: number
 }
 
 /**
@@ -396,7 +405,15 @@ export async function listarCuentas(
 
   return withoutTenant(async (tx) => {
     const res = await tx.execute(sql`
-      select *, count(*) over () as total
+      -- Las fechas se piden como TEXTO. El driver convierte una fecha de
+      -- Postgres en un Date de JavaScript en UTC, y al mostrarlo en Argentina
+      -- se corre un día para atrás: el ciclo que arranca el 10 se vería
+      -- como el 9.
+      select *,
+             to_char(plan_desde,   'YYYY-MM-DD') as plan_desde_txt,
+             to_char(ciclo_inicio, 'YYYY-MM-DD') as ciclo_inicio_txt,
+             to_char(ciclo_fin,    'YYYY-MM-DD') as ciclo_fin_txt,
+             count(*) over () as total
         from superadmin_resumen(${primerDia}::date)
        where (${buscar}::text is null
               or inmutable_unaccent(name) ilike inmutable_unaccent('%' || ${buscar} || '%')
@@ -423,6 +440,10 @@ export async function listarCuentas(
       maxNumeros: r.max_wa === null ? null : Number(r.max_wa),
       cupoIa: r.cupo_ia === null ? null : Number(r.cupo_ia),
       iaUsadas: Number(r.ia_usadas ?? 0),
+      planDesde: String(r.plan_desde_txt ?? ''),
+      cicloInicio: String(r.ciclo_inicio_txt ?? ''),
+      cicloFin: String(r.ciclo_fin_txt ?? ''),
+      iaCiclo: Number(r.ia_ciclo ?? 0),
     }))
 
     return {

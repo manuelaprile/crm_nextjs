@@ -19,6 +19,11 @@ import type { FilaCuenta } from '@/lib/usuarios'
  *
  * Vacío = SIN TOPE. No es lo mismo que 0, que en usuarios significaría que la
  * cuenta no puede crear a nadie.
+ *
+ * La fecha de contratación NO se toca al elegir un plan del catálogo: es un
+ * hecho de esta cuenta, no una propiedad del plan. Cambiarla mueve el día en
+ * que al cliente se le renuevan las conversaciones, así que se cambia a
+ * propósito o no se cambia.
  */
 export function CambiarPlan({ cuenta }: { cuenta: FilaCuenta }) {
   const [plan, setPlan] = useState(cuenta.plan)
@@ -26,6 +31,7 @@ export function CambiarPlan({ cuenta }: { cuenta: FilaCuenta }) {
   const [maxNumeros, setMaxNumeros] = useState(txt(cuenta.maxNumeros))
   const [cupoIa, setCupoIa] = useState(txt(cuenta.cupoIa))
   const [topeGasto, setTopeGasto] = useState(cuenta.topeIa ?? '')
+  const [planDesde, setPlanDesde] = useState(cuenta.planDesde)
 
   // Al elegir un plan del catálogo se cargan sus números. Si el código no
   // está en el catálogo —una cuenta vieja con un plan a mano— no se pisa
@@ -94,8 +100,25 @@ export function CambiarPlan({ cuenta }: { cuenta: FilaCuenta }) {
             />
           </div>
 
+          <div className="field">
+            <label className="tiny" htmlFor={`pd-${cuenta.id}`}>
+              Contrató el
+            </label>
+            <input
+              id={`pd-${cuenta.id}`}
+              name="planDesde"
+              type="date"
+              className="input"
+              value={planDesde}
+              onChange={(e) => setPlanDesde(e.target.value)}
+            />
+          </div>
+
           <p className="tiny muted" style={{ margin: 0 }}>
-            Vacío = sin tope. Lleva {cuenta.iaUsadas} conversaciones este mes.
+            Vacío = sin tope. El cupo se renueva todos los{' '}
+            {Number(cuenta.planDesde.slice(8, 10))} de cada mes: lleva{' '}
+            {cuenta.iaCiclo} de este ciclo, que va del{' '}
+            {corto(cuenta.cicloInicio)} al {corto(cuenta.cicloFin)}.
           </p>
 
           <button type="submit" className="btn btn-primary btn-sm">
@@ -135,4 +158,9 @@ function Campo({
 
 function txt(n: number | null): string {
   return n === null ? '' : String(n)
+}
+
+/** '2026-10-10' → '10/10'. El año sobra: el ciclo dura un mes. */
+function corto(iso: string): string {
+  return iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '—'
 }
