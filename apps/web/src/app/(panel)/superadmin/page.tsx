@@ -103,7 +103,7 @@ export default async function SuperadminPage({
             </div>
           </div>
           <div className="stat">
-            <div className="lbl">IA este mes</div>
+            <div className="lbl">Costo de IA este mes</div>
             <div className="val mono">USD {totalIa.toFixed(2)}</div>
             <div className="delta muted" style={{ fontWeight: 500 }}>
               de esta página
@@ -144,9 +144,24 @@ export default async function SuperadminPage({
                   <th>Plan</th>
                   <th style={{ textAlign: 'right' }}>Usuarios</th>
                   <th style={{ textAlign: 'right' }}>Contactos</th>
-                  <th style={{ textAlign: 'right' }}>Conversaciones</th>
-                  <th style={{ textAlign: 'right' }}>Cupo IA</th>
-                  <th style={{ textAlign: 'right' }}>IA mes</th>
+                  <th
+                    style={{ textAlign: 'right' }}
+                    title="Conversaciones de la cuenta, en total"
+                  >
+                    Conversaciones
+                  </th>
+                  <th
+                    style={{ textAlign: 'right' }}
+                    title="Conversaciones distintas que atendió la IA este mes, sobre el cupo del plan. Es el mismo número que ve el cliente en Asistente IA."
+                  >
+                    IA este mes
+                  </th>
+                  <th
+                    style={{ textAlign: 'right' }}
+                    title="Gastado en IA este mes, sobre el tope de la cuenta"
+                  >
+                    Costo USD
+                  </th>
                   <th></th>
                 </tr>
               </thead>
