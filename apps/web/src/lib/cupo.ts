@@ -80,6 +80,12 @@ export async function cupoDeWhatsApp(tx: Db, tenantId: string): Promise<Cupo> {
  * El mes es CALENDARIO, no los últimos 30 días. Un cupo que se mueve todos
  * los días no se puede explicar en una factura, y "se renueva el 1º" sí.
  *
+ * Y el 1º es el de la CUENTA, no el de UTC. Con `date_trunc('month', now())`
+ * a secas el cupo se renovaba a las 21:00 del último día en Argentina, y el
+ * mismo mes le daba distinto a esta pantalla que a la del superadmin. El
+ * corte lo hacen `mes_en_curso` / `mes_desde` (0036), que son las mismas
+ * funciones que usa `superadmin_resumen`.
+ *
  * Las lecturas de archivo quedan afuera solas: se registran con
  * `conversation_id` en null (ver `ai/lector.ts`). Cuestan plata pero no
  * atienden a nadie, así que suman al tope de gasto y no a este.
@@ -97,11 +103,14 @@ export type CupoIa = {
 
 export async function cupoDeIa(tx: Db, tenantId: string): Promise<CupoIa> {
   const res = await tx.execute(sql`
-    select (select ai_monthly_conversation_cap from tenants where id = ${tenantId}) as max,
-           (select count(distinct conversation_id)::int from ai_runs
-             where tenant_id = ${tenantId}
-               and conversation_id is not null
-               and created_at >= date_trunc('month', now())) as usadas
+    select t.ai_monthly_conversation_cap as max,
+           (select count(distinct r.conversation_id)::int from ai_runs r
+             where r.tenant_id = t.id
+               and r.conversation_id is not null
+               and r.created_at >= mes_desde(mes_en_curso(t.timezone), t.timezone))
+             as usadas
+      from tenants t
+     where t.id = ${tenantId}
   `)
   const fila = res.rows[0] as { max: number | null; usadas: number } | undefined
   const max = fila?.max === null || fila?.max === undefined ? null : Number(fila.max)

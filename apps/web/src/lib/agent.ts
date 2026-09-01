@@ -264,7 +264,7 @@ async function topeAlcanzado(tenantId: string): Promise<TopeDelPlan | null> {
         from tenants t
    left join ai_runs r
           on r.tenant_id = t.id
-         and r.created_at >= date_trunc('month', now())
+         and r.created_at >= mes_desde(mes_en_curso(t.timezone), t.timezone)
        where t.id = ${tenantId}
        group by t.ai_monthly_cost_cap
     `)

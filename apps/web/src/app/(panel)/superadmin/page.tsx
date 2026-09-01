@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { listarCuentas } from '@/lib/usuarios'
+import { listarCuentas, mesesDeConsumo } from '@/lib/usuarios'
+import { mesPedido, rotuloMes, cuando } from '@/lib/meses'
 import { AccionesCuenta } from './acciones'
 import { CambiarPlan } from './plan'
 import { IconSearch } from '@/components/icons'
@@ -17,6 +18,12 @@ export const dynamic = 'force-dynamic'
  * rótulo propio de cada una aparece en la columna Rubro y, adentro, en todo
  * el panel.
  *
+ * El consumo de IA se mira por MES o entero. Un panel que solo muestra el
+ * mes en curso no sirve para decidir nada: el día 2 está casi vacío, no deja
+ * ver si una cuenta viene creciendo, y el 1º a la madrugada borra el mes que
+ * importaba. Lo que se elige acá viaja en la URL, así que un mes puntual se
+ * puede compartir por link.
+ *
  * Muestra NÚMEROS, no datos. El superadmin ve cuántos contactos tiene cada
  * cuenta y cuánto gastó de IA, pero no puede leer un solo mensaje ni un
  * nombre de paciente: eso lo garantiza RLS, no esta pantalla. Ver el
@@ -25,27 +32,41 @@ export const dynamic = 'force-dynamic'
 export default async function SuperadminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; p?: string; pp?: string; r?: string; m?: string }>
+  searchParams: Promise<{
+    q?: string
+    p?: string
+    pp?: string
+    r?: string
+    m?: string
+    mes?: string
+  }>
 }) {
   const session = await getSession()
   if (!session?.isSuperadmin) notFound()
 
-  const { q, p, pp, r, m } = await searchParams
+  const { q, p, pp, r, m, mes: mesParam } = await searchParams
   const porPagina = Number(pp) || 25
-  const datos = await listarCuentas({
-    pagina: Number(p) || 1,
-    porPagina,
-    buscar: q,
-  })
+  const mes = mesPedido(mesParam)
+  const [datos, meses] = await Promise.all([
+    listarCuentas({ pagina: Number(p) || 1, porPagina, buscar: q, mes }),
+    mesesDeConsumo(),
+  ])
   const cuentas = datos.filas
+  // Los topes son MENSUALES. Contra el histórico acumulado no significan
+  // nada —"gastó 40 de un tope de 25" es falso si son seis meses— y contra un
+  // mes cerrado tampoco: el tope pudo haber cambiado desde entonces. Así que
+  // el divisor y el rojo aparecen solo en el mes en curso, que es el único
+  // donde la comparación es cierta.
+  const esMesEnCurso = mes !== null && mes === meses[0]
   // El total de IA es de la página visible, no de toda la plataforma: dejarlo
   // ambiguo sería peor que decirlo.
-  const totalIa = cuentas.reduce((a, c) => a + Number(c.costoIaMes), 0)
+  const totalIa = cuentas.reduce((a, c) => a + Number(c.costoIa), 0)
 
   const link = (n: number) => {
     const sp = new URLSearchParams({ p: String(n) })
     if (porPagina !== 25) sp.set('pp', String(porPagina))
     if (q) sp.set('q', q)
+    if (mesParam) sp.set('mes', mesParam)
     return `/superadmin?${sp.toString()}`
   }
 
@@ -103,7 +124,7 @@ export default async function SuperadminPage({
             </div>
           </div>
           <div className="stat">
-            <div className="lbl">Costo de IA este mes</div>
+            <div className="lbl">Costo de IA · {rotuloMes(mes)}</div>
             <div className="val mono">USD {totalIa.toFixed(2)}</div>
             <div className="delta muted" style={{ fontWeight: 500 }}>
               de esta página
@@ -126,6 +147,21 @@ export default async function SuperadminPage({
             {[10, 25, 50, 100].map((n) => (
               <option key={n} value={n}>{n} por página</option>
             ))}
+          </select>
+          <select
+            name="mes"
+            defaultValue={mesParam ?? ''}
+            className="select"
+            style={{ width: 'auto' }}
+            aria-label="Período del consumo de IA"
+          >
+            {meses.map((v, i) => (
+              <option key={v} value={i === 0 ? '' : v}>
+                {rotuloMes(v)}
+                {i === 0 ? ' (en curso)' : ''}
+              </option>
+            ))}
+            <option value="todo">Histórico acumulado</option>
           </select>
           <button type="submit" className="btn btn-primary btn-sm">Aplicar</button>
         </form>
@@ -152,13 +188,21 @@ export default async function SuperadminPage({
                   </th>
                   <th
                     style={{ textAlign: 'right' }}
-                    title="Conversaciones distintas que atendió la IA este mes, sobre el cupo del plan. Es el mismo número que ve el cliente en Asistente IA."
+                    title={
+                      esMesEnCurso
+                        ? 'Conversaciones distintas que atendió la IA este mes, sobre el cupo del plan. Es el mismo número que ve el cliente en Asistente IA.'
+                        : `Conversaciones distintas que atendió la IA en ${cuando(mes)}. El cupo no se muestra: es mensual y pudo haber cambiado desde entonces.`
+                    }
                   >
-                    IA este mes
+                    IA · {rotuloMes(mes)}
                   </th>
                   <th
                     style={{ textAlign: 'right' }}
-                    title="Gastado en IA este mes, sobre el tope de la cuenta"
+                    title={
+                      esMesEnCurso
+                        ? 'Gastado en IA este mes, sobre el tope de la cuenta'
+                        : `Gastado en IA en ${cuando(mes)}. El tope no se muestra: es mensual y no se puede comparar contra esto.`
+                    }
                   >
                     Costo USD
                   </th>
@@ -167,13 +211,15 @@ export default async function SuperadminPage({
               </thead>
               <tbody>
                 {cuentas.map((c) => {
-                  const gasto = Number(c.costoIaMes)
+                  const gasto = Number(c.costoIa)
                   const tope = Number(c.topeIa)
-                  const cerca = tope > 0 && gasto / tope > 0.8
+                  const cerca = esMesEnCurso && tope > 0 && gasto / tope > 0.8
                   // El cupo que se vende. Se marca antes que el de gasto:
                   // es el que el cliente conoce y por el que va a llamar.
                   const cupoJusto =
-                    c.cupoIa !== null && c.iaUsadas / c.cupoIa > 0.8
+                    esMesEnCurso &&
+                    c.cupoIa !== null &&
+                    c.iaUsadas / c.cupoIa > 0.8
                   return (
                     <tr key={c.id}>
                       <td>
@@ -216,7 +262,9 @@ export default async function SuperadminPage({
                         }}
                       >
                         {c.iaUsadas}
-                        <span className="muted">/{c.cupoIa ?? '∞'}</span>
+                        {esMesEnCurso ? (
+                          <span className="muted">/{c.cupoIa ?? '∞'}</span>
+                        ) : null}
                       </td>
                       <td
                         className="mono"
@@ -226,7 +274,10 @@ export default async function SuperadminPage({
                           fontWeight: cerca ? 600 : undefined,
                         }}
                       >
-                        {gasto.toFixed(2)} / {tope.toFixed(0)}
+                        {gasto.toFixed(2)}
+                        {esMesEnCurso ? (
+                          <span className="muted"> / {tope.toFixed(0)}</span>
+                        ) : null}
                       </td>
                       <td style={{ textAlign: 'right', position: 'relative' }}>
                         <AccionesCuenta

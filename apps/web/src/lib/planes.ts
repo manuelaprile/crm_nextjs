@@ -58,9 +58,9 @@ export type Plan = {
    * conversaciones y no tokens.
    *
    * Está calculado con holgura sobre lo medido en producción el 31/08/2026:
-   * USD 0,006 por conversación, o sea unos USD 3 en Start y USD 9 en Pro.
-   * Estos números son 8 y 7 veces eso. Si alguna cuenta lo toca, es un bicho,
-   * no un cliente que usa mucho.
+   * USD 0,006 por conversación, o sea menos de USD 2 en Start y USD 6 en Pro
+   * con el cupo lleno. Estos números son más de diez veces eso. Si alguna
+   * cuenta lo toca, es un bicho, no un cliente que usa mucho.
    */
   topeGastoUsd: number | null
 }
@@ -75,7 +75,7 @@ export const PLANES: Plan[] = [
     precioUsd: 79,
     maxUsuarios: 3,
     maxNumeros: 1,
-    conversacionesIa: 500,
+    conversacionesIa: 300,
     topeGastoUsd: 25,
   },
   {
@@ -84,7 +84,7 @@ export const PLANES: Plan[] = [
     precioUsd: 149,
     maxUsuarios: 8,
     maxNumeros: 1,
-    conversacionesIa: 1_500,
+    conversacionesIa: 900,
     topeGastoUsd: 60,
   },
   {

@@ -18,6 +18,7 @@ import { cookies } from 'next/headers'
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { requireAdmin, getSession } from './auth'
+import { mesActual, type Mes } from './meses'
 import { dentroDelTope } from './planes'
 import { etiquetaDe, delRubro } from './etiquetas'
 import type { TenantRole } from './db/client'
@@ -342,15 +343,17 @@ export type FilaCuenta = {
   usuarios: number
   contactos: number
   conversaciones: number
-  costoIaMes: string
+  /** Gastado en IA dentro del período pedido. */
+  costoIa: string
   topeIa: string
   creado: string
   /** Los cuatro límites del plan. null = sin tope. */
   maxUsuarios: number | null
   maxNumeros: number | null
   cupoIa: number | null
-  /** Conversaciones que la IA atendió este mes. La misma cuenta que ve el
-   *  cliente en su medidor: si dieran distinto, el soporte sería imposible. */
+  /** Conversaciones que la IA atendió en el período. Con el mes en curso es
+   *  la misma cuenta que ve el cliente en su medidor: si dieran distinto, el
+   *  soporte sería imposible. */
   iaUsadas: number
 }
 
@@ -370,7 +373,13 @@ export type PaginaCuentas = {
 }
 
 export async function listarCuentas(
-  opts: { pagina?: number; porPagina?: number; buscar?: string } = {},
+  opts: {
+    pagina?: number
+    porPagina?: number
+    buscar?: string
+    /** `'2026-08'` para un mes, null para el histórico. */
+    mes?: Mes
+  } = {},
 ): Promise<PaginaCuentas> {
   const session = await getSession()
   if (!session?.isSuperadmin) throw new Error('no autorizado')
@@ -379,10 +388,16 @@ export async function listarCuentas(
   const pagina = Math.max(1, opts.pagina ?? 1)
   const offset = (pagina - 1) * porPagina
   const buscar = opts.buscar?.trim() || null
+  // `undefined` es "no me lo dijeron" y cae en el mes en curso, que es lo
+  // que la pantalla mostraba antes del desplegable. `null` es una elección:
+  // el histórico. Por eso no alcanza con `??`.
+  const mes = opts.mes === undefined ? mesActual() : opts.mes
+  const primerDia = mes === null ? null : `${mes}-01`
 
   return withoutTenant(async (tx) => {
     const res = await tx.execute(sql`
-      select *, count(*) over () as total from superadmin_resumen()
+      select *, count(*) over () as total
+        from superadmin_resumen(${primerDia}::date)
        where (${buscar}::text is null
               or inmutable_unaccent(name) ilike inmutable_unaccent('%' || ${buscar} || '%')
               or slug ilike '%' || ${buscar} || '%')
@@ -401,7 +416,7 @@ export async function listarCuentas(
       usuarios: Number(r.usuarios),
       contactos: Number(r.contactos),
       conversaciones: Number(r.conversaciones),
-      costoIaMes: String(r.costo_ia_mes ?? '0'),
+      costoIa: String(r.costo_ia ?? '0'),
       topeIa: String(r.tope_ia ?? '0'),
       creado: String(r.created_at),
       maxUsuarios: r.max_users === null ? null : Number(r.max_users),
@@ -417,6 +432,30 @@ export async function listarCuentas(
       porPagina,
       paginas: Math.max(1, Math.ceil(total / porPagina)),
     }
+  })
+}
+
+/**
+ * Los meses que tienen consumo, del más nuevo al más viejo.
+ *
+ * Salen de la base y no de un `for` de doce vueltas: un desplegable con meses
+ * vacíos hace dudar de la pantalla —"¿julio dio cero o está roto?"— y a los
+ * dos años esconde el histórico abajo de meses inventados. El mes en curso lo
+ * agrega la función aunque todavía no haya ninguna corrida.
+ */
+export async function mesesDeConsumo(): Promise<string[]> {
+  const session = await getSession()
+  if (!session?.isSuperadmin) throw new Error('no autorizado')
+
+  return withoutTenant(async (tx) => {
+    const res = await tx.execute(
+      // El alias no es cosmético: una función que devuelve `setof date` trae
+      // la columna con SU nombre, así que sin `as m(mes)` la referencia de
+      // arriba no existe.
+      sql`select to_char(m.mes, 'YYYY-MM') as mes
+            from superadmin_meses_de_consumo() as m(mes)`,
+    )
+    return (res.rows as { mes: string }[]).map((r) => r.mes)
   })
 }
 
