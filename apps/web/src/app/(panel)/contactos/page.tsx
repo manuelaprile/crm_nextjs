@@ -4,6 +4,7 @@ import { etiquetaDe, delRubro, type Etiqueta } from '@/lib/etiquetas'
 import { getPipeline, getStages, listContacts } from '@/lib/queries'
 import { usuariosDeLaCuenta } from '@/lib/asignacion'
 import { funcionActiva } from '@/lib/funciones'
+import { cupoDeContactosDeCuenta } from '@/lib/cupo'
 import {
   IconSearch,
   IconTablero,
@@ -43,6 +44,10 @@ export default async function ContactosPage({
 }) {
   const session = await requireTenant()
   const etiqueta = etiquetaDe(session)
+  // El tope del plan. Va acá y no solo en Configuración porque es acá donde
+  // el cliente ve crecer la lista, y donde se va a preguntar por qué al
+  // último que entró no le contesta el asistente.
+  const cupo = await cupoDeContactosDeCuenta(session.tenantId)
   const { ver, vista, q, etapa, p, pp, r, m } = await searchParams
   const archivados = ver === 'archivados'
 
@@ -96,6 +101,23 @@ export default async function ContactosPage({
             style={{ marginBottom: 14 }}
           >
             <span>{m}</span>
+          </div>
+        ) : null}
+
+        {/*
+          El aviso del tope. Dice qué pasa de verdad y no solo que se acabó:
+          los contactos siguen entrando, lo que se corta es el asistente, y
+          los que ya estaban no se tocan. Sin esas tres cosas el cliente cree
+          que dejó de recibir mensajes y llama pensando que está roto.
+        */}
+        {!cupo.hayLugar ? (
+          <div className="alert alert-red" style={{ marginBottom: 14 }}>
+            <span>
+              Llegaste al límite de {cupo.max?.toLocaleString('es-AR')}{' '}
+              contactos de tu plan. Los nuevos se siguen recibiendo, pero el
+              asistente no los va a atender: hay que responderles a mano hasta
+              que mejores el plan. Los que ya tenías siguen igual.
+            </span>
           </div>
         ) : null}
 

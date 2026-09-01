@@ -67,83 +67,60 @@ export async function cupoDeWhatsApp(tx: Db, tenantId: string): Promise<Cupo> {
 }
 
 // =====================================================================
-// EL CUPO DE IA
+// EL TOPE DE CONTACTOS — LO QUE SE VENDE
 // =====================================================================
 /**
- * Cuántas conversaciones atendió la IA este mes, y cuántas entran.
+ * Cuántos contactos entran en el plan y cuántos hay.
  *
- * Una CONVERSACIÓN distinta, no una respuesta: es la unidad con la que se
- * venden los planes ("500 conversaciones atendidas por IA / mes") y es lo que
- * entiende el cliente. Hoy una conversación son unas cinco respuestas del
- * modelo, así que las dos formas de contar dan números que no se parecen.
+ * ACUMULADO, no por mes. Es el tamaño de la lista, como en Mailchimp: lo que
+ * el cliente juntó se queda, y cuando llega al tope mejora el plan. Reemplazó
+ * al cupo mensual de conversaciones, que describía mal a un CRM —la gente que
+ * entró en marzo sigue ahí en septiembre— y que además había que explicarle
+ * al cliente. Cuántos contactos tiene ya lo sabe.
  *
- * El período es el CICLO DEL PLAN, no el mes calendario: los planes se
- * cobran por fecha de contratación, así que el que contrata un 10 tiene su
- * cupo del 10 al 10. Con el mes calendario, quien contrataba un 25 tenía sus
- * conversaciones hasta fin de mes y otras tantas el 1º —el doble adentro del
- * primer mes que pagó— y "te quedan 40 hasta que se renueve" no se podía
- * decir con precisión. El ancla es `tenants.plan_desde` (0038).
+ * Los ARCHIVADOS no ocupan lugar. Es lo que hace que el tope se administre
+ * solo: el que llegó a 300 limpia lo que no le sirve y sigue, sin llamar a
+ * soporte.
  *
- * Y el día del ciclo es el de la CUENTA, no el de UTC: con la zona del
- * servidor el cupo se le renovaría a las nueve de la noche del día anterior.
- * El corte lo hacen `ciclo_desde` / `ciclo_hasta`, las mismas funciones que
- * usa `superadmin_resumen`.
- *
- * Las lecturas de archivo quedan afuera solas: se registran con
- * `conversation_id` en null (ver `ai/lector.ts`). Cuestan plata pero no
- * atienden a nadie, así que suman al tope de gasto y no a este.
- *
- * Depende de la 0033. Con la llave foránea que había antes, borrar un
- * contacto vaciaba las corridas de su conversación y el cliente se bajaba el
- * contador solo.
+ * Esto es para MOSTRARLO. Quién queda adentro y quién afuera lo decide
+ * `contacto_dentro_del_plan` en la base, contacto por contacto, y ahí es
+ * donde de verdad se corta la IA.
  */
-export type CupoIa = {
-  usadas: number
+export type CupoContactos = {
+  usados: number
   /** null = sin tope (Business). */
   max: number | null
   hayLugar: boolean
-  /** Cuándo se renueva, en `YYYY-MM-DD`. Sale de la base y no de un cálculo
-   *  en JavaScript: es la misma fecha que decide el corte. */
-  renuevaEl: string
 }
 
-export async function cupoDeIa(tx: Db, tenantId: string): Promise<CupoIa> {
+export async function cupoDeContactos(
+  tx: Db,
+  tenantId: string,
+): Promise<CupoContactos> {
   const res = await tx.execute(sql`
-    select t.ai_monthly_conversation_cap as max,
-           to_char(ciclo_hasta(t.plan_desde, t.timezone), 'YYYY-MM-DD') as renueva,
-           (select count(distinct r.conversation_id)::int from ai_runs r
-             where r.tenant_id = t.id
-               and r.conversation_id is not null
-               and r.created_at >= mes_desde(
-                     ciclo_desde(t.plan_desde, t.timezone), t.timezone)
-               and r.created_at < mes_desde(
-                     ciclo_hasta(t.plan_desde, t.timezone), t.timezone))
-             as usadas
+    select t.max_contacts as max,
+           (select count(*)::int from contacts c
+             where c.tenant_id = t.id and c.archived_at is null) as usados
       from tenants t
      where t.id = ${tenantId}
   `)
-  const fila = res.rows[0] as
-    | { max: number | null; usadas: number; renueva: string }
-    | undefined
+  const fila = res.rows[0] as { max: number | null; usados: number } | undefined
   const max = fila?.max === null || fila?.max === undefined ? null : Number(fila.max)
-  const usadas = Number(fila?.usadas ?? 0)
-  return {
-    usadas,
-    max,
-    hayLugar: dentroDelTope(usadas, max),
-    renuevaEl: fila?.renueva ?? '',
-  }
+  const usados = Number(fila?.usados ?? 0)
+  return { usados, max, hayLugar: dentroDelTope(usados, max) }
 }
 
 /**
- * El cupo de IA de una cuenta, para mostrarlo en pantalla.
+ * El tope de contactos de una cuenta, para mostrarlo en pantalla.
  *
- * Va por `withSystem` como `funcionesDe`: `ai_runs` no se consulta desde el
- * panel en ningún otro lado, y el `tenantId` sale de la sesión del servidor,
- * nunca del navegador. Ver las reglas de `withSystem` en `db/client.ts`.
+ * Va por `withSystem` como `funcionesDe`: el `tenantId` sale de la sesión del
+ * servidor, nunca del navegador. Ver las reglas de `withSystem` en
+ * `db/client.ts`.
  */
-export async function cupoDeIaDeCuenta(tenantId: string): Promise<CupoIa> {
-  return withSystem((tx) => cupoDeIa(tx, tenantId))
+export async function cupoDeContactosDeCuenta(
+  tenantId: string,
+): Promise<CupoContactos> {
+  return withSystem((tx) => cupoDeContactos(tx, tenantId))
 }
 
 /**

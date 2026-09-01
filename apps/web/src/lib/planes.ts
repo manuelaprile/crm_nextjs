@@ -47,8 +47,15 @@ export type Plan = {
   /** null = sin tope, en todos los que siguen. */
   maxUsuarios: number | null
   maxNumeros: number | null
-  /** Conversaciones distintas atendidas por la IA, por mes calendario. */
-  conversacionesIa: number | null
+  /**
+   * Cuántos contactos entran en el plan. ACUMULADOS, no por mes: un CRM
+   * junta gente y la que entró en marzo sigue ahí en septiembre.
+   *
+   * Cuando la cuenta llega al tope, los contactos nuevos se siguen
+   * recibiendo —del otro lado hay alguien que escribió— pero la IA no los
+   * atiende. Los que ya estaban adentro del tope siguen igual.
+   */
+  maxContactos: number | null
   /**
    * Tope de gasto en dólares de IA, por mes.
    *
@@ -58,9 +65,12 @@ export type Plan = {
    * conversaciones y no tokens.
    *
    * Está calculado con holgura sobre lo medido en producción el 31/08/2026:
-   * USD 0,006 por conversación, o sea menos de USD 2 en Start y USD 6 en Pro
-   * con el cupo lleno. Estos números son más de diez veces eso. Si alguna
-   * cuenta lo toca, es un bicho, no un cliente que usa mucho.
+   * USD 0,006 por conversación. Desde que el plan se mide en contactos
+   * (0039) este tope es la ÚNICA red contra el gasto: un contacto puede
+   * escribir todos los días del mes, y eso ya no lo limita nada más. 300
+   * contactos hablando diez veces cada uno son unos USD 18, así que el tope
+   * de Start está bien puesto — pero conviene mirarlo de vez en cuando en la
+   * vista de plataforma, que para eso muestra el costo del mes.
    */
   topeGastoUsd: number | null
 }
@@ -75,7 +85,7 @@ export const PLANES: Plan[] = [
     precioUsd: 79,
     maxUsuarios: 3,
     maxNumeros: 1,
-    conversacionesIa: 300,
+    maxContactos: 300,
     topeGastoUsd: 25,
   },
   {
@@ -84,17 +94,17 @@ export const PLANES: Plan[] = [
     precioUsd: 149,
     maxUsuarios: 8,
     maxNumeros: 1,
-    conversacionesIa: 900,
+    maxContactos: 900,
     topeGastoUsd: 60,
   },
   {
     codigo: 'business',
     nombre: 'Business',
-    // A cotizar según alcance. Los cupos se cargan por cuenta al cerrarlo.
+    // A cotizar según alcance. Los topes se cargan por cuenta al cerrarlo.
     precioUsd: null,
     maxUsuarios: null,
     maxNumeros: null,
-    conversacionesIa: null,
+    maxContactos: null,
     // Business no queda SIN tope de gasto: "a medida" es una negociación
     // comercial, no una barra libre contra la cuenta de OpenAI. Se sube por
     // cuenta cuando el volumen lo justifica.

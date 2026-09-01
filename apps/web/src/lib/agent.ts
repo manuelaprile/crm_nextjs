@@ -43,7 +43,6 @@ import {
   toolsDeAgenda,
 } from './agenda-agente'
 import { configAgenda } from './agenda'
-import { cupoDeIa } from './cupo'
 import type { TemaConEncargado } from './conocimiento-agente'
 import {
   TOOL_TEMA,
@@ -105,25 +104,28 @@ export async function runAgentForConversation(
   // Dos topes, y los dos derivan a una persona en vez de cortar. Al que
   // escribe no se le rompe nada: lo atiende alguien del equipo.
   //
-  //  - Conversaciones: es lo que se vende y lo que ve el cliente en el
-  //    medidor.
-  //  - Dólares: la red contra lo que el otro no atrapa. Un catálogo enorme
-  //    releído en loop gasta muchísimo en UNA conversación, y el contador de
-  //    conversaciones ni se entera.
+  //  - Contactos: es lo que se vende. Corta POR CONTACTO, no por cuenta: los
+  //    que entran en el tope siguen con asistente, y solo los que llegaron
+  //    después pasan a mano. Un cliente que sumó gente nueva no se queda sin
+  //    asistente para los que ya tenía.
+  //  - Dólares: la red contra lo que el otro no atrapa. Desde que el plan se
+  //    mide en contactos, un solo contacto puede escribir todos los días del
+  //    mes y el tope de contactos ni se entera.
   //
-  // El motivo va al log con nombre propio: "alcanzó el cupo del plan" y "algo
-  // está gastando de más" son dos llamados distintos al cliente.
-  const tope = await topeAlcanzado(ctx.tenantId)
+  // El motivo va al log con nombre propio: "se le llenó el plan" y "algo está
+  // gastando de más" son dos llamados distintos al cliente.
+  const tope = await topeAlcanzado(ctx.tenantId, ctx.contactId)
   if (tope) {
     console.warn('[agente] tope del plan alcanzado', {
       tenantId: ctx.tenantId,
+      contactId: ctx.contactId,
       tope,
     })
     await handoff(
       ctx,
-      tope === 'conversaciones'
-        ? 'Cupo mensual de conversaciones alcanzado'
-        : 'Tope mensual de gasto de IA alcanzado',
+      tope === 'contactos'
+        ? 'Contacto fuera del tope del plan'
+        : 'Tope de gasto de IA alcanzado',
       'Gracias por escribir. En un momento te responde una persona del equipo.',
     )
     return
@@ -244,19 +246,31 @@ function matchesHandoff(text: string, keywords: string[]): boolean {
 }
 
 /**
- * ¿Se acabó algo del plan? Devuelve qué, o null si hay lugar.
+ * ¿Se acabó algo del plan para ESTE contacto? Devuelve qué, o null si puede.
  *
- * El orden importa poco para el resultado pero mucho para el mensaje: se
- * mira primero el cupo de conversaciones, que es lo que el cliente compró y
- * entiende. Que el aviso diga "gasto de IA" cuando en realidad llegó a las
- * 500 conversaciones de su plan es una llamada al soporte garantizada.
+ * El orden importa poco para el resultado pero mucho para el mensaje: se mira
+ * primero el tope de contactos, que es lo que el cliente compró y entiende.
+ * Que el aviso diga "gasto de IA" cuando en realidad se le llenó el plan es
+ * una llamada al soporte garantizada.
+ *
+ * Quién entra y quién no lo decide `contacto_dentro_del_plan` en la base, y
+ * no un cálculo acá: el mismo criterio tiene que valer para el agente y para
+ * lo que se le muestra al cliente en pantalla.
  */
-type TopeDelPlan = 'conversaciones' | 'gasto'
+type TopeDelPlan = 'contactos' | 'gasto'
 
-async function topeAlcanzado(tenantId: string): Promise<TopeDelPlan | null> {
+async function topeAlcanzado(
+  tenantId: string,
+  contactId: string | null,
+): Promise<TopeDelPlan | null> {
   return withSystem(async (tx) => {
-    const cupo = await cupoDeIa(tx, tenantId)
-    if (!cupo.hayLugar) return 'conversaciones'
+    const dentro = await tx.execute(sql`
+      select contacto_dentro_del_plan(${tenantId}::uuid, ${contactId}::uuid) as ok
+    `)
+    // Sin fila no se pudo consultar. Se sigue: cortar el asistente por un
+    // problema nuestro es peor que gastar una respuesta de más.
+    const fila = dentro.rows[0] as { ok: boolean | null } | undefined
+    if (fila?.ok === false) return 'contactos'
 
     const res = await tx.execute(sql`
       select t.ai_monthly_cost_cap as cap,

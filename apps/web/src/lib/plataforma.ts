@@ -179,7 +179,7 @@ export async function cambiarPlanCuenta(formData: FormData): Promise<void> {
 
   const maxUsuarios = topeODefecto(formData.get('maxUsuarios'))
   const maxNumeros = topeODefecto(formData.get('maxNumeros'))
-  const cupoIa = topeODefecto(formData.get('cupoIa'))
+  const maxContactos = topeODefecto(formData.get('maxContactos'))
   const topeGasto = topeODefecto(formData.get('topeGasto'))
   // Del `<input type="date">` viene 'YYYY-MM-DD' o vacío. Vacío se rechaza
   // en la base, que es donde tiene que estar la regla.
@@ -193,7 +193,7 @@ export async function cambiarPlanCuenta(formData: FormData): Promise<void> {
       sql`select superadmin_cambiar_plan(
             ${hash}, ${tenantId}::uuid, ${plan},
             ${maxUsuarios}::int, ${maxNumeros}::int,
-            ${cupoIa}::int, ${topeGasto}::numeric,
+            ${maxContactos}::int, ${topeGasto}::numeric,
             ${planDesde}::date) as ok`,
     )
     return Boolean(r.rows[0]?.ok)

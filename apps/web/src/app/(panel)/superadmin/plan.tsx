@@ -29,7 +29,7 @@ export function CambiarPlan({ cuenta }: { cuenta: FilaCuenta }) {
   const [plan, setPlan] = useState(cuenta.plan)
   const [maxUsuarios, setMaxUsuarios] = useState(txt(cuenta.maxUsuarios))
   const [maxNumeros, setMaxNumeros] = useState(txt(cuenta.maxNumeros))
-  const [cupoIa, setCupoIa] = useState(txt(cuenta.cupoIa))
+  const [maxContactos, setMaxContactos] = useState(txt(cuenta.maxContactos))
   const [topeGasto, setTopeGasto] = useState(cuenta.topeIa ?? '')
   const [planDesde, setPlanDesde] = useState(cuenta.planDesde)
 
@@ -42,7 +42,7 @@ export function CambiarPlan({ cuenta }: { cuenta: FilaCuenta }) {
     if (!p) return
     setMaxUsuarios(txt(p.maxUsuarios))
     setMaxNumeros(txt(p.maxNumeros))
-    setCupoIa(txt(p.conversacionesIa))
+    setMaxContactos(txt(p.maxContactos))
     setTopeGasto(txt(p.topeGastoUsd))
   }
 
@@ -91,8 +91,8 @@ export function CambiarPlan({ cuenta }: { cuenta: FilaCuenta }) {
               value={maxNumeros} onChange={setMaxNumeros}
             />
             <Campo
-              id={`ia-${cuenta.id}`} name="cupoIa" label="Conversaciones"
-              value={cupoIa} onChange={setCupoIa}
+              id={`ct-${cuenta.id}`} name="maxContactos" label="Contactos"
+              value={maxContactos} onChange={setMaxContactos}
             />
             <Campo
               id={`gs-${cuenta.id}`} name="topeGasto" label="Tope USD"
@@ -115,9 +115,9 @@ export function CambiarPlan({ cuenta }: { cuenta: FilaCuenta }) {
           </div>
 
           <p className="tiny muted" style={{ margin: 0 }}>
-            Vacío = sin tope. El cupo se renueva todos los{' '}
-            {Number(cuenta.planDesde.slice(8, 10))} de cada mes: lleva{' '}
-            {cuenta.iaCiclo} de este ciclo, que va del{' '}
+            Vacío = sin tope. Tiene {cuenta.contactos} contactos sin archivar.
+            Cobra todos los {Number(cuenta.planDesde.slice(8, 10))} y lleva{' '}
+            {cuenta.iaCiclo} conversaciones con IA en este ciclo, del{' '}
             {corto(cuenta.cicloInicio)} al {corto(cuenta.cicloFin)}.
           </p>
 

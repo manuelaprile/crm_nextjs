@@ -351,6 +351,8 @@ export type FilaCuenta = {
   maxUsuarios: number | null
   maxNumeros: number | null
   cupoIa: number | null
+  /** El tope del plan desde la 0039: contactos sin archivar. null = sin tope. */
+  maxContactos: number | null
   /** Conversaciones que la IA atendió en el MES elegido. Es la mirada de
    *  costo: se compara contra la factura del proveedor, que viene por mes
    *  calendario. */
@@ -439,6 +441,7 @@ export async function listarCuentas(
       maxUsuarios: r.max_users === null ? null : Number(r.max_users),
       maxNumeros: r.max_wa === null ? null : Number(r.max_wa),
       cupoIa: r.cupo_ia === null ? null : Number(r.cupo_ia),
+      maxContactos: r.max_contactos === null ? null : Number(r.max_contactos),
       iaUsadas: Number(r.ia_usadas ?? 0),
       planDesde: String(r.plan_desde_txt ?? ''),
       cicloInicio: String(r.ciclo_inicio_txt ?? ''),

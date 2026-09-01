@@ -179,7 +179,12 @@ export default async function SuperadminPage({
                   <th>Estado</th>
                   <th>Plan</th>
                   <th style={{ textAlign: 'right' }}>Usuarios</th>
-                  <th style={{ textAlign: 'right' }}>Contactos</th>
+                  <th
+                    style={{ textAlign: 'right' }}
+                    title="Contactos sin archivar sobre el tope del plan. Es el límite que se vende: pasado el tope los contactos nuevos entran igual, pero sin asistente."
+                  >
+                    Contactos
+                  </th>
                   <th
                     style={{ textAlign: 'right' }}
                     title="Todas las conversaciones que tuvo la cuenta desde que existe. NO sigue al desplegable de arriba: es lo que la cuenta tiene, no lo que pasó en un mes."
@@ -188,11 +193,7 @@ export default async function SuperadminPage({
                   </th>
                   <th
                     style={{ textAlign: 'right' }}
-                    title={
-                      esMesEnCurso
-                        ? 'Conversaciones distintas que atendió la IA este mes, sobre el cupo del plan. Es el mismo número que ve el cliente en Asistente IA.'
-                        : `Conversaciones distintas que atendió la IA en ${cuando(mes)}. El cupo no se muestra: es mensual y pudo haber cambiado desde entonces.`
-                    }
+                    title={`Conversaciones distintas que atendió la IA en ${cuando(mes)}. Ya no es un límite —el plan se mide en contactos— pero muestra cuánto se usa el asistente.`}
                   >
                     IA · {rotuloMes(mes)}
                   </th>
@@ -214,12 +215,12 @@ export default async function SuperadminPage({
                   const gasto = Number(c.costoIa)
                   const tope = Number(c.topeIa)
                   const cerca = esMesEnCurso && tope > 0 && gasto / tope > 0.8
-                  // El cupo que se vende. Se marca antes que el de gasto:
-                  // es el que el cliente conoce y por el que va a llamar.
-                  const cupoJusto =
-                    esMesEnCurso &&
-                    c.cupoIa !== null &&
-                    c.iaUsadas / c.cupoIa > 0.8
+                  // El tope que se vende. Se marca antes que el de gasto: es
+                  // el que el cliente conoce y por el que va a llamar. No
+                  // depende del mes elegido: los contactos son acumulados.
+                  const contactosJustos =
+                    c.maxContactos !== null &&
+                    c.contactos / c.maxContactos > 0.8
                   return (
                     <tr key={c.id}>
                       <td>
@@ -249,22 +250,22 @@ export default async function SuperadminPage({
                         {c.usuarios}
                         <span className="muted">/{c.maxUsuarios ?? '∞'}</span>
                       </td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{c.contactos}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>
-                        {c.conversaciones}
-                      </td>
                       <td
                         className="mono"
                         style={{
                           textAlign: 'right',
-                          color: cupoJusto ? 'var(--c-danger)' : undefined,
-                          fontWeight: cupoJusto ? 600 : undefined,
+                          color: contactosJustos ? 'var(--c-danger)' : undefined,
+                          fontWeight: contactosJustos ? 600 : undefined,
                         }}
                       >
+                        {c.contactos}
+                        <span className="muted">/{c.maxContactos ?? '∞'}</span>
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {c.conversaciones}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
                         {c.iaUsadas}
-                        {esMesEnCurso ? (
-                          <span className="muted">/{c.cupoIa ?? '∞'}</span>
-                        ) : null}
                       </td>
                       <td
                         className="mono"
