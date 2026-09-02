@@ -137,6 +137,8 @@ export async function crearPlantillaAccion(formData: FormData): Promise<void> {
     const crudo = r.error
     const claro = /already exists|duplicate/i.test(crudo)
       ? 'Ya existe una plantilla con ese nombre. Poné otro.'
+      : /expected one of .*image|expected one of .*body/i.test(crudo)
+        ? `Zernio rechazó el formato del mensaje: ${crudo}`
       : /discriminator|component/i.test(crudo)
         ? 'El formato del mensaje no fue aceptado. Probá con un texto simple, sin encabezado ni botones.'
         : /invalid format|variable syntax/i.test(crudo)

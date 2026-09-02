@@ -582,7 +582,12 @@ export async function crearPlantilla(params: {
           ? [
               {
                 type: 'header',
-                format: 'IMAGE',
+                // MINÚSCULA, igual que `type`. Con 'IMAGE' contesta "Invalid
+                // option: expected one of text|image|video|gif|document|
+                // location". Meta documenta los dos en mayúscula y Zernio
+                // valida los dos en minúscula: copiar el ejemplo de Meta
+                // falla dos veces, una por campo.
+                format: 'image',
                 // La muestra que Meta mira para aprobar. No es la imagen que
                 // se manda después: en cada envío va la de esa campaña.
                 example: { header_handle: [params.imagenUrl] },
