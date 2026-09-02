@@ -36,7 +36,7 @@ export async function GET(
     throw err
   }
 
-  if (!(await moduloActivo('modulo:campanas', session.tenantId))) {
+  if (!(await moduloActivo('modulo-campanas', session.tenantId))) {
     return NextResponse.json({ error: 'no existe' }, { status: 404 })
   }
 

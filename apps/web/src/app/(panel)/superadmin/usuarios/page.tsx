@@ -56,17 +56,6 @@ export default async function UsuariosPlataformaPage({
       <div className="topnav">
         <h2>Usuarios</h2>
         <span className="badge b-dark">Superadmin</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <Link href="/superadmin/modulos" className="btn btn-ghost btn-sm">
-            Módulos
-          </Link>
-          <Link href="/superadmin/funciones" className="btn btn-ghost btn-sm">
-            Funciones
-          </Link>
-          <Link href="/superadmin" className="btn btn-ghost btn-sm">
-            Volver a cuentas
-          </Link>
-        </div>
       </div>
 
       <div className="content">

@@ -87,7 +87,7 @@ export default async function PanelLayout({
   const campanas =
     sinCuenta || !session.tenantId
       ? false
-      : await moduloActivo('modulo:campanas', session.tenantId)
+      : await moduloActivo('modulo-campanas', session.tenantId)
 
   // Una VISITA es un superadmin parado adentro de una cuenta de la que no es
   // miembro. Es legítimo —entró a dar soporte— pero tiene que verse.

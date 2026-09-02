@@ -128,10 +128,20 @@ export function Sidebar({
     })
   }
 
+  // Las cuatro pantallas de Plataforma van en el MENÚ y no en botones arriba
+  // de cada una. Con los botones, la sección donde estás parado no se ve —el
+  // botón de la pantalla actual no está— y para saber qué hay hay que entrar
+  // a alguna. En el menú se ven las cuatro y se ve cuál está abierta, igual
+  // que el resto del panel.
   if (esSuperadmin) {
     grupos.push({
       grp: 'Plataforma',
-      items: [{ href: '/superadmin', label: 'Cuentas', icon: <IconShield /> }],
+      items: [
+        { href: '/superadmin', label: 'Cuentas', icon: <IconShield /> },
+        { href: '/superadmin/modulos', label: 'Módulos', icon: <IconCampana /> },
+        { href: '/superadmin/funciones', label: 'Funciones', icon: <IconGear /> },
+        { href: '/superadmin/usuarios', label: 'Usuarios', icon: <IconUsers /> },
+      ],
     })
   }
 
@@ -142,6 +152,20 @@ export function Sidebar({
       items: [{ href: '/pruebas', label: 'Laboratorio', icon: <IconFlask /> }],
     })
   }
+
+  /**
+   * Cuál de los ítems está abierto: el que coincide MÁS LARGO con la ruta.
+   *
+   * Antes alcanzaba con "empieza con": ninguna sección era prefijo de otra.
+   * Ahora `/superadmin` es prefijo de `/superadmin/modulos`, y con la regla
+   * vieja se marcaban los dos —Cuentas quedaba resaltado estando en
+   * Módulos—. Elegir el más largo desempata: `/superadmin/modulos` le gana a
+   * `/superadmin` sin tener que enumerar excepciones.
+   */
+  const abiertoEn = grupos
+    .flatMap((g) => g.items.map((i) => i.href))
+    .filter((h) => pathname === h || pathname.startsWith(`${h}/`))
+    .sort((a, b) => b.length - a.length)[0]
 
   const rolLabel = sinCuenta
     ? 'Superadministrador'
@@ -219,8 +243,7 @@ export function Sidebar({
             <div key={g.grp}>
               <div className="grp">{g.grp}</div>
               {g.items.map((it) => {
-                const activo =
-                  pathname === it.href || pathname.startsWith(`${it.href}/`)
+                const activo = it.href === abiertoEn
                 return (
                   <Link
                     key={it.href}

@@ -28,9 +28,14 @@ import { interruptorActivo } from './funciones'
  * ======================================================================
  * EL CÓDIGO LLEVA PREFIJO
  * ======================================================================
- * `modulo:campanas`, no `campanas`. La tabla no distingue los dos mundos y su
+ * `modulo-campanas`, no `campanas`. La tabla no distingue los dos mundos y su
  * clave es `(tenant_id, codigo)`: sin prefijo, una función y un módulo que se
  * llamaran igual serían la misma fila y se pisarían en silencio.
+ *
+ * El separador es un GUION y no dos puntos porque `superadmin_funcion_cuenta`
+ * (0022) valida el código contra `^[a-z][a-z0-9-]{1,39}$` y rechaza cualquier
+ * otra cosa devolviendo `false`. Con dos puntos, el botón de la pantalla
+ * fallaba con un «No se pudo cambiar» que no explicaba nada.
  *
  * El código va a la base, así que cambiarlo pierde lo que cada cuenta tenía
  * elegido. Se elige una vez.
@@ -52,7 +57,7 @@ export type Modulo = {
 
 export const MODULOS: Modulo[] = [
   {
-    codigo: 'modulo:campanas',
+    codigo: 'modulo-campanas',
     nombre: 'Campañas',
     detalle:
       'Agrega la sección Campañas al panel del cliente: armar un mensaje, ' +

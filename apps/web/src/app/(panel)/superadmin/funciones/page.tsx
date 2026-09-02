@@ -39,17 +39,6 @@ export default async function FuncionesPage({
       <div className="topnav">
         <h2>Funciones</h2>
         <span className="badge b-dark">Superadmin</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <Link href="/superadmin" className="btn btn-ghost btn-sm">
-            Cuentas
-          </Link>
-          <Link href="/superadmin/modulos" className="btn btn-ghost btn-sm">
-            Módulos
-          </Link>
-          <Link href="/superadmin/usuarios" className="btn btn-ghost btn-sm">
-            Usuarios
-          </Link>
-        </div>
       </div>
 
       <div className="content">

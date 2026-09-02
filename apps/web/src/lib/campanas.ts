@@ -39,7 +39,7 @@ export type Campana = {
  */
 export async function puertaDelModulo() {
   const session = await requireTenant()
-  if (!(await moduloActivo('modulo:campanas', session.tenantId))) {
+  if (!(await moduloActivo('modulo-campanas', session.tenantId))) {
     throw new Error('modulo-no-contratado')
   }
   return session

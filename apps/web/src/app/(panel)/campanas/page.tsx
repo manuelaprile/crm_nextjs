@@ -25,7 +25,7 @@ export default async function CampanasPage({
   searchParams: Promise<{ r?: string; m?: string }>
 }) {
   const session = await requireTenant()
-  if (!(await moduloActivo('modulo:campanas', session.tenantId))) notFound()
+  if (!(await moduloActivo('modulo-campanas', session.tenantId))) notFound()
 
   const { r, m } = await searchParams
   const campanas = await listarCampanas()

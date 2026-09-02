@@ -23,7 +23,7 @@ export default async function EditarCampanaPage({
   searchParams: Promise<{ r?: string; m?: string }>
 }) {
   const session = await requireTenant()
-  if (!(await moduloActivo('modulo:campanas', session.tenantId))) notFound()
+  if (!(await moduloActivo('modulo-campanas', session.tenantId))) notFound()
 
   const { id } = await params
   const { r, m } = await searchParams
