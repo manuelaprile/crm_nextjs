@@ -1,76 +1,120 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireTenant } from '@/lib/auth'
 import { moduloActivo } from '@/lib/modulos'
-import { getStages } from '@/lib/queries'
-import { withTenant } from '@/lib/db/client'
-import { sql } from 'drizzle-orm'
-import { etiquetaDe } from '@/lib/etiquetas'
-import { Compositor } from './compositor'
+import { listarCampanas } from '@/lib/campanas'
+import { borrarCampana } from '@/lib/campanas-acciones'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Campañas: un mensaje a varios contactos.
+ * Las campañas de la cuenta.
  *
  * PUERTA DEL MÓDULO. Que el ítem no aparezca en el menú es prolijidad, no
- * seguridad: cualquiera puede escribir /campanas en la barra de direcciones.
- * El `notFound()` de acá es lo que de verdad cierra la pantalla, y va del
- * lado del servidor.
+ * seguridad: cualquiera puede escribir /campanas en la barra. El `notFound()`
+ * de acá es lo que cierra la pantalla, y va del lado del servidor.
  *
- * Se devuelve 404 y no un "no tenés este módulo" a propósito: para una cuenta
+ * Se devuelve 404 y no "no tenés este módulo" a propósito: para una cuenta
  * que no lo contrató, esta sección no existe. Un cartel que dice "esto se
  * compra aparte" en el medio del panel es publicidad adentro de una
  * herramienta de trabajo.
  */
-export default async function CampanasPage() {
+export default async function CampanasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ r?: string; m?: string }>
+}) {
   const session = await requireTenant()
   if (!(await moduloActivo('modulo:campanas', session.tenantId))) notFound()
 
-  const etiqueta = etiquetaDe(session)
-  const etapas = await getStages(session)
-
-  // Los contactos alcanzables y las etiquetas que existen, para armar los
-  // filtros con lo que esta cuenta tiene de verdad y no con una lista fija.
-  const { total, etiquetas } = await withTenant(session, async (tx) => {
-    const t = await tx.execute(sql`
-      select count(*)::int as n from contacts
-       where archived_at is null and phone is not null
-    `)
-    // Solo las etiquetas que alguien usó. Ofrecer para filtrar una etiqueta
-    // que no tiene ni un contacto da siempre cero destinatarios y parece que
-    // el filtro está roto.
-    const e = await tx.execute(sql`
-      select t.id, t.name, count(ct.contact_id)::int as usos
-        from tags t
-        join contact_tags ct on ct.tag_id = t.id
-        join contacts c on c.id = ct.contact_id and c.archived_at is null
-       group by t.id, t.name
-       order by t.name
-       limit 50
-    `)
-    return {
-      total: Number((t.rows[0] as { n: number } | undefined)?.n ?? 0),
-      etiquetas: (e.rows as { id: string; name: string }[]).map((r) => ({
-        id: String(r.id),
-        nombre: String(r.name),
-      })),
-    }
-  })
+  const { r, m } = await searchParams
+  const campanas = await listarCampanas()
 
   return (
     <>
       <div className="topnav">
         <h2>Campañas</h2>
-        <span className="badge b-gray mono">{total} alcanzables</span>
+        <span className="badge b-gray mono">{campanas.length}</span>
+        <div style={{ marginLeft: 'auto' }}>
+          <Link href="/campanas/nueva" className="btn btn-primary btn-sm">
+            Nueva campaña
+          </Link>
+        </div>
       </div>
 
       <div className="content">
-        <Compositor
-          etapas={etapas.map((e) => ({ id: e.id, nombre: e.name }))}
-          etiquetas={etiquetas}
-          totalContactos={total}
-          rubro={etiqueta.plural}
-        />
+        {m ? (
+          <div
+            className={`alert ${r === 'ok' ? 'alert-green' : 'alert-red'}`}
+            style={{ marginBottom: 16 }}
+          >
+            <span>{m}</span>
+          </div>
+        ) : null}
+
+        {campanas.length === 0 ? (
+          <div className="panel-box">
+            <div className="empty">
+              <b>Todavía no hay campañas</b>
+              Armá una y quedará guardada como borrador.
+            </div>
+          </div>
+        ) : (
+          <div className="panel-box">
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Campaña</th>
+                    <th>Destinatarios</th>
+                    <th>Estado</th>
+                    <th>Modificada</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campanas.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <Link
+                          href={`/campanas/${c.id}`}
+                          style={{ fontWeight: 600, fontSize: 13.5 }}
+                          className="enlace"
+                        >
+                          {c.nombre}
+                        </Link>
+                        {c.tieneImagen && (
+                          <span className="tiny muted" style={{ marginLeft: 8 }}>
+                            con imagen
+                          </span>
+                        )}
+                      </td>
+                      <td className="muted">
+                        {c.destino === 'todos'
+                          ? 'Todos'
+                          : c.destino === 'manual'
+                            ? `${c.elegidos.length} elegidos a mano`
+                            : 'Por filtros'}
+                      </td>
+                      <td>
+                        <span className="badge b-gray">{c.estado}</span>
+                      </td>
+                      <td className="muted tiny mono">{c.actualizada}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <form action={borrarCampana}>
+                          <input type="hidden" name="id" value={c.id} />
+                          <button type="submit" className="btn btn-ghost btn-sm">
+                            Borrar
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )

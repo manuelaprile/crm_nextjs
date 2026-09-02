@@ -2626,3 +2626,41 @@ input[type='file'].input {
 .camp-burbuja p:last-child {
   margin-bottom: 0;
 }
+/* La imagen adjunta y su vista previa. */
+.camp-imagen {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 12px;
+}
+.camp-imagen img {
+  width: 180px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border);
+}
+.camp-burbuja-img {
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+/* El buscador de contactos: alto fijo y scroll propio, así el resto del
+   formulario no se va a doscientos píxeles de distancia al buscar. */
+.camp-lista {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  padding: 8px;
+  display: grid;
+  gap: 2px;
+}
+.camp-fila {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.camp-fila:hover {
+  background: var(--c-surface);
+}
