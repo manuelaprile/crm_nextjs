@@ -26,9 +26,13 @@ export const dynamic = 'force-dynamic'
  * un módulo siempre arranca apagado. Entonces un interruptor prendido puede
  * significar dos cosas distintas —alguien lo prendió, o viene así— y la
  * diferencia importa: cambiar el valor por defecto en el código mueve a las
- * cuentas que nunca se tocaron, y no a las que sí. Por eso debajo del
- * interruptor dice «por defecto» cuando nadie decidió nada, y aparece
- * «soltar» cuando sí.
+ * cuentas que nunca se tocaron, y no a las que sí.
+ *
+ * Eso NO se cuenta en la celda. Una etiqueta debajo del interruptor le
+ * cambiaba el alto a la fila y la tabla quedaba despareja contra la de
+ * Módulos. Va en el `title` del interruptor, en un punto al costado para el
+ * que no pasa el mouse, y abajo la lista de cuentas que tienen una decisión
+ * propia —con su botón para soltarla—, que normalmente está vacía.
  */
 export default async function FuncionesPage({
   searchParams,
@@ -133,44 +137,40 @@ export default async function FuncionesPage({
                         {FUNCIONES.map((fn) => {
                           const { activa, porDefecto } = celda(fn.codigo, c.tenantId)
                           return (
-                            <td key={fn.codigo}>
-                              <div className="celda-switch">
-                                <form action={cambiarFuncionCuenta}>
-                                  <input type="hidden" name="codigo" value={fn.codigo} />
-                                  <input type="hidden" name="tenantId" value={c.tenantId} />
-                                  <input type="hidden" name="nombre" value={c.nombre} />
-                                  <input
-                                    type="hidden"
-                                    name="activo"
-                                    value={activa ? 'no' : 'si'}
-                                  />
-                                  <button
-                                    type="submit"
-                                    role="switch"
-                                    aria-checked={activa}
-                                    aria-label={`${fn.nombre} en ${c.nombre}`}
-                                    className={`switch${activa ? ' on' : ''}`}
-                                  >
-                                    <span className="switch-bolita" />
-                                  </button>
-                                </form>
-                                {porDefecto ? (
-                                  <span className="tiny muted">por defecto</span>
-                                ) : (
-                                  <form action={funcionPorDefecto}>
-                                    <input type="hidden" name="codigo" value={fn.codigo} />
-                                    <input type="hidden" name="tenantId" value={c.tenantId} />
-                                    <input type="hidden" name="nombre" value={c.nombre} />
-                                    <button
-                                      type="submit"
-                                      className="tiny enlace celda-soltar"
-                                      title="Volver al valor por defecto de esta función"
-                                    >
-                                      soltar
-                                    </button>
-                                  </form>
-                                )}
-                              </div>
+                            <td key={fn.codigo} style={{ textAlign: 'center' }}>
+                              <form action={cambiarFuncionCuenta}>
+                                <input type="hidden" name="codigo" value={fn.codigo} />
+                                <input type="hidden" name="tenantId" value={c.tenantId} />
+                                <input type="hidden" name="nombre" value={c.nombre} />
+                                <input
+                                  type="hidden"
+                                  name="activo"
+                                  value={activa ? 'no' : 'si'}
+                                />
+                                {/*
+                                  Solo el interruptor, como en Módulos. Que el
+                                  valor sea el de fábrica o el que alguien
+                                  eligió se dice en el `title` y con un punto
+                                  al costado: una etiqueta debajo le cambiaba
+                                  el alto a la fila y la tabla quedaba despareja.
+                                */}
+                                <button
+                                  type="submit"
+                                  role="switch"
+                                  aria-checked={activa}
+                                  aria-label={`${fn.nombre} en ${c.nombre}`}
+                                  title={
+                                    porDefecto
+                                      ? `Viene ${activa ? 'prendida' : 'apagada'} de fábrica: nadie la tocó en esta cuenta`
+                                      : `${activa ? 'Prendida' : 'Apagada'} a propósito en esta cuenta`
+                                  }
+                                  className={`switch${activa ? ' on' : ''}${
+                                    porDefecto ? '' : ' decidido'
+                                  }`}
+                                >
+                                  <span className="switch-bolita" />
+                                </button>
+                              </form>
                             </td>
                           )
                         })}
@@ -202,7 +202,7 @@ export default async function FuncionesPage({
                       {fn.detalle} Por defecto viene{' '}
                       <strong>{fn.porDefecto ? 'prendida' : 'apagada'}</strong>.
                     </p>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <form action={cambiarFuncionTodas}>
                         <input type="hidden" name="codigo" value={fn.codigo} />
                         <input type="hidden" name="activo" value="si" />
@@ -218,6 +218,48 @@ export default async function FuncionesPage({
                         </button>
                       </form>
                     </div>
+
+                    {/* Las cuentas con decisión propia. Solo aparece cuando
+                        hay alguna: en el caso normal —nadie tocó nada— este
+                        bloque no existe y no ensucia la pantalla. */}
+                    {(() => {
+                      const decididas =
+                        estados
+                          .find((x) => x.funcion.codigo === fn.codigo)
+                          ?.cuentas.filter((c) => c.explicito !== null) ?? []
+                      if (decididas.length === 0) return null
+                      return (
+                        <div style={{ marginTop: 10 }}>
+                          <p className="tiny muted" style={{ margin: '0 0 4px' }}>
+                            Con decisión propia (el resto sigue el valor por
+                            defecto):
+                          </p>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {decididas.map((c) => (
+                              <form
+                                key={c.tenantId}
+                                action={funcionPorDefecto}
+                                style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+                              >
+                                <input type="hidden" name="codigo" value={fn.codigo} />
+                                <input type="hidden" name="tenantId" value={c.tenantId} />
+                                <input type="hidden" name="nombre" value={c.nombre} />
+                                <span className="badge b-gray">
+                                  {c.nombre}: {c.explicito ? 'prendida' : 'apagada'}
+                                </span>
+                                <button
+                                  type="submit"
+                                  className="tiny enlace celda-soltar"
+                                  title="Borrar la decisión y volver al valor por defecto"
+                                >
+                                  soltar
+                                </button>
+                              </form>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 ))}
               </div>

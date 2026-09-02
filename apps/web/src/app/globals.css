@@ -2709,11 +2709,18 @@ input[type='file'].input {
 }
 /* La celda de una tabla de interruptores: el switch y, debajo, si el valor
    es el que viene por defecto o alguien lo decidió. */
-.celda-switch {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
+/* Un interruptor que alguien decidió a propósito, contra uno que sigue el
+   valor de fábrica. Es un punto al costado y no una etiqueta debajo: una
+   etiqueta le cambia el alto a la fila y desalinea la tabla entera. */
+.switch.decidido::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--c-warning);
 }
 .celda-soltar {
   background: none;
