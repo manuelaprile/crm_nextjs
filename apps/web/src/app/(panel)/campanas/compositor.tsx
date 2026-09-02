@@ -114,7 +114,8 @@ export function Compositor({
   // reemplazados. Un hueco sin completar se deja a la vista como {{1}}.
   const mensaje = plantilla ? conValores(plantilla.cuerpo, params) : ''
 
-  const imagenActual = campana?.tieneImagen && !sacarImagen && !imagenNueva
+  const imagenActual =
+    plantilla?.conImagen && campana?.tieneImagen && !sacarImagen && !imagenNueva
 
   return (
     <form action={guardarCampana} className="camp-grid">
@@ -298,7 +299,14 @@ export function Compositor({
           )}
         </Paso>
 
-        <Paso n={4} titulo="Adjuntar imagen (opcional)">
+        {/*
+          El paso 4 depende de la PLANTILLA, no del gusto de quien arma la
+          campaña: si la plantilla se aprobó con encabezado de imagen, hay que
+          mandar una; si no, la imagen no tiene por dónde salir y ofrecerla
+          sería guardar algo que nunca llega.
+        */}
+        {plantilla?.conImagen && (
+        <Paso n={4} titulo="Imagen del mensaje">
           <input
             type="file"
             name="imagen"
@@ -311,7 +319,7 @@ export function Compositor({
             }}
           />
           <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-            JPG o PNG, hasta 5 MB.
+            Esta plantilla lleva imagen arriba del texto. JPG o PNG, hasta 5 MB.
           </p>
 
           {(imagenActual || imagenNueva) && (
@@ -338,6 +346,7 @@ export function Compositor({
             </p>
           )}
         </Paso>
+        )}
       </div>
 
       <aside>
@@ -375,7 +384,7 @@ export function Compositor({
               </div>
               <div className="wa-chat">
                 <div className="wa-burbuja">
-                  {(imagenActual || imagenNueva) && (
+                  {plantilla?.conImagen && (imagenActual || imagenNueva) && (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
                       src={imagenNueva ?? `/api/campanas/${campana!.id}/imagen`}

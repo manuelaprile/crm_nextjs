@@ -134,7 +134,18 @@ export default async function PlantillasPage({
                             <span className="tiny muted mono">{p.idioma}</span>
                           </td>
                           <td style={{ maxWidth: 380 }}>
-                            <span className="tiny" style={{ lineHeight: 1.5 }}>
+                            {p.conImagen && (
+                              <span
+                                className="badge b-blue"
+                                style={{ marginBottom: 4 }}
+                              >
+                                Con imagen
+                              </span>
+                            )}
+                            <span
+                              className="tiny"
+                              style={{ display: 'block', lineHeight: 1.5 }}
+                            >
                               {p.cuerpo}
                             </span>
                             {p.motivoRechazo && (

@@ -488,6 +488,8 @@ export type PlantillaZernio = {
   nombre: string
   idioma: string
   categoria: string
+  /** Si lleva encabezado de imagen. La campaña que la use tiene que mandar una. */
+  conImagen: boolean
   /** APPROVED | PENDING | REJECTED, tal cual lo devuelve Meta. */
   estado: string
   /** El cuerpo con sus huecos: "Hola {{1}}, te esperamos el {{2}}". */
@@ -495,6 +497,15 @@ export type PlantillaZernio = {
   /** Cuántos huecos tiene el cuerpo. Es lo que hay que pedirle a quien manda. */
   huecos: number
   motivoRechazo: string | null
+}
+
+function tieneEncabezadoDeImagen(t: Record<string, unknown>): boolean {
+  const comps = (t.components ?? []) as { type?: string; format?: string }[]
+  return comps.some(
+    (c) =>
+      (c.type ?? '').toUpperCase() === 'HEADER' &&
+      (c.format ?? '').toUpperCase() === 'IMAGE',
+  )
 }
 
 function cuerpoDe(t: Record<string, unknown>): string {
@@ -520,6 +531,7 @@ export async function listarPlantillas(
         nombre: String(t.name ?? ''),
         idioma: String(t.language ?? ''),
         categoria: String(t.category ?? ''),
+        conImagen: tieneEncabezadoDeImagen(t),
         estado: String(t.status ?? '').toUpperCase(),
         cuerpo,
         huecos: huecosDe(cuerpo),
@@ -548,6 +560,9 @@ export async function crearPlantilla(params: {
   cuerpo: string
   /** Un valor de muestra por cada hueco, EN ORDEN. Obligatorio si hay huecos. */
   ejemplos: string[]
+  /** URL pública de la imagen de muestra. Con esto la plantilla lleva
+   *  encabezado de imagen y cada envío manda la suya. */
+  imagenUrl?: string | null
 }): Promise<Resultado<{ nombre: string }>> {
   const r = await llamar<Record<string, unknown>>('/v1/whatsapp/templates', {
     method: 'POST',
@@ -561,6 +576,19 @@ export async function crearPlantilla(params: {
       // Meta documenta los componentes en mayúscula y Zernio los toma en
       // minúscula, así que copiar el ejemplo de Meta no alcanza.
       components: [
+        // El encabezado va PRIMERO: Meta ordena los componentes y espera el
+        // header antes que el body.
+        ...(params.imagenUrl
+          ? [
+              {
+                type: 'header',
+                format: 'IMAGE',
+                // La muestra que Meta mira para aprobar. No es la imagen que
+                // se manda después: en cada envío va la de esa campaña.
+                example: { header_handle: [params.imagenUrl] },
+              },
+            ]
+          : []),
         {
           type: 'body',
           text: params.cuerpo,
@@ -580,4 +608,56 @@ export async function crearPlantilla(params: {
   })
   if (!r.ok) return r
   return { ok: true, data: { nombre: params.nombre } }
+}
+
+/**
+ * Sube una imagen y devuelve su URL pública.
+ *
+ * Son DOS pasos y no uno: `POST /v1/media` no recibe el archivo, devuelve una
+ * URL firmada donde subirlo (`uploadUrl`) y la URL con la que va a quedar
+ * publicado (`publicUrl`). Los bytes viajan directo a esa URL, sin pasar por
+ * Zernio ni por nosotros.
+ *
+ * La usa la plantilla con imagen: Meta necesita una MUESTRA para poder
+ * aprobarla, y la muestra tiene que estar en una URL que Meta pueda leer.
+ */
+export async function subirImagen(params: {
+  accountId: string
+  nombre: string
+  contentType: string
+  bytes: Buffer
+}): Promise<Resultado<{ url: string }>> {
+  const sesion = await llamar<{ uploadUrl?: string; publicUrl?: string }>(
+    '/v1/media',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        accountId: params.accountId,
+        filename: params.nombre,
+        contentType: params.contentType,
+      }),
+    },
+  )
+  if (!sesion.ok) return sesion
+  const { uploadUrl, publicUrl } = sesion.data ?? {}
+  if (!uploadUrl || !publicUrl) {
+    return { ok: false, error: 'Zernio no devolvió la URL para subir la imagen' }
+  }
+
+  try {
+    // A la URL firmada NO va la clave de Zernio: es de un solo uso y mandarle
+    // credenciales a un host que nos dijeron por respuesta es justo lo que no
+    // hay que hacer.
+    const res = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': params.contentType },
+      body: new Uint8Array(params.bytes),
+    })
+    if (!res.ok) {
+      return { ok: false, error: `No se pudo subir la imagen (HTTP ${res.status})` }
+    }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+  return { ok: true, data: { url: publicUrl } }
 }

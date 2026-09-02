@@ -10,7 +10,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { cuentaZernioDelTenant } from './plantillas'
-import { crearPlantilla } from './zernio'
+import { crearPlantilla, subirImagen } from './zernio'
 import { huecosDe } from './plantillas-texto'
 
 function volver(tipo: 'ok' | 'error', msg: string): never {
@@ -95,11 +95,34 @@ export async function crearPlantillaAccion(formData: FormData): Promise<void> {
     )
   }
 
+  // ---- La imagen del encabezado, si la hay -------------------------
+  // Se sube ANTES de crear la plantilla: Meta necesita una muestra que pueda
+  // leer para aprobarla, y esa muestra es una URL pública.
+  let imagenUrl: string | null = null
+  const archivo = formData.get('imagen')
+  if (archivo instanceof File && archivo.size > 0) {
+    if (archivo.size > 5 * 1024 * 1024) {
+      volver('error', 'La imagen no puede pasar de 5 MB.')
+    }
+    if (!['image/jpeg', 'image/png'].includes(archivo.type)) {
+      volver('error', 'La imagen tiene que ser JPG o PNG.')
+    }
+    const subida = await subirImagen({
+      accountId,
+      nombre: archivo.name || 'muestra.jpg',
+      contentType: archivo.type,
+      bytes: Buffer.from(await archivo.arrayBuffer()),
+    })
+    if (!subida.ok) volver('error', `No se pudo subir la imagen: ${subida.error}`)
+    imagenUrl = subida.data.url
+  }
+
   const r = await crearPlantilla({
     accountId,
     nombre,
     idioma,
     ejemplos,
+    imagenUrl,
     // Una campaña es MARKETING siempre. UTILITY es para lo que responde a
     // algo que la persona pidió —un turno, un envío— y usarla para promoción
     // es motivo de rechazo, o peor, de que Meta recategorice la cuenta.
@@ -128,7 +151,8 @@ export async function crearPlantillaAccion(formData: FormData): Promise<void> {
   revalidatePath('/plantillas')
   volver(
     'ok',
-    `«${nombre}» se mandó a aprobar. Meta suele tardar entre unos minutos y ` +
-      'un día; mientras tanto figura como pendiente.',
+    `«${nombre}» se mandó a aprobar${imagenUrl ? ', con imagen' : ''}. Meta ` +
+      'suele tardar entre unos minutos y un día; mientras tanto figura como ' +
+      'pendiente.',
   )
 }
