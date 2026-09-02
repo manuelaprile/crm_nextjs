@@ -365,34 +365,34 @@ export function Compositor({
               formulario parece corto, en una burbuja de teléfono son ocho
               renglones.
             */}
-            <div className="wa">
-              <div className="wa-barra">
+            <div className="tel">
+              <div className="tel-barra">
                 <span>{HORA}</span>
                 <span>▮▮▮ ⌁</span>
               </div>
-              <div className="wa-cabecera">
-                <span className="wa-volver" aria-hidden="true">
+              <div className="tel-cabecera">
+                <span className="tel-volver" aria-hidden="true">
                   ‹
                 </span>
-                <span className="wa-avatar" aria-hidden="true">
+                <span className="tel-avatar" aria-hidden="true">
                   {negocio.trim().charAt(0).toUpperCase() || 'N'}
                 </span>
-                <span className="wa-quien">
+                <span className="tel-quien">
                   <strong>{negocio}</strong>
                   <span>en línea</span>
                 </span>
               </div>
-              <div className="wa-chat">
-                <div className="wa-burbuja">
+              <div className="tel-chat">
+                <div className="tel-burbuja">
                   {plantilla?.conImagen && (imagenActual || imagenNueva) && (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
                       src={imagenNueva ?? `/api/campanas/${campana!.id}/imagen`}
                       alt=""
-                      className="wa-imagen"
+                      className="tel-imagen"
                     />
                   )}
-                  <div className="wa-texto">
+                  <div className="tel-texto">
                     {mensaje.trim() ? (
                       mensaje
                         .split('\n')
@@ -403,9 +403,9 @@ export function Compositor({
                       </p>
                     )}
                   </div>
-                  <span className="wa-pie">
+                  <span className="tel-pie">
                     {HORA}
-                    <span className="wa-tildes" aria-label="entregado">
+                    <span className="tel-tildes" aria-label="entregado">
                       ✓✓
                     </span>
                   </span>
