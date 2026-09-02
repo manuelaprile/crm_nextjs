@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useFormStatus } from 'react-dom'
 import { crearPlantillaAccion } from '@/lib/plantillas-acciones'
 import { huecosDe } from '@/lib/plantillas-texto'
 
@@ -135,14 +136,34 @@ export function FormularioPlantilla() {
         </select>
       </div>
 
-      <button
-        type="submit"
-        className="btn btn-primary btn-sm"
-        style={{ justifySelf: 'start' }}
-        disabled={salteados || enLosBordes}
-      >
-        Mandar a aprobar
-      </button>
+      <Boton bloqueado={salteados || enLosBordes} />
     </form>
+  )
+}
+
+/**
+ * El botón, con su estado de "mandando".
+ *
+ * Es un componente aparte porque `useFormStatus` solo funciona ADENTRO del
+ * formulario que está mirando: puesto en `FormularioPlantilla`, que es quien
+ * dibuja el `<form>`, devuelve siempre `pending: false`.
+ *
+ * Mandar una plantilla no es instantáneo —viaja a Zernio y de ahí a Meta— y
+ * sin señal la pantalla se queda igual unos segundos. Quien no ve nada
+ * vuelve a apretar, y la segunda vez Meta contesta que ya existe una
+ * plantilla con ese nombre.
+ */
+function Boton({ bloqueado }: { bloqueado: boolean }) {
+  const { pending } = useFormStatus()
+  return (
+    <button
+      type="submit"
+      className="btn btn-primary btn-sm"
+      style={{ justifySelf: 'start' }}
+      disabled={pending || bloqueado}
+      aria-busy={pending}
+    >
+      {pending ? 'Enviando…' : 'Mandar a aprobar'}
+    </button>
   )
 }
