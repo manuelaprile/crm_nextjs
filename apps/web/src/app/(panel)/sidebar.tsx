@@ -12,6 +12,7 @@ import {
   IconCalendar,
   IconUsers,
   IconChart,
+  IconCampana,
   IconWhatsApp,
   IconMenu,
   IconFlask,
@@ -42,6 +43,7 @@ export function Sidebar({
   esVisita,
   rubro,
   logoVersion,
+  campanas,
 }: {
   tenantName: string
   userName: string
@@ -59,6 +61,10 @@ export function Sidebar({
   rubro: string
   /** Fecha de la última subida del logo, o null si no cargaron ninguno. */
   logoVersion: string | null
+  /** Módulos contratados por esta cuenta. Lo resuelve el servidor: acá solo
+   *  se decide qué se dibuja, y el permiso se verifica igual en cada
+   *  pantalla. */
+  campanas: boolean
 }) {
   const pathname = usePathname()
   const [abierto, setAbierto] = useState(false)
@@ -93,6 +99,16 @@ export function Sidebar({
         items: [{ href: '/reportes', label: 'Reportes', icon: <IconChart /> }],
       },
     )
+
+    // Módulo aparte: solo lo ve la cuenta que lo contrató.
+    if (campanas) {
+      grupos.push({
+        grp: 'Difusión',
+        items: [
+          { href: '/campanas', label: 'Campañas', icon: <IconCampana /> },
+        ],
+      })
+    }
   }
 
   // Un operador no configura nada: no tiene sentido mostrarle las pantallas

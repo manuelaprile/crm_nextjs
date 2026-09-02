@@ -1,24 +1,26 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { FUNCIONES, buscarFuncion, estadoPorCuenta } from '@/lib/funciones'
-import {
-  cambiarFuncionCuenta,
-  funcionPorDefecto,
-  cambiarFuncionTodas,
-} from '@/lib/funciones-acciones'
+import { estadoPorCuenta } from '@/lib/funciones'
+import { MODULOS, buscarModulo } from '@/lib/modulos'
+import { cambiarFuncionCuenta, funcionPorDefecto } from '@/lib/funciones-acciones'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Prender una función en una cuenta antes que en todas.
+ * Qué módulos tiene contratados cada cuenta.
  *
- * Es lo más parecido a un despliegue gradual que permite esta arquitectura:
- * el código llega a todos al mismo tiempo, pero puede llegar apagado. La
- * lista de funciones sale del catálogo del código (`lib/funciones.ts`), así
- * que acá nunca aparece un interruptor que no apague nada.
+ * Pantalla aparte de Funciones a propósito, aunque compartan tabla y acciones:
+ * una función es un interruptor de despliegue y se borra cuando la cosa está
+ * probada; un módulo es lo que el cliente paga. El motivo largo está en
+ * `lib/modulos.ts`.
+ *
+ * NO tiene el botón «prender en todas» que sí tiene Funciones. Ahí sirve —es
+ * el final del despliegue gradual—; acá sería regalarle un módulo pago a
+ * todos los clientes de un click, y no hay ningún caso en que eso sea lo que
+ * alguien quiso hacer.
  */
-export default async function FuncionesPage({
+export default async function ModulosPage({
   searchParams,
 }: {
   searchParams: Promise<{ f?: string; r?: string; m?: string }>
@@ -27,24 +29,21 @@ export default async function FuncionesPage({
   if (!session?.isSuperadmin) notFound()
 
   const { f, r, m } = await searchParams
-  const elegida = (f && buscarFuncion(f)) || FUNCIONES[0]
-  const cuentas = elegida ? await estadoPorCuenta(elegida.codigo) : []
-
-  const prendidas = cuentas.filter((c) =>
-    c.explicito === null ? elegida!.porDefecto : c.explicito,
-  ).length
+  const elegido = (f && buscarModulo(f)) || MODULOS[0]
+  const cuentas = elegido ? await estadoPorCuenta(elegido.codigo) : []
+  const contratado = cuentas.filter((c) => c.explicito === true).length
 
   return (
     <>
       <div className="topnav">
-        <h2>Funciones</h2>
+        <h2>Módulos</h2>
         <span className="badge b-dark">Superadmin</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Link href="/superadmin" className="btn btn-ghost btn-sm">
             Cuentas
           </Link>
-          <Link href="/superadmin/modulos" className="btn btn-ghost btn-sm">
-            Módulos
+          <Link href="/superadmin/funciones" className="btn btn-ghost btn-sm">
+            Funciones
           </Link>
           <Link href="/superadmin/usuarios" className="btn btn-ghost btn-sm">
             Usuarios
@@ -62,26 +61,26 @@ export default async function FuncionesPage({
           </div>
         ) : null}
 
-        {!elegida ? (
+        {!elegido ? (
           <div className="panel-box">
             <div className="empty">
-              <b>No hay funciones con interruptor</b>
-              Se agregan desde el código, en lib/funciones.ts.
+              <b>Todavía no hay módulos</b>
+              Se agregan desde el código, en lib/modulos.ts.
             </div>
           </div>
         ) : (
           <>
-            {FUNCIONES.length > 1 && (
+            {MODULOS.length > 1 && (
               <div className="toolbar">
-                {FUNCIONES.map((fn) => (
+                {MODULOS.map((mod) => (
                   <Link
-                    key={fn.codigo}
-                    href={`/superadmin/funciones?f=${fn.codigo}`}
+                    key={mod.codigo}
+                    href={`/superadmin/modulos?f=${mod.codigo}`}
                     className={`btn btn-sm ${
-                      fn.codigo === elegida.codigo ? 'btn-primary' : 'btn-ghost'
+                      mod.codigo === elegido.codigo ? 'btn-primary' : 'btn-ghost'
                     }`}
                   >
-                    {fn.nombre}
+                    {mod.nombre}
                   </Link>
                 ))}
               </div>
@@ -89,20 +88,15 @@ export default async function FuncionesPage({
 
             <div className="panel-box" style={{ marginBottom: 16 }}>
               <div className="panel-box-head">
-                <h3>{elegida.nombre}</h3>
-                <span className="badge b-gray mono">{elegida.codigo}</span>
+                <h3>{elegido.nombre}</h3>
+                <span className="badge b-gray mono">{elegido.codigo}</span>
                 <span className="tiny muted" style={{ marginLeft: 'auto' }}>
-                  {prendidas} de {cuentas.length} prendida
-                  {prendidas === 1 ? '' : 's'}
+                  {contratado} de {cuentas.length} con el módulo
                 </span>
               </div>
               <div className="panel-box-body">
                 <p className="tiny muted" style={{ margin: 0, lineHeight: 1.5 }}>
-                  {elegida.detalle}
-                </p>
-                <p className="tiny muted" style={{ marginBottom: 0 }}>
-                  Por defecto:{' '}
-                  <strong>{elegida.porDefecto ? 'prendida' : 'apagada'}</strong>
+                  {elegido.detalle}
                 </p>
               </div>
             </div>
@@ -116,14 +110,14 @@ export default async function FuncionesPage({
                   <thead>
                     <tr>
                       <th>Cuenta</th>
-                      <th>Estado</th>
+                      <th>Módulo</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {cuentas.map((c) => {
-                      const activa =
-                        c.explicito === null ? elegida.porDefecto : c.explicito
+                      const activo =
+                        c.explicito === null ? elegido.porDefecto : c.explicito
                       return (
                         <tr key={c.tenantId}>
                           <td>
@@ -140,18 +134,10 @@ export default async function FuncionesPage({
                           </td>
                           <td>
                             <span
-                              className={`badge ${activa ? 'b-green' : 'b-gray'}`}
+                              className={`badge ${activo ? 'b-green' : 'b-gray'}`}
                             >
-                              {activa ? 'Prendida' : 'Apagada'}
+                              {activo ? 'Contratado' : 'No contratado'}
                             </span>
-                            {c.explicito === null && (
-                              <span
-                                className="tiny muted"
-                                style={{ marginLeft: 8 }}
-                              >
-                                por defecto
-                              </span>
-                            )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
                             <div
@@ -162,25 +148,34 @@ export default async function FuncionesPage({
                               }}
                             >
                               <form action={cambiarFuncionCuenta}>
-                                <input type="hidden" name="codigo" value={elegida.codigo} />
+                                <input type="hidden" name="codigo" value={elegido.codigo} />
                                 <input type="hidden" name="tenantId" value={c.tenantId} />
                                 <input type="hidden" name="nombre" value={c.nombre} />
                                 <input
                                   type="hidden"
                                   name="activo"
-                                  value={activa ? 'no' : 'si'}
+                                  value={activo ? 'no' : 'si'}
                                 />
-                                <button type="submit" className="btn btn-ghost btn-sm">
-                                  {activa ? 'Apagar' : 'Prender'}
+                                <button
+                                  type="submit"
+                                  className={`btn btn-sm ${
+                                    activo ? 'btn-ghost' : 'btn-primary'
+                                  }`}
+                                >
+                                  {activo ? 'Quitar' : 'Dar de alta'}
                                 </button>
                               </form>
+                              {/* Volver al estado "nunca se tocó". Se ve solo
+                                  si hay algo que borrar: en un módulo, «sin
+                                  decisión» y «no contratado» se ven igual, y
+                                  ofrecer un botón que no cambia nada confunde. */}
                               {c.explicito !== null && (
                                 <form action={funcionPorDefecto}>
-                                  <input type="hidden" name="codigo" value={elegida.codigo} />
+                                  <input type="hidden" name="codigo" value={elegido.codigo} />
                                   <input type="hidden" name="tenantId" value={c.tenantId} />
                                   <input type="hidden" name="nombre" value={c.nombre} />
                                   <button type="submit" className="btn btn-ghost btn-sm">
-                                    Por defecto
+                                    Borrar decisión
                                   </button>
                                 </form>
                               )}
@@ -191,50 +186,6 @@ export default async function FuncionesPage({
                     })}
                   </tbody>
                 </table>
-              </div>
-            </div>
-
-            <div className="panel-box">
-              <div className="panel-box-head">
-                <h3>Aplicar en todas las cuentas</h3>
-              </div>
-              <div className="panel-box-body">
-                <form
-                  action={cambiarFuncionTodas}
-                  style={{ display: 'grid', gap: 12, maxWidth: 460 }}
-                >
-                  <input type="hidden" name="codigo" value={elegida.codigo} />
-                  <div className="field">
-                    <label htmlFor="confirma">
-                      Escribí <code>{elegida.codigo}</code> para confirmar
-                    </label>
-                    <input
-                      id="confirma"
-                      name="confirma"
-                      className="input"
-                      autoComplete="off"
-                      placeholder={elegida.codigo}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      type="submit"
-                      name="activo"
-                      value="si"
-                      className="btn btn-primary"
-                    >
-                      Prender en todas
-                    </button>
-                    <button
-                      type="submit"
-                      name="activo"
-                      value="no"
-                      className="btn btn-ghost"
-                    >
-                      Apagar en todas
-                    </button>
-                  </div>
-                </form>
               </div>
             </div>
           </>

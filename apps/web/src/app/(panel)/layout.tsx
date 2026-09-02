@@ -6,6 +6,7 @@ import { modoPruebaActivo } from '@/lib/pruebas'
 import { misCuentas, volverAPlataforma } from '@/lib/usuarios'
 import { etiquetaDe } from '@/lib/etiquetas'
 import { getLogoVersion } from '@/lib/comercio'
+import { moduloActivo } from '@/lib/modulos'
 import { Sidebar } from './sidebar'
 import { PulsoProvider } from './pulso-provider'
 
@@ -81,6 +82,12 @@ export default async function PanelLayout({
   // Cuentas propias: las que el usuario tiene en `tenant_users`.
   const propias = await misCuentas()
   const logoVersion = sinCuenta ? null : await getLogoVersion()
+  // Un módulo contratado. Sin cuenta no hay módulo que valga: el superadmin
+  // suelto no tiene contactos a los que mandarle una campaña.
+  const campanas =
+    sinCuenta || !session.tenantId
+      ? false
+      : await moduloActivo('modulo:campanas', session.tenantId)
 
   // Una VISITA es un superadmin parado adentro de una cuenta de la que no es
   // miembro. Es legítimo —entró a dar soporte— pero tiene que verse.
@@ -115,6 +122,7 @@ export default async function PanelLayout({
         esVisita={esVisita}
         rubro={etiqueta.singular}
         logoVersion={logoVersion}
+        campanas={campanas}
       />
       <div className="main">
         {esVisita ? (

@@ -17,10 +17,26 @@ import { sql } from 'drizzle-orm'
 import { getSession } from './auth'
 import { withoutTenant } from './db/client'
 import { buscarFuncion } from './funciones'
+import { buscarModulo } from './modulos'
+
+/**
+ * Módulos y funciones comparten tabla, función de escritura y acciones, pero
+ * NO pantalla: son dos decisiones distintas (ver `lib/modulos.ts`). Así que
+ * cada mensaje tiene que volver a la pantalla desde la que se apretó el
+ * botón, o el superadmin termina en una lista donde no está lo que tocó.
+ */
+function pantallaDe(codigo: string): string {
+  return buscarModulo(codigo) ? '/superadmin/modulos' : '/superadmin/funciones'
+}
+
+/** El interruptor, esté en el catálogo que esté. */
+function buscarInterruptor(codigo: string) {
+  return buscarFuncion(codigo) ?? buscarModulo(codigo)
+}
 
 function volver(codigo: string, tipo: 'ok' | 'error', msg: string): never {
   redirect(
-    `/superadmin/funciones?f=${encodeURIComponent(codigo)}` +
+    `${pantallaDe(codigo)}?f=${encodeURIComponent(codigo)}` +
       `&r=${tipo}&m=${encodeURIComponent(msg.slice(0, 200))}`,
   )
 }
@@ -37,10 +53,10 @@ async function preparar(formData: FormData) {
   if (!session?.isSuperadmin) throw new Error('no autorizado')
 
   const codigo = String(formData.get('codigo') ?? '').trim()
-  const funcion = buscarFuncion(codigo)
+  const funcion = buscarInterruptor(codigo)
   // Contra el catálogo del código, que es el único que manda: un código que
   // no lee nadie no apaga nada y solo ensucia la base.
-  if (!funcion) volver('', 'error', 'Esa función no existe.')
+  if (!funcion) volver('', 'error', 'Ese interruptor no existe.')
 
   const hash = await tokenDeSesion()
   if (!hash) volver(codigo, 'error', 'Sesión vencida. Volvé a entrar.')
@@ -65,7 +81,7 @@ export async function cambiarFuncionCuenta(formData: FormData): Promise<void> {
   })
   if (!ok) volver(codigo, 'error', 'No se pudo cambiar.')
 
-  revalidatePath('/superadmin/funciones')
+  revalidatePath(pantallaDe(codigo))
   volver(
     codigo,
     'ok',
@@ -89,7 +105,7 @@ export async function funcionPorDefecto(formData: FormData): Promise<void> {
   })
   if (!ok) volver(codigo, 'error', 'No se pudo cambiar.')
 
-  revalidatePath('/superadmin/funciones')
+  revalidatePath(pantallaDe(codigo))
   volver(
     codigo,
     'ok',
@@ -126,7 +142,7 @@ export async function cambiarFuncionTodas(formData: FormData): Promise<void> {
   })
   if (n < 0) volver(codigo, 'error', 'No se pudo aplicar.')
 
-  revalidatePath('/superadmin/funciones')
+  revalidatePath(pantallaDe(codigo))
   volver(
     codigo,
     'ok',

@@ -2561,3 +2561,68 @@ input[type='file'].input {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+
+/* ============================================================
+   CAMPAÑAS
+   El compositor y su vista previa, lado a lado. En pantalla
+   angosta la vista previa baja: es una ayuda, no el trabajo.
+   ============================================================ */
+.camp-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .camp-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.camp-opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.camp-opcion {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-bg);
+  cursor: pointer;
+}
+.camp-opcion:hover {
+  border-color: var(--c-muted);
+}
+.camp-opcion.es-elegida {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px var(--c-primary-soft);
+}
+.camp-alcance {
+  display: grid;
+  gap: 2px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+}
+/* La burbuja del mensaje. Verde claro y esquina cortada, como la del
+   teléfono: la vista previa tiene que parecerse a lo que va a ver la
+   persona, no a un recuadro de formulario. */
+.camp-burbuja {
+  padding: 10px 12px;
+  border-radius: 10px 10px 10px 2px;
+  background: #e8f6ea;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.camp-burbuja p {
+  margin: 0 0 8px;
+}
+.camp-burbuja p:last-child {
+  margin-bottom: 0;
+}

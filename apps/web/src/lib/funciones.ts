@@ -102,7 +102,22 @@ export async function funcionActiva(
   codigo: string,
   tenantId: string,
 ): Promise<boolean> {
-  const porDefecto = buscarFuncion(codigo)?.porDefecto ?? false
+  return interruptorActivo(codigo, tenantId, buscarFuncion(codigo)?.porDefecto ?? false)
+}
+
+/**
+ * La lectura cruda de un interruptor, sin catálogo.
+ *
+ * La usan `funcionActiva` y `moduloActivo` (`lib/modulos.ts`): las dos cosas
+ * viven en `tenant_features` y se leen igual; lo único que cambia es de dónde
+ * sale el valor por defecto. Con la consulta copiada en los dos lados, el día
+ * que cambie la tabla uno se actualiza y el otro no.
+ */
+export async function interruptorActivo(
+  codigo: string,
+  tenantId: string,
+  porDefecto: boolean,
+): Promise<boolean> {
   try {
     const res = await withSystem((tx) =>
       tx.execute(sql`

@@ -79,6 +79,9 @@ export default async function SuperadminPage({
           <Link href="/superadmin/funciones" className="btn btn-ghost btn-sm">
             Funciones
           </Link>
+          <Link href="/superadmin/modulos" className="btn btn-ghost btn-sm">
+            Módulos
+          </Link>
           <Link href="/superadmin/usuarios" className="btn btn-ghost btn-sm">
             Usuarios
           </Link>

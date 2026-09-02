@@ -302,3 +302,18 @@ export const IconChevron = ({ className }: P) => (
     <path d="M6 9.5l6 6 6-6" />
   </svg>
 )
+
+/** Avión de papel: un mensaje que sale hacia varios. Es el de Campañas. */
+export const IconCampana = ({ className }: P) => (
+  <svg
+    width="16"
+    height="16"
+    {...base}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M21.5 2.5L11 13" />
+    <path d="M21.5 2.5l-6.5 19-4-8.5-8.5-4 19-6.5z" />
+  </svg>
+)
