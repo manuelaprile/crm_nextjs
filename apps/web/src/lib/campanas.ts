@@ -116,6 +116,13 @@ function fila(r: Record<string, unknown>): Campana {
  * Solo cuenta los que tienen teléfono: a un contacto sin teléfono no hay por
  * dónde mandarle un WhatsApp, y contarlo infla el número que el cliente usa
  * para decidir.
+ *
+ * OJO CON `sql.param` EN LAS LISTAS. Drizzle NO manda un array de JavaScript
+ * como un parámetro: lo trata como una lista de fragmentos de SQL y los pega
+ * uno detrás de otro. Con la lista vacía no pega nada y queda `any(())`, que
+ * es un error de sintaxis de Postgres — o sea que fallaba justo en el caso
+ * más común, una campaña recién abierta sin ningún filtro puesto.
+ * `sql.param()` lo manda como un valor, que es lo que hace falta.
  */
 export async function contarAlcance(
   destino: Destino,
@@ -132,11 +139,11 @@ export async function contarAlcance(
        where c.archived_at is null
          and c.phone is not null
          and (${destino !== 'filtros' || filtros.etapas.length === 0}
-              or c.stage_id = any(${filtros.etapas}::uuid[]))
+              or c.stage_id = any(${sql.param(filtros.etapas)}::uuid[]))
          and (${destino !== 'filtros' || filtros.etiquetas.length === 0}
               or exists (select 1 from contact_tags ct
                           where ct.contact_id = c.id
-                            and ct.tag_id = any(${filtros.etiquetas}::uuid[])))
+                            and ct.tag_id = any(${sql.param(filtros.etiquetas)}::uuid[])))
     `)
     return Number((res.rows[0] as { n: number } | undefined)?.n ?? 0)
   })

@@ -136,7 +136,10 @@ export async function guardarCampana(formData: FormData): Promise<void> {
         insert into campana_contactos (campana_id, contact_id, tenant_id)
         select ${campanaId}::uuid, c.id, c.tenant_id
           from contacts c
-         where c.id = any(${elegidos}::uuid[])
+         -- Va por sql.param y no por la lista a secas: drizzle pega los
+         -- arrays como fragmentos de SQL en vez de mandarlos como valor.
+         -- El motivo largo está en contarAlcance.
+         where c.id = any(${sql.param(elegidos)}::uuid[])
       `)
     }
     return campanaId
