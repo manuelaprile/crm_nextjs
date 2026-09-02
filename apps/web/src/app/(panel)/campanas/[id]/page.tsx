@@ -4,6 +4,7 @@ import { requireTenant } from '@/lib/auth'
 import { moduloActivo } from '@/lib/modulos'
 import { verCampana } from '@/lib/campanas'
 import { opcionesDeFiltro } from '../datos'
+import { plantillasAprobadas } from '@/lib/plantillas'
 import { Compositor } from '../compositor'
 
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,10 @@ export default async function EditarCampanaPage({
   const campana = await verCampana(id)
   if (!campana) notFound()
 
-  const opciones = await opcionesDeFiltro()
+  const [opciones, plantillas] = await Promise.all([
+    opcionesDeFiltro(),
+    plantillasAprobadas(),
+  ])
 
   return (
     <>
@@ -55,6 +59,7 @@ export default async function EditarCampanaPage({
         <Compositor
           campana={campana}
           opciones={opciones}
+          plantillas={plantillas}
           negocio={session.tenantName ?? 'Tu negocio'}
         />
       </div>

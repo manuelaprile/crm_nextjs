@@ -2834,3 +2834,16 @@ input[type='file'].input {
   letter-spacing: -2px;
   font-size: 11px;
 }
+/* El texto aprobado de la plantilla, para leerlo antes de elegirla. Con el
+   fondo distinto se lee como una cita: es de Meta, no se edita acá. */
+.camp-plantilla-texto {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--c-border);
+  background: var(--c-surface);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--c-text);
+}

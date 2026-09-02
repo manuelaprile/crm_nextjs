@@ -3,6 +3,8 @@
 import { useEffect, useState, useTransition } from 'react'
 import { guardarCampana, alcanceDe, elegiblesPara } from '@/lib/campanas-acciones'
 import type { Campana } from '@/lib/campanas'
+import { conValores } from '@/lib/plantillas-texto'
+import type { PlantillaZernio } from '@/lib/zernio'
 import type { OpcionesDeFiltro } from './datos'
 
 /**
@@ -13,18 +15,19 @@ import type { OpcionesDeFiltro } from './datos'
  * viaje al servidor por tecla no se puede escribir.
  *
  * ======================================================================
- * EL BOTÓN DE ENVIAR ESTÁ APAGADO, Y NO ES UN OLVIDO
+ * EL MENSAJE NO SE ESCRIBE ACÁ: SE ELIGE
  * ======================================================================
  * Fuera de la ventana de 24 h, WhatsApp solo deja salir una PLANTILLA
- * aprobada por Meta. Eso todavía no existe acá: no hay catálogo, ni alta, ni
- * envío. Un botón que diga "Enviar campaña" y no mande nada —o peor, que
- * mande y Meta rechace de a uno— es la peor versión posible de esta pantalla.
+ * aprobada por Meta, y una campaña por definición le escribe a gente que no
+ * escribió recién. Así que el paso 3 no es un textarea: es elegir una
+ * plantilla aprobada y completar sus huecos.
  *
- * Guardar SÍ funciona. El plan del envío está en
- * `recordatorios-y-plantillas.md`.
+ * Las plantillas se crean en la pantalla Plantillas, que las manda a aprobar
+ * por la API de Zernio. El cliente nunca ve Zernio.
+ *
+ * El botón de enviar sigue apagado: falta la cola de envío, que es lo que
+ * respeta el límite de destinatarios por día. Guardar sí funciona.
  */
-
-const MAX_MENSAJE = 1000
 
 /**
  * La hora del teléfono simulado.
@@ -38,10 +41,14 @@ const HORA = '11:30'
 export function Compositor({
   campana,
   opciones,
+  plantillas,
   negocio,
 }: {
   campana: Campana | null
   opciones: OpcionesDeFiltro
+  /** Solo las APROBADAS: una pendiente no se puede mandar y ofrecerla es
+   *  prometer algo que va a fallar recién al enviar. */
+  plantillas: PlantillaZernio[]
   /** Cómo se llama la cuenta: va en el encabezado del teléfono. */
   negocio: string
 }) {
@@ -52,7 +59,10 @@ export function Compositor({
     campana?.filtros.etiquetas ?? [],
   )
   const [elegidos, setElegidos] = useState<string[]>(campana?.elegidos ?? [])
-  const [mensaje, setMensaje] = useState(campana?.mensaje ?? '')
+  const [nombrePlantilla, setNombrePlantilla] = useState(
+    campana?.plantilla ?? '',
+  )
+  const [params, setParams] = useState<string[]>(campana?.params ?? [])
   const [sacarImagen, setSacarImagen] = useState(false)
   const [imagenNueva, setImagenNueva] = useState<string | null>(null)
 
@@ -82,6 +92,27 @@ export function Compositor({
   function alternar(lista: string[], set: (v: string[]) => void, id: string) {
     set(lista.includes(id) ? lista.filter((x) => x !== id) : [...lista, id])
   }
+
+  const plantilla =
+    plantillas.find((p) => p.nombre === nombrePlantilla) ?? null
+
+  function elegirPlantilla(nombre: string) {
+    setNombrePlantilla(nombre)
+    // Los valores viejos no se conservan: los huecos de otra plantilla
+    // significan otra cosa, y arrastrarlos manda "10 de octubre" donde ahora
+    // va un nombre.
+    setParams([])
+  }
+
+  function cambiarParam(i: number, v: string) {
+    const copia = [...params]
+    copia[i] = v
+    setParams(copia)
+  }
+
+  // Lo que se va a leer del otro lado: el texto aprobado con los huecos
+  // reemplazados. Un hueco sin completar se deja a la vista como {{1}}.
+  const mensaje = plantilla ? conValores(plantilla.cuerpo, params) : ''
 
   const imagenActual = campana?.tieneImagen && !sacarImagen && !imagenNueva
 
@@ -193,21 +224,78 @@ export function Compositor({
         </Paso>
 
         <Paso n={3} titulo="Mensaje">
-          <textarea
-            className="input"
-            name="mensaje"
-            rows={7}
-            value={mensaje}
-            maxLength={MAX_MENSAJE}
-            onChange={(e) => setMensaje(e.target.value)}
-            placeholder="¡Hola! Te compartimos…"
-          />
-          <p
-            className="tiny muted"
-            style={{ margin: '6px 0 0', textAlign: 'right' }}
-          >
-            {mensaje.length}/{MAX_MENSAJE}
-          </p>
+          {/*
+            NO es un textarea libre, y no es una limitación nuestra: fuera de
+            las 24 h WhatsApp solo deja salir una plantilla aprobada por Meta.
+            Lo que sale es el texto aprobado, y lo único que cambia en cada
+            envío son sus huecos.
+          */}
+          {plantillas.length === 0 ? (
+            <div className="empty" style={{ padding: '18px 0' }}>
+              <b>Todavía no hay ninguna plantilla aprobada</b>
+              Una campaña sale con una plantilla que Meta aprobó. Creá la
+              primera en Plantillas y volvé cuando figure como aprobada.
+            </div>
+          ) : (
+            <>
+              <div className="field">
+                <label htmlFor="plantilla">Plantilla</label>
+                <select
+                  id="plantilla"
+                  name="plantilla"
+                  className="select"
+                  value={plantilla?.nombre ?? ''}
+                  onChange={(e) => elegirPlantilla(e.target.value)}
+                >
+                  <option value="">Elegí una…</option>
+                  {plantillas.map((p) => (
+                    <option key={`${p.nombre}-${p.idioma}`} value={p.nombre}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {plantilla && (
+                <>
+                  <input
+                    type="hidden"
+                    name="plantillaIdioma"
+                    value={plantilla.idioma}
+                  />
+                  <p className="camp-plantilla-texto">{plantilla.cuerpo}</p>
+
+                  {plantilla.huecos > 0 ? (
+                    <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                      {Array.from({ length: plantilla.huecos }, (_, i) => (
+                        <div className="field" key={i}>
+                          <label htmlFor={`param-${i}`}>
+                            Qué va en {`{{${i + 1}}}`}
+                          </label>
+                          <input
+                            id={`param-${i}`}
+                            name="param"
+                            className="input"
+                            maxLength={300}
+                            value={params[i] ?? ''}
+                            onChange={(e) => cambiarParam(i, e.target.value)}
+                          />
+                        </div>
+                      ))}
+                      <p className="tiny muted" style={{ margin: 0 }}>
+                        El mismo valor va para todos los destinatarios.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="tiny muted" style={{ margin: '10px 0 0' }}>
+                      Esta plantilla no tiene datos variables: sale igual para
+                      todos.
+                    </p>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </Paso>
 
         <Paso n={4} titulo="Adjuntar imagen (opcional)">
@@ -328,9 +416,9 @@ export function Compositor({
         */}
         <div className="alert alert-amber" style={{ marginTop: 16 }}>
           <span>
-            Todavía no se puede enviar. WhatsApp solo permite escribirle a
-            alguien fuera de las 24 h con una plantilla aprobada por Meta, y eso
-            está en desarrollo. Mientras tanto la campaña queda guardada.
+            Los envíos se habilitan una vez configurada la facturación de tu
+            cuenta de WhatsApp con Meta, que es quien cobra cada mensaje. Por
+            ahora la campaña queda guardada y lista para salir.
           </span>
         </div>
 

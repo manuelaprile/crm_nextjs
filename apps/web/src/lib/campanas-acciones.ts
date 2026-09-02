@@ -72,6 +72,17 @@ export async function guardarCampana(formData: FormData): Promise<void> {
   }
   const elegidos = uuids(formData, 'elegidos')
 
+  // La plantilla y sus valores. El nombre se valida contra lo que Meta
+  // permite; el texto NO se guarda —vive en Meta— y los valores van en orden.
+  const plantilla = String(formData.get('plantilla') ?? '').trim() || null
+  if (plantilla && !/^[a-z0-9_]{1,60}$/.test(plantilla)) {
+    volver(vuelvoA, 'error', 'Esa plantilla no existe.')
+  }
+  const plantillaIdioma = String(formData.get('plantillaIdioma') ?? '').trim() || null
+  const params = formData
+    .getAll('param')
+    .map((v) => String(v).slice(0, 300))
+
   if (destino === 'manual' && elegidos.length === 0) {
     volver(vuelvoA, 'error', 'Elegiste "a mano" pero no marcaste a nadie.')
   }
@@ -103,6 +114,9 @@ export async function guardarCampana(formData: FormData): Promise<void> {
                destino = ${destino},
                filtros = ${JSON.stringify(filtros)}::jsonb,
                mensaje = ${mensaje},
+               plantilla = ${plantilla},
+               plantilla_idioma = ${plantillaIdioma},
+               plantilla_params = ${JSON.stringify(params)}::jsonb,
                imagen = case
                           when ${bytes !== null} then ${bytes}::bytea
                           when ${sacarImagen} then null
@@ -116,9 +130,12 @@ export async function guardarCampana(formData: FormData): Promise<void> {
     } else {
       const res = await tx.execute(sql`
         insert into campanas (tenant_id, nombre, destino, filtros, mensaje,
+                              plantilla, plantilla_idioma, plantilla_params,
                               imagen, imagen_mime, creada_por)
         values (${session.tenantId}, ${nombre}, ${destino},
                 ${JSON.stringify(filtros)}::jsonb, ${mensaje},
+                ${plantilla}, ${plantillaIdioma},
+                ${JSON.stringify(params)}::jsonb,
                 ${bytes}::bytea, ${mime}, ${session.userId})
         returning id
       `)

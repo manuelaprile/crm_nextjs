@@ -26,6 +26,11 @@ export type Campana = {
   destino: Destino
   filtros: Filtros
   mensaje: string
+  /** La plantilla aprobada con la que sale. Sin ella no se puede enviar. */
+  plantilla: string | null
+  plantillaIdioma: string | null
+  /** Los valores de los huecos, en orden. */
+  params: string[]
   tieneImagen: boolean
   elegidos: string[]
   actualizada: string
@@ -58,6 +63,7 @@ export async function listarCampanas(): Promise<Campana[]> {
   return withTenant(session, async (tx) => {
     const res = await tx.execute(sql`
       select c.id, c.nombre, c.estado, c.destino, c.filtros, c.mensaje,
+             c.plantilla, c.plantilla_idioma, c.plantilla_params,
              c.imagen is not null as tiene_imagen,
              to_char(c.updated_at, 'DD/MM/YYYY HH24:MI') as actualizada,
              coalesce(
@@ -77,6 +83,7 @@ export async function verCampana(id: string): Promise<Campana | null> {
   return withTenant(session, async (tx) => {
     const res = await tx.execute(sql`
       select c.id, c.nombre, c.estado, c.destino, c.filtros, c.mensaje,
+             c.plantilla, c.plantilla_idioma, c.plantilla_params,
              c.imagen is not null as tiene_imagen,
              to_char(c.updated_at, 'DD/MM/YYYY HH24:MI') as actualizada,
              coalesce(
@@ -99,6 +106,11 @@ function fila(r: Record<string, unknown>): Campana {
     destino: (String(r.destino) as Destino) ?? 'todos',
     filtros: leerFiltros(r.filtros),
     mensaje: String(r.mensaje ?? ''),
+    plantilla: r.plantilla ? String(r.plantilla) : null,
+    plantillaIdioma: r.plantilla_idioma ? String(r.plantilla_idioma) : null,
+    params: Array.isArray(r.plantilla_params)
+      ? (r.plantilla_params as unknown[]).map((v) => String(v ?? ''))
+      : [],
     tieneImagen: Boolean(r.tiene_imagen),
     elegidos: Array.isArray(r.elegidos) ? (r.elegidos as string[]) : [],
     actualizada: String(r.actualizada ?? ''),

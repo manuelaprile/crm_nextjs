@@ -25,6 +25,7 @@ import 'server-only'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { withSystem } from './db/client'
+import { huecosDe } from './plantillas-texto'
 import type { InboundPayload, WaMessage } from './ingest'
 
 const BASE = process.env.ZERNIO_BASE_URL ?? 'https://zernio.com/api'
@@ -471,4 +472,91 @@ export async function enviarPorZernio(params: {
   })
   if (!res.ok) return res
   return { ok: true, data: res.data?.data?.messageId ?? null }
+}
+
+// ---------------------------------------------------------------------
+// Plantillas de mensaje (HSM)
+// ---------------------------------------------------------------------
+/**
+ * Las plantillas de una cuenta, tal como las tiene Meta.
+ *
+ * NO se guardan de nuestro lado. El texto vive en Meta y puede cambiar —una
+ * edición, un rechazo, una versión nueva— y una copia local envejecería en
+ * silencio: la pantalla mostraría una cosa y saldría otra.
+ */
+export type PlantillaZernio = {
+  nombre: string
+  idioma: string
+  categoria: string
+  /** APPROVED | PENDING | REJECTED, tal cual lo devuelve Meta. */
+  estado: string
+  /** El cuerpo con sus huecos: "Hola {{1}}, te esperamos el {{2}}". */
+  cuerpo: string
+  /** Cuántos huecos tiene el cuerpo. Es lo que hay que pedirle a quien manda. */
+  huecos: number
+  motivoRechazo: string | null
+}
+
+function cuerpoDe(t: Record<string, unknown>): string {
+  // Meta arma la plantilla con componentes; el que se muestra es el BODY.
+  const comps = (t.components ?? []) as { type?: string; text?: string }[]
+  const body = comps.find((c) => (c.type ?? '').toUpperCase() === 'BODY')
+  return String(body?.text ?? t.body ?? '')
+}
+
+export async function listarPlantillas(
+  accountId: string,
+): Promise<Resultado<PlantillaZernio[]>> {
+  const r = await llamar<{ templates?: Record<string, unknown>[] }>(
+    `/v1/whatsapp/templates?accountId=${encodeURIComponent(accountId)}`,
+  )
+  if (!r.ok) return r
+  const lista = r.data?.templates ?? []
+  return {
+    ok: true,
+    data: lista.map((t) => {
+      const cuerpo = cuerpoDe(t)
+      return {
+        nombre: String(t.name ?? ''),
+        idioma: String(t.language ?? ''),
+        categoria: String(t.category ?? ''),
+        estado: String(t.status ?? '').toUpperCase(),
+        cuerpo,
+        huecos: huecosDe(cuerpo),
+        motivoRechazo: t.rejectedReason ? String(t.rejectedReason) : null,
+      }
+    }),
+  }
+}
+
+/**
+ * Crear una plantilla y mandarla a aprobar.
+ *
+ * `accountId` va en el CUERPO y no en la query. Con la query la API contesta
+ * `Invalid input: expected string, received undefined`, que no dice cuál
+ * falta y manda a buscar el problema a cualquier otro lado.
+ *
+ * Las categorías son exactamente tres y las dicta Meta —lo contesta la propia
+ * API: "Category must be AUTHENTICATION, MARKETING, or UTILITY"—. Para una
+ * campaña siempre es MARKETING, que es la que se cobra siempre.
+ */
+export async function crearPlantilla(params: {
+  accountId: string
+  nombre: string
+  idioma: string
+  categoria: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION'
+  cuerpo: string
+}): Promise<Resultado<{ nombre: string }>> {
+  const r = await llamar<Record<string, unknown>>('/v1/whatsapp/templates', {
+    method: 'POST',
+    body: JSON.stringify({
+      accountId: params.accountId,
+      name: params.nombre,
+      language: params.idioma,
+      category: params.categoria,
+      components: [{ type: 'BODY', text: params.cuerpo }],
+    }),
+  })
+  if (!r.ok) return r
+  return { ok: true, data: { nombre: params.nombre } }
 }

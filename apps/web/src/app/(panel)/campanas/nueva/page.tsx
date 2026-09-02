@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { requireTenant } from '@/lib/auth'
 import { moduloActivo } from '@/lib/modulos'
 import { opcionesDeFiltro } from '../datos'
+import { plantillasAprobadas } from '@/lib/plantillas'
 import { Compositor } from '../compositor'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +18,10 @@ export default async function NuevaCampanaPage({
   if (!(await moduloActivo('modulo-campanas', session.tenantId))) notFound()
 
   const { r, m } = await searchParams
-  const opciones = await opcionesDeFiltro()
+  const [opciones, plantillas] = await Promise.all([
+    opcionesDeFiltro(),
+    plantillasAprobadas(),
+  ])
 
   return (
     <>
@@ -41,6 +45,7 @@ export default async function NuevaCampanaPage({
         <Compositor
           campana={null}
           opciones={opciones}
+          plantillas={plantillas}
           negocio={session.tenantName ?? 'Tu negocio'}
         />
       </div>

@@ -13,6 +13,7 @@ import {
   IconUsers,
   IconChart,
   IconCampana,
+  IconDocumento,
   IconWhatsApp,
   IconMenu,
   IconFlask,
@@ -106,6 +107,7 @@ export function Sidebar({
         grp: 'Difusión',
         items: [
           { href: '/campanas', label: 'Campañas', icon: <IconCampana /> },
+          { href: '/plantillas', label: 'Plantillas', icon: <IconDocumento /> },
         ],
       })
     }
