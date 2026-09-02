@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { requireTenant } from '@/lib/auth'
 import { moduloActivo } from '@/lib/modulos'
 import { plantillasDeLaCuenta } from '@/lib/plantillas'
-import { crearPlantillaAccion } from '@/lib/plantillas-acciones'
+import { FormularioPlantilla } from './formulario'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,51 +63,7 @@ export default async function PlantillasPage({
                 <h3>Nueva plantilla</h3>
               </div>
               <div className="panel-box-body">
-                <form action={crearPlantillaAccion} style={{ display: 'grid', gap: 14 }}>
-                  <div className="field">
-                    <label htmlFor="nombre">Nombre</label>
-                    <input
-                      id="nombre"
-                      name="nombre"
-                      className="input"
-                      placeholder="Promo Septiembre"
-                      maxLength={60}
-                      required
-                    />
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="cuerpo">Texto del mensaje</label>
-                    <textarea
-                      id="cuerpo"
-                      name="cuerpo"
-                      className="input"
-                      rows={6}
-                      maxLength={1024}
-                      placeholder={
-                        'Hola {{1}}, te compartimos nuestra promo de este mes.\n' +
-                        'Escribinos si querés más información.'
-                      }
-                      required
-                    />
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="idioma">Idioma</label>
-                    <select id="idioma" name="idioma" className="select" defaultValue="es_AR">
-                      <option value="es_AR">Español (Argentina)</option>
-                      <option value="es">Español</option>
-                      <option value="es_ES">Español (España)</option>
-                      <option value="es_MX">Español (México)</option>
-                      <option value="pt_BR">Portugués (Brasil)</option>
-                      <option value="en_US">Inglés (EE.UU.)</option>
-                    </select>
-                  </div>
-
-                  <button type="submit" className="btn btn-primary btn-sm" style={{ justifySelf: 'start' }}>
-                    Mandar a aprobar
-                  </button>
-                </form>
+                <FormularioPlantilla />
               </div>
             </div>
 

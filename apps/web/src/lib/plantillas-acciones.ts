@@ -74,14 +74,32 @@ export async function crearPlantillaAccion(formData: FormData): Promise<void> {
       'Los huecos tienen que ir en orden y sin saltos: {{1}}, {{2}}, {{3}}…',
     )
   }
-  if (huecosDe(cuerpo) > 10) {
+  const cuantos = huecosDe(cuerpo)
+  if (cuantos > 10) {
     volver('error', 'Diez huecos es el máximo razonable para una plantilla.')
+  }
+
+  // Meta EXIGE un ejemplo por hueco. Sin ellos rechaza con un mensaje de
+  // formato genérico que habla de la sintaxis de las variables y no menciona
+  // el ejemplo, así que sin esta validación el rechazo llega horas después y
+  // apuntando al lugar equivocado.
+  const ejemplos = formData
+    .getAll('ejemplo')
+    .map((v) => String(v).trim().slice(0, 120))
+    .slice(0, cuantos)
+  if (ejemplos.length < cuantos || ejemplos.some((e) => !e)) {
+    volver(
+      'error',
+      'Falta un ejemplo para cada dato variable. Meta los pide para poder ' +
+        'aprobar la plantilla.',
+    )
   }
 
   const r = await crearPlantilla({
     accountId,
     nombre,
     idioma,
+    ejemplos,
     // Una campaña es MARKETING siempre. UTILITY es para lo que responde a
     // algo que la persona pidió —un turno, un envío— y usarla para promoción
     // es motivo de rechazo, o peor, de que Meta recategorice la cuenta.
@@ -98,7 +116,12 @@ export async function crearPlantillaAccion(formData: FormData): Promise<void> {
       ? 'Ya existe una plantilla con ese nombre. Poné otro.'
       : /discriminator|component/i.test(crudo)
         ? 'El formato del mensaje no fue aceptado. Probá con un texto simple, sin encabezado ni botones.'
-        : crudo
+        : /invalid format|variable syntax/i.test(crudo)
+          ? 'Meta no aceptó el formato. Suele ser por los huecos: tienen que ' +
+            'ir {{1}}, {{2}} en orden, no pueden quedar al principio ni al ' +
+            'final del texto, y el mensaje no puede terminar con renglones ' +
+            'en blanco.'
+          : crudo
     volver('error', `No se pudo crear: ${claro}`)
   }
 

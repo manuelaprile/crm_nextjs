@@ -546,6 +546,8 @@ export async function crearPlantilla(params: {
   idioma: string
   categoria: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION'
   cuerpo: string
+  /** Un valor de muestra por cada hueco, EN ORDEN. Obligatorio si hay huecos. */
+  ejemplos: string[]
 }): Promise<Resultado<{ nombre: string }>> {
   const r = await llamar<Record<string, unknown>>('/v1/whatsapp/templates', {
     method: 'POST',
@@ -558,7 +560,22 @@ export async function crearPlantilla(params: {
       // discriminator value. Expected 'header' | 'body' | 'footer' | ...".
       // Meta documenta los componentes en mayúscula y Zernio los toma en
       // minúscula, así que copiar el ejemplo de Meta no alcanza.
-      components: [{ type: 'body', text: params.cuerpo }],
+      components: [
+        {
+          type: 'body',
+          text: params.cuerpo,
+          // El EJEMPLO es obligatorio cuando el texto tiene huecos. Sin él
+          // Meta rechaza con un mensaje de formato genérico —"Invalid
+          // format. Check variable syntax…"— que no menciona el ejemplo y
+          // manda a revisar las llaves, que están bien.
+          //
+          // `body_text` es una lista de listas: una fila de valores por cada
+          // envío de muestra. Con una alcanza.
+          ...(params.ejemplos.length
+            ? { example: { body_text: [params.ejemplos] } }
+            : {}),
+        },
+      ],
     }),
   })
   if (!r.ok) return r
