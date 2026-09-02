@@ -173,8 +173,7 @@ export default async function ModulosPage({
                 {MODULOS.map((mod) => (
                   <div key={mod.codigo}>
                     <p style={{ margin: '0 0 2px', fontWeight: 600, fontSize: 13.5 }}>
-                      {mod.nombre}{' '}
-                      <span className="badge b-gray mono">{mod.codigo}</span>
+                      {mod.nombre}
                     </p>
                     <p className="tiny muted" style={{ margin: 0, lineHeight: 1.5 }}>
                       {mod.detalle}

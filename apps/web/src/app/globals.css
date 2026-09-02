@@ -2707,3 +2707,17 @@ input[type='file'].input {
   outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
+/* La celda de una tabla de interruptores: el switch y, debajo, si el valor
+   es el que viene por defecto o alguien lo decidió. */
+.celda-switch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.celda-soltar {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}

@@ -1,7 +1,6 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { FUNCIONES, buscarFuncion, estadoPorCuenta } from '@/lib/funciones'
+import { FUNCIONES, estadoPorCuenta } from '@/lib/funciones'
 import {
   cambiarFuncionCuenta,
   funcionPorDefecto,
@@ -15,24 +14,51 @@ export const dynamic = 'force-dynamic'
  *
  * Es lo más parecido a un despliegue gradual que permite esta arquitectura:
  * el código llega a todos al mismo tiempo, pero puede llegar apagado. La
- * lista de funciones sale del catálogo del código (`lib/funciones.ts`), así
- * que acá nunca aparece un interruptor que no apague nada.
+ * lista sale del catálogo del código (`lib/funciones.ts`), así que acá nunca
+ * aparece un interruptor que no apague nada.
+ *
+ * MISMA FORMA QUE MÓDULOS: cuentas en las filas, interruptores en las
+ * columnas. Antes había que elegir una función arriba y recién ahí veías las
+ * cuentas, así que «¿qué tiene prendido esta cuenta?» obligaba a recorrer
+ * función por función y acordarse.
+ *
+ * LO QUE ACÁ NO ES IGUAL A MÓDULOS: la función tiene un VALOR POR DEFECTO, y
+ * un módulo siempre arranca apagado. Entonces un interruptor prendido puede
+ * significar dos cosas distintas —alguien lo prendió, o viene así— y la
+ * diferencia importa: cambiar el valor por defecto en el código mueve a las
+ * cuentas que nunca se tocaron, y no a las que sí. Por eso debajo del
+ * interruptor dice «por defecto» cuando nadie decidió nada, y aparece
+ * «soltar» cuando sí.
  */
 export default async function FuncionesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string; r?: string; m?: string }>
+  searchParams: Promise<{ r?: string; m?: string }>
 }) {
   const session = await getSession()
   if (!session?.isSuperadmin) notFound()
 
-  const { f, r, m } = await searchParams
-  const elegida = (f && buscarFuncion(f)) || FUNCIONES[0]
-  const cuentas = elegida ? await estadoPorCuenta(elegida.codigo) : []
+  const { r, m } = await searchParams
 
-  const prendidas = cuentas.filter((c) =>
-    c.explicito === null ? elegida!.porDefecto : c.explicito,
-  ).length
+  // Una consulta por función, no una por cuenta: son un puñado fijo, y al
+  // revés serían tantas como clientes haya.
+  const estados = await Promise.all(
+    FUNCIONES.map(async (fn) => ({
+      funcion: fn,
+      cuentas: await estadoPorCuenta(fn.codigo),
+    })),
+  )
+  const cuentas = estados[0]?.cuentas ?? []
+
+  const celda = (codigo: string, tenantId: string) => {
+    const e = estados.find((x) => x.funcion.codigo === codigo)!
+    const c = e.cuentas.find((y) => y.tenantId === tenantId)
+    const explicito = c?.explicito ?? null
+    return {
+      activa: explicito === null ? e.funcion.porDefecto : explicito,
+      porDefecto: explicito === null,
+    }
+  }
 
   return (
     <>
@@ -51,179 +77,149 @@ export default async function FuncionesPage({
           </div>
         ) : null}
 
-        {!elegida ? (
+        {FUNCIONES.length === 0 || cuentas.length === 0 ? (
           <div className="panel-box">
             <div className="empty">
-              <b>No hay funciones con interruptor</b>
-              Se agregan desde el código, en lib/funciones.ts.
+              <b>
+                {FUNCIONES.length === 0
+                  ? 'No hay funciones con interruptor'
+                  : 'Todavía no hay cuentas'}
+              </b>
+              {FUNCIONES.length === 0
+                ? 'Se agregan desde el código, en lib/funciones.ts.'
+                : 'Creá una cuenta y vas a poder prenderle funciones.'}
             </div>
           </div>
         ) : (
           <>
-            {FUNCIONES.length > 1 && (
-              <div className="toolbar">
-                {FUNCIONES.map((fn) => (
-                  <Link
-                    key={fn.codigo}
-                    href={`/superadmin/funciones?f=${fn.codigo}`}
-                    className={`btn btn-sm ${
-                      fn.codigo === elegida.codigo ? 'btn-primary' : 'btn-ghost'
-                    }`}
-                  >
-                    {fn.nombre}
-                  </Link>
-                ))}
-              </div>
-            )}
-
             <div className="panel-box" style={{ marginBottom: 16 }}>
               <div className="panel-box-head">
-                <h3>{elegida.nombre}</h3>
-                <span className="badge b-gray mono">{elegida.codigo}</span>
+                <h3>Cuentas</h3>
                 <span className="tiny muted" style={{ marginLeft: 'auto' }}>
-                  {prendidas} de {cuentas.length} prendida
-                  {prendidas === 1 ? '' : 's'}
+                  {cuentas.length} cuenta{cuentas.length === 1 ? '' : 's'}
                 </span>
-              </div>
-              <div className="panel-box-body">
-                <p className="tiny muted" style={{ margin: 0, lineHeight: 1.5 }}>
-                  {elegida.detalle}
-                </p>
-                <p className="tiny muted" style={{ marginBottom: 0 }}>
-                  Por defecto:{' '}
-                  <strong>{elegida.porDefecto ? 'prendida' : 'apagada'}</strong>
-                </p>
-              </div>
-            </div>
-
-            <div className="panel-box" style={{ marginBottom: 16 }}>
-              <div className="panel-box-head">
-                <h3>Cuenta por cuenta</h3>
               </div>
               <div className="table-scroll">
                 <table>
                   <thead>
                     <tr>
                       <th>Cuenta</th>
-                      <th>Estado</th>
-                      <th></th>
+                      {FUNCIONES.map((fn) => (
+                        <th
+                          key={fn.codigo}
+                          style={{ textAlign: 'center' }}
+                          title={fn.detalle}
+                        >
+                          {fn.nombre}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {cuentas.map((c) => {
-                      const activa =
-                        c.explicito === null ? elegida.porDefecto : c.explicito
-                      return (
-                        <tr key={c.tenantId}>
-                          <td>
-                            <span
-                              style={{
-                                display: 'block',
-                                fontWeight: 600,
-                                fontSize: 13.5,
-                              }}
-                            >
-                              {c.nombre}
-                            </span>
-                            <span className="tiny muted mono">{c.slug}</span>
-                          </td>
-                          <td>
-                            <span
-                              className={`badge ${activa ? 'b-green' : 'b-gray'}`}
-                            >
-                              {activa ? 'Prendida' : 'Apagada'}
-                            </span>
-                            {c.explicito === null && (
-                              <span
-                                className="tiny muted"
-                                style={{ marginLeft: 8 }}
-                              >
-                                por defecto
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div
-                              style={{
-                                display: 'flex',
-                                gap: 8,
-                                justifyContent: 'flex-end',
-                              }}
-                            >
-                              <form action={cambiarFuncionCuenta}>
-                                <input type="hidden" name="codigo" value={elegida.codigo} />
-                                <input type="hidden" name="tenantId" value={c.tenantId} />
-                                <input type="hidden" name="nombre" value={c.nombre} />
-                                <input
-                                  type="hidden"
-                                  name="activo"
-                                  value={activa ? 'no' : 'si'}
-                                />
-                                <button type="submit" className="btn btn-ghost btn-sm">
-                                  {activa ? 'Apagar' : 'Prender'}
-                                </button>
-                              </form>
-                              {c.explicito !== null && (
-                                <form action={funcionPorDefecto}>
-                                  <input type="hidden" name="codigo" value={elegida.codigo} />
+                    {cuentas.map((c) => (
+                      <tr key={c.tenantId}>
+                        <td>
+                          <span
+                            style={{
+                              display: 'block',
+                              fontWeight: 600,
+                              fontSize: 13.5,
+                            }}
+                          >
+                            {c.nombre}
+                          </span>
+                          <span className="tiny muted mono">{c.slug}</span>
+                        </td>
+                        {FUNCIONES.map((fn) => {
+                          const { activa, porDefecto } = celda(fn.codigo, c.tenantId)
+                          return (
+                            <td key={fn.codigo}>
+                              <div className="celda-switch">
+                                <form action={cambiarFuncionCuenta}>
+                                  <input type="hidden" name="codigo" value={fn.codigo} />
                                   <input type="hidden" name="tenantId" value={c.tenantId} />
                                   <input type="hidden" name="nombre" value={c.nombre} />
-                                  <button type="submit" className="btn btn-ghost btn-sm">
-                                    Por defecto
+                                  <input
+                                    type="hidden"
+                                    name="activo"
+                                    value={activa ? 'no' : 'si'}
+                                  />
+                                  <button
+                                    type="submit"
+                                    role="switch"
+                                    aria-checked={activa}
+                                    aria-label={`${fn.nombre} en ${c.nombre}`}
+                                    className={`switch${activa ? ' on' : ''}`}
+                                  >
+                                    <span className="switch-bolita" />
                                   </button>
                                 </form>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
+                                {porDefecto ? (
+                                  <span className="tiny muted">por defecto</span>
+                                ) : (
+                                  <form action={funcionPorDefecto}>
+                                    <input type="hidden" name="codigo" value={fn.codigo} />
+                                    <input type="hidden" name="tenantId" value={c.tenantId} />
+                                    <input type="hidden" name="nombre" value={c.nombre} />
+                                    <button
+                                      type="submit"
+                                      className="tiny enlace celda-soltar"
+                                      title="Volver al valor por defecto de esta función"
+                                    >
+                                      soltar
+                                    </button>
+                                  </form>
+                                )}
+                              </div>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
 
+            {/* Qué hace cada una, y los botones de "esto ya está probado".
+                Van acá abajo y no arriba de la tabla: prender algo en TODAS
+                las cuentas de un click no tiene que estar al lado del mouse
+                mientras alguien prueba una cuenta suelta. */}
             <div className="panel-box">
               <div className="panel-box-head">
-                <h3>Aplicar en todas las cuentas</h3>
+                <h3>Qué hace cada función</h3>
               </div>
-              <div className="panel-box-body">
-                <form
-                  action={cambiarFuncionTodas}
-                  style={{ display: 'grid', gap: 12, maxWidth: 460 }}
-                >
-                  <input type="hidden" name="codigo" value={elegida.codigo} />
-                  <div className="field">
-                    <label htmlFor="confirma">
-                      Escribí <code>{elegida.codigo}</code> para confirmar
-                    </label>
-                    <input
-                      id="confirma"
-                      name="confirma"
-                      className="input"
-                      autoComplete="off"
-                      placeholder={elegida.codigo}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      type="submit"
-                      name="activo"
-                      value="si"
-                      className="btn btn-primary"
+              <div className="panel-box-body" style={{ display: 'grid', gap: 16 }}>
+                {FUNCIONES.map((fn) => (
+                  <div key={fn.codigo}>
+                    <p style={{ margin: '0 0 2px', fontWeight: 600, fontSize: 13.5 }}>
+                      {fn.nombre}
+                    </p>
+                    <p
+                      className="tiny muted"
+                      style={{ margin: '0 0 8px', lineHeight: 1.5 }}
                     >
-                      Prender en todas
-                    </button>
-                    <button
-                      type="submit"
-                      name="activo"
-                      value="no"
-                      className="btn btn-ghost"
-                    >
-                      Apagar en todas
-                    </button>
+                      {fn.detalle} Por defecto viene{' '}
+                      <strong>{fn.porDefecto ? 'prendida' : 'apagada'}</strong>.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <form action={cambiarFuncionTodas}>
+                        <input type="hidden" name="codigo" value={fn.codigo} />
+                        <input type="hidden" name="activo" value="si" />
+                        <button type="submit" className="btn btn-ghost btn-sm">
+                          Prender en todas
+                        </button>
+                      </form>
+                      <form action={cambiarFuncionTodas}>
+                        <input type="hidden" name="codigo" value={fn.codigo} />
+                        <input type="hidden" name="activo" value="no" />
+                        <button type="submit" className="btn btn-ghost btn-sm">
+                          Apagar en todas
+                        </button>
+                      </form>
+                    </div>
                   </div>
-                </form>
+                ))}
               </div>
             </div>
           </>
