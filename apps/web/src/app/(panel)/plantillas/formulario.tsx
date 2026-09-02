@@ -133,12 +133,6 @@ export function FormularioPlantilla() {
           accept="image/jpeg,image/png"
           className="input"
         />
-        <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-          Si la ponés, esta plantilla siempre va a llevar una imagen arriba del
-          texto. La que subís acá es solo la MUESTRA que mira Meta para
-          aprobarla: en cada campaña vas a poder mandar otra distinta. JPG o
-          PNG, hasta 5 MB.
-        </p>
       </div>
 
       <div className="field">
