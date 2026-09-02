@@ -554,7 +554,11 @@ export async function crearPlantilla(params: {
       name: params.nombre,
       language: params.idioma,
       category: params.categoria,
-      components: [{ type: 'BODY', text: params.cuerpo }],
+      // `body` en MINÚSCULA. Con 'BODY' la API contesta "Invalid
+      // discriminator value. Expected 'header' | 'body' | 'footer' | ...".
+      // Meta documenta los componentes en mayúscula y Zernio los toma en
+      // minúscula, así que copiar el ejemplo de Meta no alcanza.
+      components: [{ type: 'body', text: params.cuerpo }],
     }),
   })
   if (!r.ok) return r

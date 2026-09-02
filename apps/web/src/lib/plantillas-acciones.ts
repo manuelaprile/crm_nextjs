@@ -25,13 +25,17 @@ function volver(tipo: 'ok' | 'error', msg: string): never {
  * `promo_septiembre` y se le muestra cómo quedó.
  */
 export async function nombreDePlantilla(texto: string): Promise<string> {
-  return texto
+  const limpio = texto
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 60)
+  // Meta además exige que EMPIECE CON LETRA: "2x1 de septiembre" quedaría en
+  // `2x1_de_septiembre` y lo rechaza. Se le antepone una letra en vez de
+  // devolver un error, que es lo mismo que hace el resto de la limpieza.
+  return /^[a-z]/.test(limpio) ? limpio : `p_${limpio}`.slice(0, 60)
 }
 
 export async function crearPlantillaAccion(formData: FormData): Promise<void> {
@@ -86,7 +90,16 @@ export async function crearPlantillaAccion(formData: FormData): Promise<void> {
   })
 
   if (!r.ok) {
-    volver('error', `Meta no la aceptó: ${r.error}`)
+    // El texto crudo de Meta va entero: es lo único que dice qué corregir.
+    // Los dos rechazos más comunes se traducen, porque el original no se
+    // entiende sin saber cómo se llaman las cosas del otro lado.
+    const crudo = r.error
+    const claro = /already exists|duplicate/i.test(crudo)
+      ? 'Ya existe una plantilla con ese nombre. Poné otro.'
+      : /discriminator|component/i.test(crudo)
+        ? 'El formato del mensaje no fue aceptado. Probá con un texto simple, sin encabezado ni botones.'
+        : crudo
+    volver('error', `No se pudo crear: ${claro}`)
   }
 
   revalidatePath('/plantillas')
