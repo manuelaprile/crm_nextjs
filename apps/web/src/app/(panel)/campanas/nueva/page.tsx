@@ -38,7 +38,11 @@ export default async function NuevaCampanaPage({
             <span>{m}</span>
           </div>
         ) : null}
-        <Compositor campana={null} opciones={opciones} />
+        <Compositor
+          campana={null}
+          opciones={opciones}
+          negocio={session.tenantName ?? 'Tu negocio'}
+        />
       </div>
     </>
   )

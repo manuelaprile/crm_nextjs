@@ -26,12 +26,24 @@ import type { OpcionesDeFiltro } from './datos'
 
 const MAX_MENSAJE = 1000
 
+/**
+ * La hora del teléfono simulado.
+ *
+ * Fija, no la de ahora: con la hora real el servidor dibuja una y el
+ * navegador otra, y React avisa de una diferencia de hidratación por algo
+ * puramente decorativo.
+ */
+const HORA = '11:30'
+
 export function Compositor({
   campana,
   opciones,
+  negocio,
 }: {
   campana: Campana | null
   opciones: OpcionesDeFiltro
+  /** Cómo se llama la cuenta: va en el encabezado del teléfono. */
+  negocio: string
 }) {
   const [nombre, setNombre] = useState(campana?.nombre ?? '')
   const [destino, setDestino] = useState(campana?.destino ?? 'todos')
@@ -249,24 +261,61 @@ export function Compositor({
             <p className="tiny muted" style={{ marginTop: 0 }}>
               Así van a ver tu mensaje.
             </p>
-            <div className="camp-burbuja">
-              {(imagenActual || imagenNueva) && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={imagenNueva ?? `/api/campanas/${campana!.id}/imagen`}
-                  alt=""
-                  className="camp-burbuja-img"
-                />
-              )}
-              {mensaje.trim() ? (
-                mensaje.split('\n').map((l, i) => <p key={i}>{l || ' '}</p>)
-              ) : (
-                <p className="muted">
-                  El mensaje aparece acá mientras escribís.
-                </p>
-              )}
+            {/*
+              El teléfono es de mentira y a propósito se parece al de verdad:
+              escribir en un textarea blanco y verlo en un recuadro blanco no
+              deja anticipar cómo se lee del otro lado. Un párrafo que en el
+              formulario parece corto, en una burbuja de teléfono son ocho
+              renglones.
+            */}
+            <div className="wa">
+              <div className="wa-barra">
+                <span>{HORA}</span>
+                <span>▮▮▮ ⌁</span>
+              </div>
+              <div className="wa-cabecera">
+                <span className="wa-volver" aria-hidden="true">
+                  ‹
+                </span>
+                <span className="wa-avatar" aria-hidden="true">
+                  {negocio.trim().charAt(0).toUpperCase() || 'N'}
+                </span>
+                <span className="wa-quien">
+                  <strong>{negocio}</strong>
+                  <span>en línea</span>
+                </span>
+              </div>
+              <div className="wa-chat">
+                <div className="wa-burbuja">
+                  {(imagenActual || imagenNueva) && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={imagenNueva ?? `/api/campanas/${campana!.id}/imagen`}
+                      alt=""
+                      className="wa-imagen"
+                    />
+                  )}
+                  <div className="wa-texto">
+                    {mensaje.trim() ? (
+                      mensaje
+                        .split('\n')
+                        .map((l, i) => <p key={i}>{l || ' '}</p>)
+                    ) : (
+                      <p className="muted">
+                        El mensaje aparece acá mientras escribís.
+                      </p>
+                    )}
+                  </div>
+                  <span className="wa-pie">
+                    {HORA}
+                    <span className="wa-tildes" aria-label="entregado">
+                      ✓✓
+                    </span>
+                  </span>
+                </div>
+              </div>
             </div>
-            <p className="tiny muted" style={{ marginBottom: 0 }}>
+            <p className="tiny muted" style={{ margin: '10px 0 0' }}>
               Es aproximada: cada teléfono lo muestra un poco distinto.
             </p>
           </div>

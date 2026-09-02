@@ -52,7 +52,11 @@ export default async function EditarCampanaPage({
             <span>{m}</span>
           </div>
         ) : null}
-        <Compositor campana={campana} opciones={opciones} />
+        <Compositor
+          campana={campana}
+          opciones={opciones}
+          negocio={session.tenantName ?? 'Tu negocio'}
+        />
       </div>
     </>
   )
