@@ -509,7 +509,16 @@ export async function getPipeline(
 // ---------------------------------------------------------------------
 
 export type FunnelReport = {
-  stages: { name: string; color: string; count: number; isWon: boolean }[]
+  stages: {
+    name: string
+    color: string
+    /** Cuántos PASARON por acá alguna vez. Es la barra. */
+    pasaron: number
+    /** Cuántos están acá AHORA. Es el número que se ve en el tablero. */
+    ahora: number
+    isWon: boolean
+    isLost: boolean
+  }[]
   byCity: { city: string; total: number; operados: number }[]
   totals: { contactos: number; operados: number; conversion: number }
 }
@@ -518,64 +527,109 @@ export async function getFunnelReport(
   ctx: TenantContext,
   days: number,
 ): Promise<FunnelReport> {
+  const ventana = `${days} days`
+
   return withTenant(ctx, async (tx) => {
-    // Embudo ACUMULATIVO, no foto del estado actual.
-    //
-    // La pregunta del doctor es "de todas las que consultan, cuántas terminan
-    // yendo al consultorio y cuántas se operan". Alguien que hoy figura en
-    // "Se operó" también pasó por "Consulta inicial": tiene que contar en las
-    // dos. Contando solo la etapa actual, el embudo daría al revés.
-    //
-    // Por eso se calcula sobre `stage_history`: la posición MÁS ALTA que cada
-    // contacto alcanzó alguna vez. Las etapas de descarte se excluyen del
-    // acumulado y se informan aparte.
+    /**
+     * Dos números por etapa, y ninguno inventado.
+     *
+     * `pasaron` sale de que EXISTA una fila en `stage_history` para esa
+     * etapa. Antes se calculaba como "la posición más alta que alcanzó >=
+     * esta posición", y eso INVENTA: un contacto que va de «Nueva consulta»
+     * derecho a «Interesado» nunca estuvo en «Contactado», pero esa cuenta
+     * lo sumaba igual. El cliente abría el tablero, veía Contactado en 0, y
+     * el reporte le decía 2. No era una forma distinta de mirar lo mismo:
+     * era un número falso.
+     *
+     * `ahora` es la ocupación actual — exactamente el número del tablero.
+     * Van los dos a la vista porque la pregunta que hizo el cliente
+     * ("¿por qué no coinciden?") solo se contesta mostrando ambos: uno es
+     * histórico y el otro es hoy, y por definición no tienen por qué dar
+     * igual.
+     *
+     * Las etapas de descarte ya no son un caso aparte. Antes se contaban con
+     * OTRA fórmula que el resto —ocupación actual mientras las demás iban
+     * acumuladas—, así que el embudo podía terminar con una barra que subía.
+     */
     const stageRes = await tx.execute(sql`
-      with alcance as (
-        select h.contact_id, max(s.position) as max_pos
-          from stage_history h
-          join stages s on s.id = h.to_stage_id
-          join contacts c on c.id = h.contact_id
-         where not s.is_lost
-           and c.archived_at is null
-           and c.created_at > now() - ${`${days} days`}::interval
-         group by h.contact_id
-      )
-      select s.name, s.color, s.is_won, s.position,
-             case
-               when s.is_lost then (
-                 select count(*) from contacts c2
-                  where c2.stage_id = s.id and c2.archived_at is null
-                    and c2.created_at > now() - ${`${days} days`}::interval
-               )
-               else (select count(*) from alcance a where a.max_pos >= s.position)
-             end as count
+      select s.name, s.color, s.is_won, s.is_lost, s.position,
+             (select count(distinct h.contact_id)
+                from stage_history h
+                join contacts c on c.id = h.contact_id
+                                and c.tenant_id = h.tenant_id
+               where h.to_stage_id = s.id
+                 and h.tenant_id = ${ctx.tenantId}
+                 and c.archived_at is null
+                 and c.created_at > now() - ${ventana}::interval) as pasaron,
+             (select count(*)
+                from contacts c2
+               where c2.stage_id = s.id
+                 and c2.tenant_id = ${ctx.tenantId}
+                 and c2.archived_at is null
+                 and c2.created_at > now() - ${ventana}::interval) as ahora
         from stages s
+       where s.tenant_id = ${ctx.tenantId}
        order by s.position
     `)
 
+    /**
+     * Los totales, contando CONTACTOS y no sumando etapas.
+     *
+     * `operados` antes sumaba el conteo de todas las etapas ganadoras, así
+     * que con dos etapas marcadas como ganadoras el mismo contacto contaba
+     * dos veces y la conversión pasaba del 100%.
+     *
+     * "Ganó" es haber LLEGADO alguna vez a una etapa ganadora, no estar ahí
+     * hoy: alguien que cerró y después se movió a otra etapa igual convirtió.
+     */
+    const totRes = await tx.execute(sql`
+      select count(*) as contactos,
+             count(*) filter (
+               where exists (
+                 select 1 from stage_history h
+                   join stages sg on sg.id = h.to_stage_id
+                                 and sg.tenant_id = h.tenant_id
+                  where h.contact_id = c.id
+                    and h.tenant_id = ${ctx.tenantId}
+                    and sg.is_won)) as ganados
+        from contacts c
+       where c.tenant_id = ${ctx.tenantId}
+         and c.archived_at is null
+         and c.created_at > now() - ${ventana}::interval
+    `)
+
     // "De qué zona son los que se operaron" — el pedido textual del doctor.
+    // Mismo criterio de "ganó" que los totales: haber llegado, no estar hoy.
     const cityRes = await tx.execute(sql`
       select coalesce(nullif(c.city, ''), 'Sin zona') as city,
              count(*) as total,
-             count(*) filter (where s.is_won) as operados
+             count(*) filter (
+               where exists (
+                 select 1 from stage_history h
+                   join stages sg on sg.id = h.to_stage_id
+                                 and sg.tenant_id = h.tenant_id
+                  where h.contact_id = c.id
+                    and h.tenant_id = ${ctx.tenantId}
+                    and sg.is_won)) as operados
         from contacts c
-   left join stages s on s.id = c.stage_id
-       where c.archived_at is null
-         and c.created_at > now() - ${`${days} days`}::interval
+       where c.tenant_id = ${ctx.tenantId}
+         and c.archived_at is null
+         and c.created_at > now() - ${ventana}::interval
        group by 1 order by operados desc, total desc limit 20
     `)
 
     const stages = (stageRes.rows as Record<string, unknown>[]).map((r) => ({
       name: String(r.name),
       color: String(r.color),
-      count: Number(r.count),
+      pasaron: Number(r.pasaron),
+      ahora: Number(r.ahora),
       isWon: Boolean(r.is_won),
+      isLost: Boolean(r.is_lost),
     }))
 
-    // Con el embudo acumulativo, el total es la primera etapa (todos pasaron
-    // por ahí), no la suma de las etapas.
-    const contactos = stages[0]?.count ?? 0
-    const operados = stages.filter((s) => s.isWon).reduce((a, s) => a + s.count, 0)
+    const t = totRes.rows[0] as { contactos: string; ganados: string } | undefined
+    const contactos = Number(t?.contactos ?? 0)
+    const operados = Number(t?.ganados ?? 0)
 
     return {
       stages,

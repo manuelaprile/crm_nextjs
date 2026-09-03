@@ -1523,6 +1523,20 @@ tbody tr.clickable {
   font-size: 13.5px;
   margin-bottom: 6px;
 }
+/* Los dos números de una etapa del embudo. El histórico manda —es el que
+   dibuja la barra— y el de hoy va al lado, más chico y apagado: sirve para
+   reconciliar contra el tablero, no para competirle al otro. */
+.bar-nums {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+.bar-nums i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--c-muted);
+}
 .bar-track {
   height: 8px;
   background: var(--c-surface-alt);

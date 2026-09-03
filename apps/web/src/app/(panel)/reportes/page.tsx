@@ -20,7 +20,7 @@ export default async function ReportesPage({
   const { dias } = await searchParams
   const days = RANGOS.some((r) => String(r.days) === dias) ? Number(dias) : 30
   const report = await getFunnelReport(session, days)
-  const max = Math.max(...report.stages.map((s) => s.count), 1)
+  const max = Math.max(...report.stages.map((s) => s.pasaron), 1)
 
   // Los rótulos salen del EMBUDO del cliente, no de una lista fija. En el
   // consultorio la etapa ganadora se llama "Se operó"; en una inmobiliaria,
@@ -55,7 +55,7 @@ export default async function ReportesPage({
           </div>
           <div className="stat">
             <div className="lbl">{previa?.name ?? 'En seguimiento'}</div>
-            <div className="val mono">{previa?.count ?? 0}</div>
+            <div className="val mono">{previa?.pasaron ?? 0}</div>
           </div>
           <div className="stat">
             <div className="lbl">{ganada?.name ?? 'Cerradas'}</div>
@@ -73,25 +73,34 @@ export default async function ReportesPage({
               <div>
                 <h3>Embudo</h3>
                 <p className="tiny muted" style={{ marginTop: 3 }}>
-                  De todas las que consultan, cuántas llegan a{' '}
-                  {(previa?.name ?? 'la etapa siguiente').toLowerCase()} y
-                  cuántas terminan en{' '}
-                  {(ganada?.name ?? 'la etapa final').toLowerCase()}
+                  Cuántos pasaron por cada etapa, y cuántos están ahí hoy
                 </p>
               </div>
             </div>
             <div className="panel-box-body">
+              {/*
+                Los DOS números por etapa.
+
+                «Pasaron» es histórico y «ahora» es el tablero. Mostrar solo
+                el primero fue lo que hizo que un cliente comparara el reporte
+                con sus contactos y no le cerrara: son dos preguntas
+                distintas, y si la pantalla enseña una sola, la diferencia
+                parece un error.
+              */}
               {report.stages.map((s) => (
                 <div key={s.name} className="bar-row">
                   <div className="bar-top">
                     <span>{s.name}</span>
-                    <b className="mono">{s.count}</b>
+                    <span className="bar-nums">
+                      <b className="mono">{s.pasaron}</b>
+                      <i className="mono">{s.ahora} ahora</i>
+                    </span>
                   </div>
                   <div className="bar-track">
                     <div
                       className="bar-fill"
                       style={{
-                        width: `${(s.count / max) * 100}%`,
+                        width: `${(s.pasaron / max) * 100}%`,
                         background: s.color,
                       }}
                     />
@@ -151,8 +160,8 @@ export default async function ReportesPage({
  * acá antes de cerrar".
  */
 function etapaPrevia(
-  stages: { name: string; count: number; isWon: boolean }[],
-): { name: string; count: number } | undefined {
+  stages: { name: string; pasaron: number; isWon: boolean }[],
+): { name: string; pasaron: number } | undefined {
   const i = stages.findIndex((x) => x.isWon)
   if (i > 0) return stages[i - 1]
   // Sin etapa ganadora definida, el hito del medio es lo mejor que hay.
