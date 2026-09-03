@@ -87,13 +87,17 @@ export default async function ReportesPage({
                 distintas, y si la pantalla enseña una sola, la diferencia
                 parece un error.
               */}
+              <div className="bar-cabecera">
+                <span>Pasaron</span>
+                <span>Ahora</span>
+              </div>
               {report.stages.map((s) => (
                 <div key={s.name} className="bar-row">
                   <div className="bar-top">
                     <span>{s.name}</span>
                     <span className="bar-nums">
                       <b className="mono">{s.pasaron}</b>
-                      <i className="mono">{s.ahora} ahora</i>
+                      <i className="mono">{s.ahora}</i>
                     </span>
                   </div>
                   <div className="bar-track">

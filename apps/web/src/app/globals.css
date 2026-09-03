@@ -1523,18 +1523,35 @@ tbody tr.clickable {
   font-size: 13.5px;
   margin-bottom: 6px;
 }
-/* Los dos números de una etapa del embudo. El histórico manda —es el que
-   dibuja la barra— y el de hoy va al lado, más chico y apagado: sirve para
-   reconciliar contra el tablero, no para competirle al otro. */
+/* Los dos números de una etapa del embudo, en columnas.
+   El rótulo va UNA vez arriba y no pegado a cada número: repetir «ahora» en
+   cada fila convertía la columna en ruido. Ancho fijo para que los dos
+   números queden alineados con su encabezado fila a fila. */
+.bar-cabecera {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: var(--c-muted);
+}
+.bar-cabecera span,
+.bar-nums b,
+.bar-nums i {
+  width: 46px;
+  text-align: right;
+  display: inline-block;
+}
 .bar-nums {
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
   white-space: nowrap;
 }
+/* El histórico manda —es el que dibuja la barra—; el de hoy queda apagado.
+   Sirve para reconciliar contra el tablero, no para competirle. */
 .bar-nums i {
   font-style: normal;
-  font-size: 11.5px;
   color: var(--c-muted);
 }
 .bar-track {
