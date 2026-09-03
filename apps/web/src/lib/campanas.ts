@@ -34,6 +34,10 @@ export type Campana = {
   tieneImagen: boolean
   elegidos: string[]
   actualizada: string
+  /** Id de la difusión en Zernio. Con esto puesto, ya salió. */
+  broadcastId: string | null
+  enviadaEn: string | null
+  errorEnvio: string | null
 }
 
 /**
@@ -65,6 +69,8 @@ export async function listarCampanas(): Promise<Campana[]> {
       select c.id, c.nombre, c.estado, c.destino, c.filtros, c.mensaje,
              c.plantilla, c.plantilla_idioma, c.plantilla_params,
              c.imagen is not null as tiene_imagen,
+             c.zernio_broadcast_id, c.error_envio,
+             to_char(c.enviada_en, 'DD/MM/YYYY HH24:MI') as enviada_en,
              to_char(c.updated_at, 'DD/MM/YYYY HH24:MI') as actualizada,
              coalesce(
                (select array_agg(cc.contact_id::text)
@@ -85,6 +91,8 @@ export async function verCampana(id: string): Promise<Campana | null> {
       select c.id, c.nombre, c.estado, c.destino, c.filtros, c.mensaje,
              c.plantilla, c.plantilla_idioma, c.plantilla_params,
              c.imagen is not null as tiene_imagen,
+             c.zernio_broadcast_id, c.error_envio,
+             to_char(c.enviada_en, 'DD/MM/YYYY HH24:MI') as enviada_en,
              to_char(c.updated_at, 'DD/MM/YYYY HH24:MI') as actualizada,
              coalesce(
                (select array_agg(cc.contact_id::text)
@@ -114,6 +122,9 @@ function fila(r: Record<string, unknown>): Campana {
     tieneImagen: Boolean(r.tiene_imagen),
     elegidos: Array.isArray(r.elegidos) ? (r.elegidos as string[]) : [],
     actualizada: String(r.actualizada ?? ''),
+    broadcastId: r.zernio_broadcast_id ? String(r.zernio_broadcast_id) : null,
+    enviadaEn: r.enviada_en ? String(r.enviada_en) : null,
+    errorEnvio: r.error_envio ? String(r.error_envio) : null,
   }
 }
 
@@ -206,6 +217,73 @@ export async function buscarElegibles(
       })),
       total,
       paginas: Math.max(1, Math.ceil(total / porPagina)),
+    }
+  })
+}
+
+/**
+ * Los teléfonos a los que le va a salir, resueltos AHORA.
+ *
+ * Es la misma condición que `contarAlcance`, y tiene que seguir siéndolo: si
+ * las dos se separan, la pantalla promete un número y sale otro. Por eso los
+ * filtros están escritos igual y no en una versión "optimizada" de cada lado.
+ *
+ * Se resuelve al enviar y no al guardar: una campaña guardada el lunes y
+ * enviada el jueves tiene que salirle a los contactos del jueves.
+ */
+export async function destinatariosDe(
+  campana: Campana,
+): Promise<{ telefono: string }[]> {
+  const session = await puertaDelModulo()
+  const { destino, filtros, elegidos } = campana
+
+  return withTenant(session, async (tx) => {
+    const res = await tx.execute(sql`
+      select distinct c.phone as telefono
+        from contacts c
+       where c.archived_at is null
+         and c.phone is not null
+         and (${destino !== 'manual'}
+              or c.id = any(${sql.param(elegidos)}::uuid[]))
+         and (${destino !== 'filtros' || filtros.etapas.length === 0}
+              or c.stage_id = any(${sql.param(filtros.etapas)}::uuid[]))
+         and (${destino !== 'filtros' || filtros.etiquetas.length === 0}
+              or exists (select 1 from contact_tags ct
+                          where ct.contact_id = c.id
+                            and ct.tag_id = any(${sql.param(filtros.etiquetas)}::uuid[])))
+    `)
+    return (res.rows as { telefono: string }[])
+      .map((r) => ({ telefono: String(r.telefono) }))
+      .filter((r) => r.telefono.length > 0)
+  })
+}
+
+/**
+ * El número conectado y el espacio de Zernio de esta cuenta.
+ *
+ * Los dos hacen falta para crear una difusión. Si falta alguno no hay envío
+ * posible, y conviene decirlo con esas palabras y no con un error de la API.
+ */
+export async function cuentaParaEnviar(): Promise<
+  { cuentaZernio: string; profileId: string } | null
+> {
+  const session = await puertaDelModulo()
+  return withTenant(session, async (tx) => {
+    const res = await tx.execute(sql`
+      select ca.external_id, t.zernio_profile_id
+        from channel_accounts ca
+        join tenants t on t.id = ca.tenant_id
+       where ca.channel = 'whatsapp' and ca.provider = 'zernio'
+         and ca.external_id is not null
+       limit 1
+    `)
+    const f = res.rows[0] as
+      | { external_id: string | null; zernio_profile_id: string | null }
+      | undefined
+    if (!f?.external_id || !f.zernio_profile_id) return null
+    return {
+      cuentaZernio: String(f.external_id),
+      profileId: String(f.zernio_profile_id),
     }
   })
 }

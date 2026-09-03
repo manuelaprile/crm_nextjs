@@ -666,3 +666,126 @@ export async function subirImagen(params: {
   }
   return { ok: true, data: { url: publicUrl } }
 }
+
+// ---------------------------------------------------------------------
+// Difusiones (campañas)
+// ---------------------------------------------------------------------
+/**
+ * Mandar una campaña es crear una difusión en Zernio, cargarle los
+ * destinatarios y arrancarla. Tres llamadas, en ese orden.
+ *
+ * La cola es de ELLOS a propósito. Escribir la nuestra significaba una fila
+ * por destinatario, reintentos, y respetar el tope de 250 destinatarios por
+ * día que tiene un número nuevo —y equivocarse en eso no da un error
+ * prolijo: Meta empieza a rechazar y baja la calificación del número—.
+ * Zernio ya lo resuelve y sabe en qué tier está cada cuenta.
+ */
+export type DifusionZernio = {
+  id: string
+  estado: string
+  total: number
+  entregados: number
+  fallados: number
+}
+
+export async function crearDifusion(params: {
+  profileId: string
+  cuentaZernio: string
+  nombre: string
+  plantilla: string
+  idioma: string
+  /** Los valores de los huecos, en orden: el 1 es `{{1}}`. */
+  valores: string[]
+}): Promise<Resultado<string>> {
+  // `variableMapping` es un objeto con la POSICIÓN como clave, en texto:
+  // {"1": "Manu"}. Zernio lo resuelve por destinatario al mandar.
+  const variableMapping: Record<string, string> = {}
+  params.valores.forEach((v, i) => {
+    variableMapping[String(i + 1)] = v
+  })
+
+  // La respuesta viene envuelta en `broadcast`, NO en `data` como el resto
+  // de la API. Verificado creando un borrador de verdad y leyéndolo:
+  // {"success":true,"broadcast":{"id":"…","status":"draft"}}.
+  const res = await llamar<{ broadcast?: { id?: string } }>('/v1/broadcasts', {
+    method: 'POST',
+    body: JSON.stringify({
+      profileId: params.profileId,
+      accountId: params.cuentaZernio,
+      platform: 'whatsapp',
+      name: params.nombre.slice(0, 80),
+      template: {
+        name: params.plantilla,
+        language: params.idioma,
+        ...(params.valores.length ? { variableMapping } : {}),
+      },
+    }),
+  })
+  if (!res.ok) return res
+  const id = res.data?.broadcast?.id
+  if (!id) return { ok: false, error: 'Zernio no devolvió el id de la difusión' }
+  return { ok: true, data: String(id) }
+}
+
+/**
+ * Los destinatarios, por teléfono crudo.
+ *
+ * Van por `phones` y no por `contactIds` porque nuestros contactos son
+ * nuestros: no existen del lado de Zernio y sincronizarlos antes de cada
+ * campaña sería un segundo sistema para mantener.
+ */
+export async function sumarDestinatarios(
+  difusionId: string,
+  telefonos: string[],
+): Promise<Resultado<number>> {
+  // Contesta {"success":true,"added":2,"skipped":0}. `skipped` son los que
+  // ya estaban en la difusión: agregar dos veces el mismo no lo duplica.
+  const res = await llamar<{ added?: number }>(
+    `/v1/broadcasts/${encodeURIComponent(difusionId)}/recipients`,
+    { method: 'POST', body: JSON.stringify({ phones: telefonos }) },
+  )
+  if (!res.ok) return res
+  return { ok: true, data: res.data?.added ?? telefonos.length }
+}
+
+/** Arrancar. Desde acá los mensajes salen y ya no hay vuelta atrás. */
+export async function mandarDifusion(
+  difusionId: string,
+): Promise<Resultado<null>> {
+  const res = await llamar<unknown>(
+    `/v1/broadcasts/${encodeURIComponent(difusionId)}/send`,
+    { method: 'POST', body: '{}' },
+  )
+  if (!res.ok) return res
+  return { ok: true, data: null }
+}
+
+/** Cómo viene. Se consulta al abrir la campaña ya enviada. */
+export async function verDifusion(
+  difusionId: string,
+): Promise<Resultado<DifusionZernio>> {
+  // Los contadores vienen planos dentro de `broadcast`, no en un `stats`
+  // aparte: recipientCount / sentCount / deliveredCount / failedCount.
+  const res = await llamar<{
+    broadcast?: {
+      id?: string
+      status?: string
+      recipientCount?: number
+      deliveredCount?: number
+      failedCount?: number
+    }
+  }>(`/v1/broadcasts/${encodeURIComponent(difusionId)}`)
+  if (!res.ok) return res
+  const b = res.data?.broadcast
+  const n = (v: unknown): number => (typeof v === 'number' ? v : 0)
+  return {
+    ok: true,
+    data: {
+      id: String(b?.id ?? difusionId),
+      estado: String(b?.status ?? 'desconocido'),
+      total: n(b?.recipientCount),
+      entregados: n(b?.deliveredCount),
+      fallados: n(b?.failedCount),
+    },
+  }
+}

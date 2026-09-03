@@ -1,7 +1,13 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { guardarCampana, alcanceDe, elegiblesPara } from '@/lib/campanas-acciones'
+import { useFormStatus } from 'react-dom'
+import {
+  guardarCampana,
+  enviarCampana,
+  alcanceDe,
+  elegiblesPara,
+} from '@/lib/campanas-acciones'
 import type { Campana } from '@/lib/campanas'
 import { conValores } from '@/lib/plantillas-texto'
 import type { PlantillaZernio } from '@/lib/zernio'
@@ -25,8 +31,10 @@ import type { OpcionesDeFiltro } from './datos'
  * Las plantillas se crean en la pantalla Plantillas, que las manda a aprobar
  * por la API de Zernio. El cliente nunca ve Zernio.
  *
- * El botón de enviar sigue apagado: falta la cola de envío, que es lo que
- * respeta el límite de destinatarios por día. Guardar sí funciona.
+ * Enviar crea una difusión en Zernio y la arranca. La cola, los reintentos y
+ * el tope diario del número son de ellos: escribir la nuestra era una fila
+ * por destinatario y equivocarse en el tope no da un error prolijo, baja la
+ * calificación del número.
  */
 
 /**
@@ -412,35 +420,108 @@ export function Compositor({
                 </div>
               </div>
             </div>
-            <p className="tiny muted" style={{ margin: '10px 0 0' }}>
-              Es aproximada: cada teléfono lo muestra un poco distinto.
-            </p>
           </div>
         </div>
 
-        {/*
-          Lo que falta para que esto salga. Va arriba del botón y no escondido
-          detrás: quien arma una campaña tiene que saberlo ANTES de
-          escribirla.
-        */}
-        <div className="alert alert-amber" style={{ marginTop: 16 }}>
-          <span>
-            Los envíos se habilitan una vez configurada la facturación de tu
-            cuenta de WhatsApp con Meta, que es quien cobra cada mensaje. Por
-            ahora la campaña queda guardada y lista para salir.
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <button type="submit" className="btn btn-primary btn-sm">
-            Guardar borrador
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm" disabled>
-            Enviar campaña
-          </button>
-        </div>
+        <Acciones
+          guardada={Boolean(campana)}
+          yaSalio={Boolean(campana?.enviadaEn)}
+          tienePlantilla={Boolean(plantilla)}
+          alcance={alcance}
+        />
       </aside>
     </form>
+  )
+}
+
+/**
+ * Guardar y enviar.
+ *
+ * Enviar PIDE CONFIRMACIÓN, y no por prolijidad: los mensajes le salen a
+ * gente real, Meta cobra cada uno y no hay ningún "deshacer" del otro lado.
+ * La confirmación dice a cuántos, que es el dato con el que alguien se da
+ * cuenta de que se equivocó de filtro antes y no después.
+ *
+ * No es un `confirm()` del navegador porque ahí no entra el número, y un
+ * cartel que solo dice "¿estás seguro?" se contesta que sí sin leerlo.
+ */
+function Acciones({
+  guardada,
+  yaSalio,
+  tienePlantilla,
+  alcance,
+}: {
+  guardada: boolean
+  yaSalio: boolean
+  tienePlantilla: boolean
+  alcance: number | null
+}) {
+  const [confirmando, setConfirmando] = useState(false)
+  const { pending } = useFormStatus()
+
+  if (yaSalio) {
+    return (
+      <p className="tiny muted" style={{ margin: '16px 0 0' }}>
+        Esta campaña ya se envió.
+      </p>
+    )
+  }
+
+  if (confirmando) {
+    return (
+      <div className="camp-confirmar">
+        <p>
+          Le va a salir a <strong>{alcance ?? '…'}</strong>{' '}
+          {alcance === 1 ? 'contacto' : 'contactos'}. Los mensajes salen ya y no
+          se pueden cancelar.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="submit"
+            formAction={enviarCampana}
+            className="btn btn-primary btn-sm"
+            disabled={pending}
+          >
+            {pending ? 'Enviando…' : 'Sí, enviar'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setConfirmando(false)}
+            disabled={pending}
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+      <button type="submit" className="btn btn-primary btn-sm" disabled={pending}>
+        {pending ? 'Guardando…' : 'Guardar borrador'}
+      </button>
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm"
+        onClick={() => setConfirmando(true)}
+        // Enviar necesita una campaña guardada —el envío va contra su id— y
+        // una plantilla: fuera de las 24 h WhatsApp no deja salir otra cosa.
+        disabled={!guardada || !tienePlantilla || alcance === 0}
+        title={
+          !guardada
+            ? 'Guardá el borrador primero'
+            : !tienePlantilla
+              ? 'Elegí una plantilla aprobada'
+              : alcance === 0
+                ? 'No hay contactos con teléfono para estos filtros'
+                : undefined
+        }
+      >
+        Enviar campaña
+      </button>
+    </div>
   )
 }
 

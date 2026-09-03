@@ -2853,3 +2853,21 @@ input[type='file'].input {
   white-space: pre-wrap;
   color: var(--c-text);
 }
+
+/* Confirmar el envío de una campaña.
+   Ocupa el lugar de los botones en vez de abrirse encima: un cartel modal se
+   cierra de un click al costado, y esto tiene que costar un poco. El ámbar es
+   el mismo de las advertencias del panel. */
+.camp-confirmar {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--c-warning);
+  border-radius: var(--r-md);
+  background: rgba(217, 119, 6, 0.1);
+  color: #92400e;
+}
+.camp-confirmar p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}

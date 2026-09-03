@@ -9,6 +9,21 @@ import { Compositor } from '../compositor'
 
 export const dynamic = 'force-dynamic'
 
+// El estado en castellano y con color. En la base son códigos porque los lee
+// el sistema; en pantalla los lee una persona.
+const ROTULO: Record<string, string> = {
+  borrador: 'Borrador',
+  enviando: 'Enviando…',
+  enviada: 'Enviada',
+  error: 'Falló el envío',
+}
+const TONO: Record<string, string> = {
+  borrador: 'b-gray',
+  enviando: 'b-blue',
+  enviada: 'b-green',
+  error: 'b-red',
+}
+
 /**
  * Editar una campaña guardada.
  *
@@ -40,7 +55,9 @@ export default async function EditarCampanaPage({
     <>
       <div className="topnav">
         <h2>{campana.nombre}</h2>
-        <span className="badge b-gray">{campana.estado}</span>
+        <span className={`badge ${TONO[campana.estado] ?? 'b-gray'}`}>
+          {ROTULO[campana.estado] ?? campana.estado}
+        </span>
         <div style={{ marginLeft: 'auto' }}>
           <Link href="/campanas" className="btn btn-ghost btn-sm">
             Volver
@@ -54,6 +71,13 @@ export default async function EditarCampanaPage({
             style={{ marginBottom: 16 }}
           >
             <span>{m}</span>
+          </div>
+        ) : null}
+        {/* Lo que contestó Zernio, tal cual. Los errores de Meta nombran el
+            campo que estuvo mal, y resumirlos pierde justo ese dato. */}
+        {campana.errorEnvio ? (
+          <div className="alert alert-red" style={{ marginBottom: 16 }}>
+            <span>{campana.errorEnvio}</span>
           </div>
         ) : null}
         <Compositor
