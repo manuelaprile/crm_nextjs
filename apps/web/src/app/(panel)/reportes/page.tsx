@@ -79,79 +79,38 @@ export default async function ReportesPage({
           </div>
         </div>
 
-        <div className="cols2">
-          <div className="panel-box">
-            <div className="panel-box-head">
-              <div>
-                <h3>Embudo</h3>
-                <p className="tiny muted" style={{ marginTop: 3 }}>
-                  En qué etapa está cada contacto hoy
-                </p>
-              </div>
-            </div>
-            <div className="panel-box-body">
-              {/*
-                UN número por etapa: el mismo que el tablero. Acá estuvo el
-                histórico al lado y se sacó: dos medidas juntas no aclaran
-                cuál mirar, hacen dudar de las dos.
-              */}
-              {report.stages.map((s) => (
-                <div key={s.name} className="bar-row">
-                  <div className="bar-top">
-                    <span>{s.name}</span>
-                    <b className="mono">{s.ahora}</b>
-                  </div>
-                  <div className="bar-track">
-                    <div
-                      className="bar-fill"
-                      style={{
-                        width: `${(s.ahora / max) * 100}%`,
-                        background: s.color,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+        <div className="panel-box">
+          <div className="panel-box-head">
+            <div>
+              <h3>Embudo</h3>
+              <p className="tiny muted" style={{ marginTop: 3 }}>
+                En qué etapa está cada contacto hoy
+              </p>
             </div>
           </div>
-
-          <div className="panel-box">
-            <div className="panel-box-head">
-              <h3>Por zona</h3>
-            </div>
-            {report.byCity.length === 0 ? (
-              <div className="empty">
-                <b>Sin datos de zona</b>
-                Cargá la ciudad en las fichas para ver este reporte.
+          <div className="panel-box-body">
+            {/*
+              UN número por etapa: el mismo que el tablero. Acá estuvo el
+              histórico al lado y se sacó: dos medidas juntas no aclaran
+              cuál mirar, hacen dudar de las dos.
+            */}
+            {report.stages.map((s) => (
+              <div key={s.name} className="bar-row">
+                <div className="bar-top">
+                  <span>{s.name}</span>
+                  <b className="mono">{s.ahora}</b>
+                </div>
+                <div className="bar-track">
+                  <div
+                    className="bar-fill"
+                    style={{
+                      width: `${(s.ahora / max) * 100}%`,
+                      background: s.color,
+                    }}
+                  />
+                </div>
               </div>
-            ) : (
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Zona</th>
-                      <th style={{ textAlign: 'right' }}>Consultas</th>
-                      <th style={{ textAlign: 'right' }}>{ganada?.name ?? 'Cerradas'}</th>
-                      <th style={{ textAlign: 'right' }}>Conv.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.byCity.map((c) => (
-                      <tr key={c.city}>
-                        <td>{c.city}</td>
-                        <td className="mono" style={{ textAlign: 'right' }}>{c.total}</td>
-                        <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>
-                          {c.operados}
-                        </td>
-                        <td className="mono muted" style={{ textAlign: 'right' }}>
-                          {c.total ? ((c.operados / c.total) * 100).toFixed(0) : 0}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            ))}
           </div>
         </div>
       </div>

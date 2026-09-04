@@ -505,7 +505,9 @@ export async function getPipeline(
 }
 
 // ---------------------------------------------------------------------
-// El reporte que pidió el doctor: embudo y zonas
+// El reporte: en qué etapa está cada contacto, y cuántos convirtieron.
+// El cuadro por zona (contacts.city) se quitó de la pantalla; su consulta
+// se fue con él para no calcularla en cada carga sin que nadie la mire.
 // ---------------------------------------------------------------------
 
 export type FunnelReport = {
@@ -521,7 +523,6 @@ export type FunnelReport = {
     isWon: boolean
     isLost: boolean
   }[]
-  byCity: { city: string; total: number; operados: number }[]
   totals: { contactos: number; operados: number; conversion: number }
 }
 
@@ -604,26 +605,6 @@ export async function getFunnelReport(
          and c.created_at > ${desde}
     `)
 
-    // "De qué zona son los que se operaron" — el pedido textual del doctor.
-    // Mismo criterio de "ganó" que los totales: haber llegado, no estar hoy.
-    const cityRes = await tx.execute(sql`
-      select coalesce(nullif(c.city, ''), 'Sin zona') as city,
-             count(*) as total,
-             count(*) filter (
-               where exists (
-                 select 1 from stage_history h
-                   join stages sg on sg.id = h.to_stage_id
-                                 and sg.tenant_id = h.tenant_id
-                  where h.contact_id = c.id
-                    and h.tenant_id = ${ctx.tenantId}
-                    and sg.is_won)) as operados
-        from contacts c
-       where c.tenant_id = ${ctx.tenantId}
-         and c.archived_at is null
-         and c.created_at > ${desde}
-       group by 1 order by operados desc, total desc limit 20
-    `)
-
     const stages = (stageRes.rows as Record<string, unknown>[]).map((r) => ({
       name: String(r.name),
       color: String(r.color),
@@ -638,11 +619,6 @@ export async function getFunnelReport(
 
     return {
       stages,
-      byCity: (cityRes.rows as Record<string, unknown>[]).map((r) => ({
-        city: String(r.city),
-        total: Number(r.total),
-        operados: Number(r.operados),
-      })),
       totals: {
         contactos,
         operados,
