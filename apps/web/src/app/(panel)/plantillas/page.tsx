@@ -68,9 +68,16 @@ export default async function PlantillasPage({
                 Meta pide un <strong>método de pago</strong> cargado en la
                 cuenta del negocio para aprobar plantillas y enviar mensajes.
                 Si todavía no lo cargaste, hacelo en{' '}
+                {/*
+                  SIN identificadores en la URL. La página de un método de
+                  pago concreto lleva business_id, asset_id y
+                  payment_account_id de esa cuenta: enlazada así, todos los
+                  clientes irían a la facturación de otro. Esto entra al
+                  listado y cada uno cae en la suya.
+                */}
                 <a
                   className="enlace"
-                  href="https://business.facebook.com/billing_hub/payment_settings"
+                  href="https://business.facebook.com/latest/billing_hub/accounts"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
