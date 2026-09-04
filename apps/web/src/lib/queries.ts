@@ -525,9 +525,15 @@ export type FunnelReport = {
 
 export async function getFunnelReport(
   ctx: TenantContext,
-  days: number,
+  /** Null = «Actual»: todos los contactos, sin recorte por fecha de alta. */
+  days: number | null,
 ): Promise<FunnelReport> {
-  const ventana = `${days} days`
+  // El corte se calcula acá y viaja como fecha, no como intervalo que la
+  // consulta tenga que apagar cuando es nulo. «Actual» es simplemente una
+  // fecha vieja: así hay UN solo camino en el SQL, sin `is null` repetido
+  // cuatro veces ni un cast que se comporte distinto según el caso.
+  const desde =
+    days === null ? new Date(0) : new Date(Date.now() - days * 86400000)
 
   return withTenant(ctx, async (tx) => {
     /**
@@ -560,13 +566,13 @@ export async function getFunnelReport(
                where h.to_stage_id = s.id
                  and h.tenant_id = ${ctx.tenantId}
                  and c.archived_at is null
-                 and c.created_at > now() - ${ventana}::interval) as pasaron,
+                 and c.created_at > ${desde}) as pasaron,
              (select count(*)
                 from contacts c2
                where c2.stage_id = s.id
                  and c2.tenant_id = ${ctx.tenantId}
                  and c2.archived_at is null
-                 and c2.created_at > now() - ${ventana}::interval) as ahora
+                 and c2.created_at > ${desde}) as ahora
         from stages s
        where s.tenant_id = ${ctx.tenantId}
        order by s.position
@@ -595,7 +601,7 @@ export async function getFunnelReport(
         from contacts c
        where c.tenant_id = ${ctx.tenantId}
          and c.archived_at is null
-         and c.created_at > now() - ${ventana}::interval
+         and c.created_at > ${desde}
     `)
 
     // "De qué zona son los que se operaron" — el pedido textual del doctor.
@@ -614,7 +620,7 @@ export async function getFunnelReport(
         from contacts c
        where c.tenant_id = ${ctx.tenantId}
          and c.archived_at is null
-         and c.created_at > now() - ${ventana}::interval
+         and c.created_at > ${desde}
        group by 1 order by operados desc, total desc limit 20
     `)
 

@@ -4,7 +4,16 @@ import { getFunnelReport } from '@/lib/queries'
 
 export const dynamic = 'force-dynamic'
 
-const RANGOS = [
+/**
+ * El recorte por fecha de ALTA del contacto.
+ *
+ * «Actual» va primero y sin días: son todos los contactos, sin recortar. Es
+ * la vista que se compara contra el tablero —ahí tampoco hay recorte— y por
+ * eso es la que abre. Con 30 días por defecto, un cliente con contactos más
+ * viejos ve menos de los que tiene y parece que faltan.
+ */
+const RANGOS: { days: number | null; label: string }[] = [
+  { days: null, label: 'Actual' },
   { days: 7, label: '7 días' },
   { days: 30, label: '30 días' },
   { days: 90, label: '90 días' },
@@ -18,7 +27,10 @@ export default async function ReportesPage({
 }) {
   const session = await requireTenant()
   const { dias } = await searchParams
-  const days = RANGOS.some((r) => String(r.days) === dias) ? Number(dias) : 30
+  // Sin parámetro es «Actual». Un `dias` que no esté en la lista cae ahí
+  // también: la URL la escribe cualquiera.
+  const elegido = RANGOS.find((r) => r.days !== null && String(r.days) === dias)
+  const days = elegido?.days ?? null
   const report = await getFunnelReport(session, days)
   const max = Math.max(...report.stages.map((s) => s.pasaron), 1)
 
@@ -39,8 +51,8 @@ export default async function ReportesPage({
         <div className="toolbar">
           {RANGOS.map((r) => (
             <Link
-              key={r.days}
-              href={`/reportes?dias=${r.days}`}
+              key={r.label}
+              href={r.days === null ? '/reportes' : `/reportes?dias=${r.days}`}
               className={`btn btn-sm ${r.days === days ? 'btn-primary' : 'btn-ghost'}`}
             >
               {r.label}
