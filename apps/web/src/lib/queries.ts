@@ -512,9 +512,11 @@ export type FunnelReport = {
   stages: {
     name: string
     color: string
-    /** Cuántos PASARON por acá alguna vez. Es la barra. */
-    pasaron: number
-    /** Cuántos están acá AHORA. Es el número que se ve en el tablero. */
+    /**
+     * Cuántos contactos están en esta etapa AHORA. Es el mismo número que
+     * muestra el tablero, y por eso es el único que va: cualquier otra
+     * medida al lado se lee como que una de las dos está mal.
+     */
     ahora: number
     isWon: boolean
     isLost: boolean
@@ -537,36 +539,34 @@ export async function getFunnelReport(
 
   return withTenant(ctx, async (tx) => {
     /**
-     * Dos números por etapa, y ninguno inventado.
+     * UN número por etapa: cuántos contactos están ahí AHORA.
      *
-     * `pasaron` sale de que EXISTA una fila en `stage_history` para esa
-     * etapa. Antes se calculaba como "la posición más alta que alcanzó >=
-     * esta posición", y eso INVENTA: un contacto que va de «Nueva consulta»
-     * derecho a «Interesado» nunca estuvo en «Contactado», pero esa cuenta
-     * lo sumaba igual. El cliente abría el tablero, veía Contactado en 0, y
-     * el reporte le decía 2. No era una forma distinta de mirar lo mismo:
-     * era un número falso.
+     * Es a propósito el mismo número que muestra el tablero, y de la misma
+     * forma —`contacts.stage_id`—, no una versión derivada que "debería" dar
+     * igual. Si el reporte y el tablero salen del mismo lugar, no pueden
+     * discrepar.
      *
-     * `ahora` es la ocupación actual — exactamente el número del tablero.
-     * Van los dos a la vista porque la pregunta que hizo el cliente
-     * ("¿por qué no coinciden?") solo se contesta mostrando ambos: uno es
-     * histórico y el otro es hoy, y por definición no tienen por qué dar
-     * igual.
+     * ACÁ HUBO DOS INTENTOS PEORES, y conviene que queden anotados para no
+     * repetirlos:
      *
-     * Las etapas de descarte ya no son un caso aparte. Antes se contaban con
-     * OTRA fórmula que el resto —ocupación actual mientras las demás iban
-     * acumuladas—, así que el embudo podía terminar con una barra que subía.
+     * 1. El conteo era "la posición más alta que el contacto alcanzó >= esta
+     *    posición". Eso INVENTA: alguien que va de «Nueva consulta» derecho
+     *    a «Interesado» nunca estuvo en «Contactado», y esa cuenta lo sumaba
+     *    igual. El tablero decía 0 y el reporte decía 2.
+     *
+     * 2. Después se mostró el histórico real (filas de `stage_history`) al
+     *    lado del actual. Los números eran ciertos, pero un contacto que se
+     *    dio de alta en «Nueva consulta» y se movió sigue contando ahí para
+     *    siempre, así que la etapa inicial mostraba el total de la cuenta y
+     *    parecía roto igual. Dos medidas juntas no aclaran: hacen dudar de
+     *    las dos.
+     *
+     * El historial sigue estando y se usa para la conversión —"llegó alguna
+     * vez a una etapa ganadora"—, que es la única pregunta donde el pasado
+     * importa de verdad.
      */
     const stageRes = await tx.execute(sql`
       select s.name, s.color, s.is_won, s.is_lost, s.position,
-             (select count(distinct h.contact_id)
-                from stage_history h
-                join contacts c on c.id = h.contact_id
-                                and c.tenant_id = h.tenant_id
-               where h.to_stage_id = s.id
-                 and h.tenant_id = ${ctx.tenantId}
-                 and c.archived_at is null
-                 and c.created_at > ${desde}) as pasaron,
              (select count(*)
                 from contacts c2
                where c2.stage_id = s.id
@@ -627,7 +627,6 @@ export async function getFunnelReport(
     const stages = (stageRes.rows as Record<string, unknown>[]).map((r) => ({
       name: String(r.name),
       color: String(r.color),
-      pasaron: Number(r.pasaron),
       ahora: Number(r.ahora),
       isWon: Boolean(r.is_won),
       isLost: Boolean(r.is_lost),
