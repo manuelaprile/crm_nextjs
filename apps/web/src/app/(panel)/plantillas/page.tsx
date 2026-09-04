@@ -58,6 +58,28 @@ export default async function PlantillasPage({
           </div>
         ) : (
           <>
+            {/*
+              El requisito va ARRIBA del formulario, no en la lista de abajo:
+              es lo único que puede hacer que todo lo que escriba no sirva, y
+              enterarse después de esperar la revisión de Meta sale caro.
+            */}
+            <div className="alert alert-amber" style={{ marginBottom: 16 }}>
+              <span>
+                Meta pide un <strong>método de pago</strong> cargado en la
+                cuenta del negocio para aprobar plantillas y enviar mensajes.
+                Si todavía no lo cargaste, hacelo en{' '}
+                <a
+                  className="enlace"
+                  href="https://business.facebook.com/billing_hub/payment_settings"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  configuración de pagos de Meta
+                </a>
+                .
+              </span>
+            </div>
+
             <div className="panel-box" style={{ marginBottom: 16 }}>
               <div className="panel-box-head">
                 <h3>Nueva plantilla</h3>

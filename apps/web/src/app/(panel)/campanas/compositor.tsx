@@ -423,6 +423,30 @@ export function Compositor({
           </div>
         </div>
 
+        {/*
+          Dónde ver lo que sale.
+
+          El precio por mensaje lo pone Meta y lo cobra Meta: no pasa por
+          nosotros ni por el proveedor, así que no hay forma de mostrarlo acá
+          sin copiarlo a mano y que envejezca. Mandar al lugar donde el número
+          es el de verdad es más útil que una estimación nuestra.
+        */}
+        <div className="alert alert-amber" style={{ marginTop: 16 }}>
+          <span>
+            El costo lo cobra Meta por mensaje entregado. Para ver el precio de
+            tu cuenta entrá a{' '}
+            <a
+              className="enlace"
+              href="https://business.facebook.com/wa/manage/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              WhatsApp Manager
+            </a>{' '}
+            y abrí <strong>Insights</strong>.
+          </span>
+        </div>
+
         <Acciones
           guardada={Boolean(campana)}
           yaSalio={Boolean(campana?.enviadaEn)}
