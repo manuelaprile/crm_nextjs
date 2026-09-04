@@ -434,8 +434,14 @@ export function Compositor({
           Arranca con la PREGUNTA y no con el cobro. Decir «el costo lo cobra
           Meta» de entrada se lee como un aviso de deuda; acá no hay nada que
           pueda salir mal, es una ayuda para encontrar un dato.
+
+          Y va en AZUL, no en ámbar. El ámbar de este panel significa «esto
+          te puede fallar» —y así queda en Plantillas, donde sin método de
+          pago no sirve nada de lo que escribas—. Usarlo también para algo
+          que no puede fallar es lo que hace que después nadie le dé bola a
+          un ámbar de verdad.
         */}
-        <div className="alert alert-amber" style={{ marginTop: 16 }}>
+        <div className="alert alert-blue" style={{ marginTop: 16 }}>
           <span>
             ¿Cuánto sale esta campaña? Podés ver el precio por mensaje de tu
             cuenta en{' '}

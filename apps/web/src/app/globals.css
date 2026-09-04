@@ -1556,6 +1556,13 @@ tbody tr.clickable {
   background: rgba(22, 163, 74, 0.09);
   color: #15803d;
 }
+/* Informativo, no una advertencia. El ámbar en este panel significa «esto te
+   puede fallar»; cuando no hay nada que pueda fallar, usarlo igual hace que
+   el ámbar deje de querer decir algo. Mismo azul que la badge b-blue. */
+.alert-blue {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+}
 .alert-gray {
   background: var(--c-surface);
   color: var(--c-muted);
