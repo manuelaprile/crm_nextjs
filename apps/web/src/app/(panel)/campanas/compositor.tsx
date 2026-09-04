@@ -426,15 +426,19 @@ export function Compositor({
         {/*
           Dónde ver lo que sale.
 
-          El precio por mensaje lo pone Meta y lo cobra Meta: no pasa por
-          nosotros ni por el proveedor, así que no hay forma de mostrarlo acá
-          sin copiarlo a mano y que envejezca. Mandar al lugar donde el número
-          es el de verdad es más útil que una estimación nuestra.
+          El precio por mensaje lo pone y lo cobra Meta: no pasa por nosotros
+          ni por Zernio, así que no hay forma de mostrarlo acá sin copiarlo a
+          mano y que envejezca en silencio. Mandar al lugar donde el número es
+          el de verdad es más útil que una estimación nuestra.
+
+          Arranca con la PREGUNTA y no con el cobro. Decir «el costo lo cobra
+          Meta» de entrada se lee como un aviso de deuda; acá no hay nada que
+          pueda salir mal, es una ayuda para encontrar un dato.
         */}
         <div className="alert alert-amber" style={{ marginTop: 16 }}>
           <span>
-            El costo lo cobra Meta por mensaje entregado. Para ver el precio de
-            tu cuenta entrá a{' '}
+            ¿Cuánto sale esta campaña? Podés ver el precio por mensaje de tu
+            cuenta en{' '}
             <a
               className="enlace"
               href="https://business.facebook.com/wa/manage/"
@@ -442,8 +446,8 @@ export function Compositor({
               rel="noopener noreferrer"
             >
               WhatsApp Manager
-            </a>{' '}
-            y abrí <strong>Insights</strong>.
+            </a>
+            , en la sección <strong>Insights</strong>.
           </span>
         </div>
 
