@@ -427,7 +427,11 @@ function toolsFor(
             }
           : {}),
       },
-      required: ['reason'],
+      // `mensaje` va en required a propósito. Como opcional volvía a
+      // depender de que el modelo se acordara, que es exactamente lo que
+      // falló: puede omitirlo y la persona se queda con el acuse genérico.
+      // Pedirlo acá lo obliga a pensar qué le dice antes de cortar.
+      required: ['reason', 'mensaje'],
       additionalProperties: false,
     },
   },
