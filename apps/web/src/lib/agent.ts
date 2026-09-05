@@ -371,8 +371,11 @@ function toolsFor(
   {
     name: 'handoff',
     description:
-      'Pasa la conversación a un humano y deja de responder. Usar ante ' +
-      'cualquier duda, síntoma, urgencia o pedido de hablar con alguien.' +
+      'Pasa la conversación a un humano y deja de responder. Usar ante una ' +
+      'urgencia, un pedido explícito de hablar con alguien, o algo que no ' +
+      'podés resolver con la información que tenés. En `mensaje` va lo que ' +
+      'le decís a la persona: es lo ÚLTIMO que va a leer, así que contestale ' +
+      'lo que se pueda y recién ahí avisale que sigue alguien del equipo.' +
       (temas.length
         ? ' Si estás derivando por alguno de los temas que tienen encargado, ' +
           'pasá cuál en `tema`: así le llega directo a esa persona en vez de ' +
@@ -382,6 +385,23 @@ function toolsFor(
       type: 'object',
       properties: {
         reason: { type: 'string' },
+        /*
+         * Lo que se le dice a la PERSONA, separado de `reason`, que es para
+         * el equipo.
+         *
+         * Sin este campo la derivación podía ser muda: el modelo llamaba a
+         * la herramienta sin escribir una palabra y del otro lado quedaba un
+         * "en un momento te responde una persona del equipo" a secas, como
+         * respuesta a un saludo. Pedirlo acá adentro lo vuelve parte del
+         * acto de derivar y no algo que el modelo se tiene que acordar de
+         * hacer antes.
+         */
+        mensaje: {
+          type: 'string',
+          description:
+            'Lo que se le responde a la persona antes de pasarla con el ' +
+            'equipo. En su idioma y con el tono de la conversación.',
+        },
         /*
          * El tema, acá adentro.
          *
@@ -418,11 +438,14 @@ async function executeTool(
   ctx: AgentContext,
   name: string,
   input: Record<string, unknown>,
-): Promise<{ result: string; stop: boolean }> {
+): Promise<{ result: string; stop: boolean; hablo: boolean }> {
   const started = Date.now()
   let output: unknown
   let error: string | null = null
   let stop = false
+  // Si la herramienta ya le mandó algo a la persona, el bucle no tiene que
+  // agregar el acuse de reserva encima.
+  let hablo = false
 
   try {
     // Repartir por tema vive en `conocimiento-agente.ts`: es lo único que
@@ -438,7 +461,7 @@ async function executeTool(
         input,
       )
       await registrarTool(ctx, name, input, texto, null, Date.now() - started)
-      return { result: texto, stop: false }
+      return { result: texto, stop: false, hablo }
     }
 
     // Las de agenda se despachan aparte: viven en su propio archivo porque
@@ -454,7 +477,7 @@ async function executeTool(
         input,
       )
       await registrarTool(ctx, name, input, texto, null, Date.now() - started)
-      return { result: texto, stop: false }
+      return { result: texto, stop: false, hablo }
     }
 
     switch (name) {
@@ -563,7 +586,16 @@ async function executeTool(
               { tema },
             )
           : null
-        await handoff(ctx, clip(input.reason, 500) ?? 'Derivación solicitada')
+        // El mensaje del modelo tiene prioridad sobre el de reserva. El de
+        // reserva sigue existiendo para cuando no lo manda, pero ya no es lo
+        // habitual: ahora es un campo de la herramienta.
+        const paraLaPersona = clip(input.mensaje, 900)
+        await handoff(
+          ctx,
+          clip(input.reason, 500) ?? 'Derivación solicitada',
+          paraLaPersona ?? undefined,
+        )
+        hablo = Boolean(paraLaPersona)
         output = { ok: true, tema, asignado }
         stop = true
         break
@@ -578,7 +610,7 @@ async function executeTool(
   }
 
   await registrarTool(ctx, name, input, output, error, Date.now() - started)
-  return { result: JSON.stringify(output), stop }
+  return { result: JSON.stringify(output), stop, hablo }
 }
 
 /**
@@ -787,14 +819,20 @@ async function run(ctx: AgentContext): Promise<void> {
       })
 
       let cortar = false
+      let yaHablo = false
       for (const call of res.toolCalls) {
-        const { result, stop } = await executeTool(ctx, call.name, call.input)
+        const { result, stop, hablo } = await executeTool(
+          ctx,
+          call.name,
+          call.input,
+        )
         messages.push({
           role: 'tool',
           toolCallId: call.id,
           content: result,
         })
         if (stop) cortar = true
+        if (hablo) yaHablo = true
       }
 
       // Si además de pedir herramientas escribió algo, se manda: en la
@@ -805,20 +843,19 @@ async function run(ctx: AgentContext): Promise<void> {
           text: res.text,
           senderKind: 'ai',
         })
-      } else if (cortar) {
+      } else if (cortar && !yaHablo) {
         /*
-         * Derivó y no escribió una palabra.
+         * Derivó, no escribió una palabra y tampoco llenó `mensaje`.
          *
-         * `handoff` no manda nada por su cuenta porque se asumía que el
-         * modelo escribe su propio cierre. No siempre lo hace: con un prompt
-         * que ordena derivar ante cualquier pregunta de precio, el modelo
-         * llama a la herramienta sola y listo. Lo que ve el cliente es que
-         * preguntó cuánto sale una remera y NO LE CONTESTÓ NADIE. Se queda
-         * mirando el chat sin saber si llegó el mensaje.
+         * Es la última red. Antes era el caso NORMAL —la herramienta no
+         * tenía dónde poner un mensaje para la persona—, y el resultado se
+         * vio en producción: alguien saludó diciendo que quería el
+         * masterplan y lo único que recibió fue este acuse, como si nadie
+         * hubiera leído lo que escribió.
          *
-         * El mismo acuse que ya se usa en las derivaciones que ocurren antes
-         * del modelo —palabra clave, tope de gasto, error técnico—, y por la
-         * misma razón.
+         * Ahora `handoff` pide `mensaje`, así que llegar hasta acá significa
+         * que el modelo lo omitió. Sigue estando porque quedarse callado es
+         * peor que un acuse genérico.
          */
         await deliverMessage({
           conversationId: ctx.conversationId,
