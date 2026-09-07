@@ -129,12 +129,17 @@ silencio, que es mucho peor.
   decidir primero qué pasa con la ficha del contacto dentro del chat.
 
 - **La agenda es UNA sola del negocio, y el turno tiene responsable.**
-  Son dos cosas distintas y conviene no mezclarlas. Que dos turnos no se
-  pisen lo garantiza `appointments_sin_superposicion` en Postgres, sobre el
-  tenant entero: el recurso escaso es el negocio —el consultorio, la sala, el
-  auto—, no la persona. Si algún día hace falta que dos usuarios atiendan a
-  la misma hora, esa restricción tiene que pasar a incluir el responsable, y
-  eso NO es reversible con un `git revert`. Aparte de eso,
+  Son dos cosas distintas y conviene no mezclarlas. Hasta la 0043, que dos
+  turnos no se pisaran lo garantizaba `appointments_sin_superposicion` en
+  Postgres. **Esa restricción YA NO EXISTE**: la quitó la 0043 a pedido del
+  negocio, porque la disponibilidad real la termina definiendo un asesor y
+  decir "no hay lugar el martes" cuando el martes se acomoda es perder una
+  visita por una regla que el negocio no tiene. Dos turnos pueden pisarse y
+  una persona los ordena desde la agenda. Volver a ponerla no es un `git
+  revert`: falla si para entonces ya hay turnos superpuestos, y hay que
+  encontrarlos y moverlos primero (la consulta está en la 0043). Lo que SÍ
+  se sigue validando cuando agenda la IA es el horario de atención, la
+  anticipación mínima y el horizonte. Aparte de eso,
   `appointments.assigned_user_id` dice a quién le toca; sale de quien ya
   seguía al contacto (responsable de la conversación, si no dueño del
   contacto) y puede quedar en null. Cambiarlo es de owner/admin.

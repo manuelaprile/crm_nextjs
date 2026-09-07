@@ -67,6 +67,21 @@ export default async function ContactoPage({
                 <form action={updateContact} style={{ display: 'grid', gap: 14 }}>
                   <input type="hidden" name="contactId" value={contact.id} />
                   <Campo label="Nombre" name="displayName" value={contact.displayName} />
+                  {/*
+                    El teléfono, acá y editable. Estaba solo en el chat: para
+                    llamar a alguien había que abrir la conversación y
+                    copiarlo de ahí, que es donde menos se lo busca.
+
+                    Editarlo NO reencamina nada. La identidad del contacto
+                    vive en `contact_identities` (CLAUDE.md, regla 3); esto
+                    es un dato de la ficha.
+                  */}
+                  <Campo
+                    label="Teléfono"
+                    name="phone"
+                    value={contact.phone ?? ''}
+                    placeholder="5492213997933"
+                  />
                   <Campo
                     label="Asunto de la consulta"
                     name="asunto"

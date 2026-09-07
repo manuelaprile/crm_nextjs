@@ -345,13 +345,31 @@ function toolsFor(
   {
     name: 'set_contact_info',
     description:
-      'Guarda datos administrativos del contacto que la persona haya dicho.',
+      'Guarda datos administrativos del contacto que la persona haya dicho. ' +
+      'Usá `asunto` apenas quede claro POR QUÉ escribe: es lo primero que ve ' +
+      'el equipo en la ficha y en el tablero, y sin eso una fila dice solo un ' +
+      'nombre y un teléfono.',
     parameters: {
       type: 'object',
       properties: {
         name: { type: 'string' },
         city: { type: 'string' },
         province: { type: 'string' },
+        /*
+         * Por qué escribió, en pocas palabras y con las de la persona.
+         *
+         * Es el campo que ya existía para cargar a mano (migración 0026) y
+         * que nadie completaba, porque para cuando alguien abre la ficha ya
+         * leyó el chat. El único momento en que sale gratis escribirlo es
+         * mientras la conversación pasa.
+         */
+        asunto: {
+          type: 'string',
+          description:
+            'Por qué se contactó, en una línea. Concreto y con lo que dijo: ' +
+            '"Consulta por lotes en Altos de Don Carlos", no "consulta ' +
+            'general". Si todavía no está claro, no lo mandes.',
+        },
       },
       additionalProperties: false,
     },
@@ -442,7 +460,7 @@ async function executeTool(
   ctx: AgentContext,
   name: string,
   input: Record<string, unknown>,
-): Promise<{ result: string; stop: boolean; hablo: boolean }> {
+): Promise<{ result: string; stop: boolean; hablo: boolean; agendo: boolean }> {
   const started = Date.now()
   let output: unknown
   let error: string | null = null
@@ -450,6 +468,9 @@ async function executeTool(
   // Si la herramienta ya le mandó algo a la persona, el bucle no tiene que
   // agregar el acuse de reserva encima.
   let hablo = false
+  // Si esta llamada dejó una visita reservada. Dispara que el asistente se
+  // corra y siga una persona, pero recién cuando terminó de hablar.
+  let agendo = false
 
   try {
     // Repartir por tema vive en `conocimiento-agente.ts`: es lo único que
@@ -465,13 +486,13 @@ async function executeTool(
         input,
       )
       await registrarTool(ctx, name, input, texto, null, Date.now() - started)
-      return { result: texto, stop: false, hablo }
+      return { result: texto, stop: false, hablo, agendo }
     }
 
     // Las de agenda se despachan aparte: viven en su propio archivo porque
     // son las únicas que escriben en la agenda real de un negocio.
     if (esToolDeAgenda(name)) {
-      const texto = await ejecutarToolDeAgenda(
+      const r = await ejecutarToolDeAgenda(
         {
           tenantId: ctx.tenantId,
           conversationId: ctx.conversationId,
@@ -480,8 +501,19 @@ async function executeTool(
         name,
         input,
       )
-      await registrarTool(ctx, name, input, texto, null, Date.now() - started)
-      return { result: texto, stop: false, hablo }
+      await registrarTool(ctx, name, input, r.texto, null, Date.now() - started)
+      /*
+       * Con la visita reservada, el asistente se corre.
+       *
+       * NO se corta el turno acá (`stop` sigue en false) a propósito: el
+       * modelo todavía tiene que confirmarle a la persona el día y la hora.
+       * Cortar en este punto dejaba el turno cargado y a la persona sin
+       * respuesta, mirando el chat después de haber dicho "el martes a las
+       * tres". La derivación queda anotada y se ejecuta cuando el modelo
+       * terminó de hablar.
+       */
+      if (r.agendo) agendo = true
+      return { result: r.texto, stop: false, hablo, agendo }
     }
 
     switch (name) {
@@ -532,15 +564,21 @@ async function executeTool(
         const name_ = clip(input.name, 120)
         const city = clip(input.city, 120)
         const province = clip(input.province, 120)
+        const asunto = clip(input.asunto, 200)
         output = await withSystem(async (tx) => {
           await tx.execute(sql`
             update contacts set
               display_name = coalesce(${name_}, display_name),
               city         = coalesce(${city}, city),
-              province     = coalesce(${province}, province)
+              province     = coalesce(${province}, province),
+              -- El asunto lo pisa el modelo si manda uno nuevo: una consulta
+              -- que arranca por un proyecto y sigue por otro cambió de
+              -- asunto, y el último es el que sirve. Lo que escribió una
+              -- persona a mano NO se pisa: eso se decide en la ficha.
+              asunto       = coalesce(${asunto}, asunto)
              where id = ${ctx.contactId} and tenant_id = ${ctx.tenantId}
           `)
-          return { name: name_, city, province }
+          return { name: name_, city, province, asunto }
         })
         break
       }
@@ -614,7 +652,7 @@ async function executeTool(
   }
 
   await registrarTool(ctx, name, input, output, error, Date.now() - started)
-  return { result: JSON.stringify(output), stop, hablo }
+  return { result: JSON.stringify(output), stop, hablo, agendo }
 }
 
 /**
@@ -755,6 +793,15 @@ async function run(ctx: AgentContext): Promise<void> {
   let cacheRead = 0
   let stopReason: string | null = null
   let runError: string | null = null
+  /**
+   * Si en esta corrida quedó una visita reservada.
+   *
+   * Con la visita puesta el asistente ya hizo su trabajo: lo que sigue —qué
+   * llevar, cómo llegar, correrla media hora— lo coordina un asesor. Se
+   * anota acá y se actúa al final para que el modelo alcance a confirmarle
+   * el día y la hora a la persona.
+   */
+  let reservoVisita = false
 
   try {
     const modelo = await createProvider({
@@ -825,7 +872,7 @@ async function run(ctx: AgentContext): Promise<void> {
       let cortar = false
       let yaHablo = false
       for (const call of res.toolCalls) {
-        const { result, stop, hablo } = await executeTool(
+        const { result, stop, hablo, agendo } = await executeTool(
           ctx,
           call.name,
           call.input,
@@ -837,6 +884,7 @@ async function run(ctx: AgentContext): Promise<void> {
         })
         if (stop) cortar = true
         if (hablo) yaHablo = true
+        if (agendo) reservoVisita = true
       }
 
       // Si además de pedir herramientas escribió algo, se manda: en la
@@ -871,6 +919,21 @@ async function run(ctx: AgentContext): Promise<void> {
       }
 
       if (cortar) break
+    }
+
+    /*
+     * Con la visita reservada, se corre.
+     *
+     * Sin mensaje propio: el modelo acaba de confirmar el día y la hora, y
+     * un "en un momento te responde una persona" pegado abajo suena a que
+     * algo salió mal justo cuando salió bien.
+     *
+     * `handoff` apaga la IA de esta conversación y deja la nota en la ficha.
+     * A quién le toca ya lo decidió `crearTurno` al poner responsable del
+     * turno; el hilo queda a la vista con la chapa de asesor.
+     */
+    if (reservoVisita) {
+      await handoff(ctx, 'Visita agendada: sigue un asesor')
     }
   } catch (err) {
     runError = String(err)

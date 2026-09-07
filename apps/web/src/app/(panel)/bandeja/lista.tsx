@@ -190,19 +190,22 @@ export async function ListaConversaciones({
                   <span className="lm">{c.lastBody ?? 'Sin mensajes'}</span>
                   <span className="wa-conv-tags">
                     {/*
-                      "Necesita humano" en ámbar y no en gris, y con el
-                      triángulo de aviso. Que un hilo haya pasado a una
-                      persona es lo único de esta lista que pide una acción:
-                      alguien está esperando que le contesten. En gris se
-                      confundía con el resto y se pasaba de largo, y "Humano"
-                      a secas se leía como un dato, no como un pendiente.
+                      "Asesor" en ámbar y no en gris, y con el triángulo de
+                      aviso. Que un hilo haya pasado a una persona es lo único
+                      de esta lista que pide una acción: alguien está
+                      esperando que le contesten. En gris se confundía con el
+                      resto y se pasaba de largo.
+
+                      Antes decía "Necesita humano", que describe el estado
+                      del sistema. "Asesor" es la palabra que usa el negocio
+                      para la persona que sigue esa conversación.
                     */}
                     {c.aiEnabled ? (
                       <span className="badge b-blue">IA</span>
                     ) : (
                       <span className="badge b-amber">
                         <IconAlerta />
-                        Necesita humano
+                        Asesor
                       </span>
                     )}
                     {c.asignadoNombre ? (

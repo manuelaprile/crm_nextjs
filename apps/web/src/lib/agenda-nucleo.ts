@@ -39,6 +39,11 @@ function codigoSql(err: unknown): string | null {
 /** Traduce los errores de Postgres a algo que se pueda leer en pantalla. */
 function traducir(err: unknown): string {
   const codigo = codigoSql(err)
+  // 23P01 es la violación de una restricción de exclusión. Desde la 0043 la
+  // agenda no tiene ninguna: dos turnos pueden pisarse. Se deja el caso
+  // porque el día que se vuelva a poner una —por ejemplo, una que sí mire el
+  // responsable— el error tiene que llegar en castellano y no como
+  // "No se pudo guardar el turno".
   if (codigo === '23P01') {
     return 'Ese horario ya está ocupado por otro turno.'
   }

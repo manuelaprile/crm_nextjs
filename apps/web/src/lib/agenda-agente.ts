@@ -7,7 +7,6 @@ import {
   diaEnZona,
   estaLibre,
   horaEnZona,
-  huecosLibres,
   instanteDe,
   partesEnZona,
   proximoTurnoDe,
@@ -42,50 +41,16 @@ import {
  * procesar tu solicitud".
  */
 
-// Cuántos huecos se piden a la base. Alto a propósito: la lista se agrupa
-// por día, y una jornada de nueve horas con turnos de media hora ya son
-// dieciocho horarios.
-const MAX_HUECOS = 70
-/**
- * Cuántos días se muestran, y cuántas horas de cada uno.
- *
- * El tope por día tiene que alcanzar para una jornada COMPLETA. Con 14 la
- * lista de un 09:00–18:00 se cortaba en las 15:30, y cualquier pregunta por
- * la tarde caía en el mismo agujero de antes: el horario no estaba en la
- * lista y el modelo lo daba por ocupado.
- */
-const DIAS_A_MOSTRAR = 3
-const HORAS_POR_DIA = 24
-
 export function toolsDeAgenda(): ToolSpec[] {
   return [
     {
-      name: 'ver_horarios',
-      description:
-        'Consulta los horarios libres para ofrecer. Usar SIEMPRE antes de ' +
-        'agendar: nunca propongas un horario que no salga de acá.',
-      parameters: {
-        type: 'object',
-        properties: {
-          desde_dia: {
-            type: 'string',
-            description:
-              'AAAA-MM-DD. El primer día a partir del cual buscar. Sacalo ' +
-              'del CALENDARIO de tus instrucciones, no lo calcules. Si te ' +
-              'dicen "la semana que viene", poné el lunes de esa semana. ' +
-              'Omitilo para buscar lo antes posible.',
-          },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
       name: 'esta_libre',
       description:
-        'Comprueba UN horario puntual. Usar siempre que pregunten por un día ' +
-        'y hora concretos. NUNCA contestes que algo no está disponible sin ' +
-        'haberlo consultado acá: que no aparezca en  no ' +
-        'significa que esté ocupado.',
+        'Comprueba si se puede agendar UN día y hora puntuales. Solo mira el ' +
+        'calendario del negocio: si ese día se atiende, si no es sobre la ' +
+        'hora y si no ya pasó. NO mira si hay otra visita a esa hora, porque ' +
+        'eso no impide nada. Usálo si dudas de un día; si te dieron uno ' +
+        'válido, agendá directo.',
       parameters: {
         type: 'object',
         properties: {
@@ -167,7 +132,6 @@ export function toolsDeAgenda(): ToolSpec[] {
 
 export function esToolDeAgenda(nombre: string): boolean {
   return [
-    'ver_horarios',
     'esta_libre',
     'agendar',
     'ver_turno',
@@ -240,23 +204,27 @@ export function instruccionesDeAgenda(config: ConfigAgenda): string | null {
   const partes = [
     '# AGENDAR TURNOS',
     '',
-    'Podés reservar turnos vos mismo. Cómo se hace, sin saltear pasos:',
+    'Podés reservar turnos vos mismo.',
     '',
-    '1. Consultá `ver_horarios` para saber qué hay libre. Si te pidieron un ' +
-      'día o una semana en particular, pasale `desde_dia`.',
-    '2. Ofrecé DOS o TRES opciones concretas, copiando el día y la hora tal ' +
-      'como te los devolvió la herramienta.',
-    '3. Esperá a que la persona elija.',
-    '4. Recién ahí llamá a `agendar`, y confirmá con el día y la hora exactos.',
+    'NO OFREZCAS HORARIOS. No tenes que proponer opciones ni decir qué hay ' +
+      'libre: preguntále QUÉ DÍA Y A QUÉ HORA le queda cómodo, y agendá lo ' +
+      'que te diga. La disponibilidad la termina acomodando un asesor, así ' +
+      'que no hay una lista de huecos que respetar.',
     '',
-    'Nunca inventes un horario ni digas "te confirmamos después": o lo ' +
-      'reservás en el momento, o derivás.',
+    '1. Preguntá qué día le viene bien. Una sola pregunta.',
+    '2. Cuando te lo diga, preguntá a qué hora.',
+    '3. Con el día y la hora, llamá a `agendar` y confirmá repitiendo los dos.',
     '',
-    'Si te preguntan por un día y hora CONCRETOS —"¿tenés el lunes a las ' +
-      '11?"—, consultá `esta_libre` y contestá con eso. Que un horario no ' +
-      'aparezca en `ver_horarios` NO quiere decir que esté ocupado: esa ' +
-      'lista muestra los primeros días, no todos. Decir "no tengo" sobre un ' +
-      'horario que estaba libre es de las peores cosas que podés hacer acá.',
+    'Que a esa hora ya haya otra visita NO es un problema y no hace falta ' +
+      'que lo mires: se acomoda después.',
+    '',
+    'Lo único que puede fallar es el calendario del negocio: un día que no ' +
+      'se atiende, algo demasiado sobre la hora, o una fecha que ya pasó. Si ' +
+      '`agendar` te rechaza por eso, decile el motivo con sus palabras y ' +
+      'pedile otro día. Si dudás antes de agendar, consultá `esta_libre`.',
+    '',
+    'Nunca digas "te confirmamos después": o lo reservás en el momento, o ' +
+      'derivás.',
     '',
     '## CALENDARIO',
     '',
@@ -270,8 +238,7 @@ export function instruccionesDeAgenda(config: ConfigAgenda): string | null {
     `- "hoy" = ${diaEnZona(hoy, config.zona)}`,
     `- "mañana" = ${diaEnZona(new Date(hoy.getTime() + 24 * 3_600_000), config.zona)}`,
     `- "esta semana" = hasta el ${diaEnZona(new Date((instanteDe(lunes, '12:00', config.zona)?.getTime() ?? hoy.getTime()) - 24 * 3_600_000), config.zona)}`,
-    `- "la semana que viene" = del ${lunes} al ${domingo}. Para eso, ` +
-      `\`ver_horarios\` con desde_dia=${lunes}.`,
+    `- "la semana que viene" = del ${lunes} al ${domingo}.`,
     '',
     'Si un día que nombraste no coincide con la tabla, corregite y volvé a ' +
       'mirar. Confirmar un turno el día equivocado es peor que no agendarlo.',
@@ -299,11 +266,8 @@ export function instruccionesDeAgenda(config: ConfigAgenda): string | null {
         'cuenta es el tema. "Me gustaría visitarla", "¿cuándo puedo pasar?" ' +
         'y "¿podemos juntarnos?" son todas lo mismo.',
       '',
-      'Cuando pase, consultá `ver_horarios` en ESE MISMO turno y ofrecé dos ' +
-        'o tres opciones concretas. No preguntes "¿para cuándo te ' +
-        'gustaría?" antes de mirar la agenda: la vas a tener que mirar igual, ' +
-        'y hacés esperar un mensaje de más. Si te dijeron un día, pasáselo ' +
-        'en `desde_dia`.',
+      'Cuando pase, preguntále qué día le queda cómodo. Si ya te dijo el ' +
+        'día, preguntá la hora. Con los dos, agendá.',
     )
   }
 
@@ -321,10 +285,30 @@ type Ctx = {
  *
  * Devuelve texto y no un objeto: es lo que vuelve al modelo como resultado.
  */
+/**
+ * Ejecuta una herramienta de agenda.
+ *
+ * Devuelve también si ESTA llamada dejó un turno reservado, porque cuando
+ * eso pasa la IA se retira y sigue una persona. El dato sale de una marca
+ * que pone la propia rama de `agendar`, y no de mirar el texto que se le
+ * devuelve al modelo: ese texto se reescribe cada dos por tres y la
+ * derivación dejaría de dispararse sin que nadie se entere.
+ */
 export async function ejecutarToolDeAgenda(
   ctx: Ctx,
   nombre: string,
   input: Record<string, unknown>,
+): Promise<{ texto: string; agendo: boolean }> {
+  const marca = { agendo: false }
+  const texto = await correrToolDeAgenda(ctx, nombre, input, marca)
+  return { texto, agendo: marca.agendo }
+}
+
+async function correrToolDeAgenda(
+  ctx: Ctx,
+  nombre: string,
+  input: Record<string, unknown>,
+  marca: { agendo: boolean },
 ): Promise<string> {
   const config = await configAgenda(ctx.tenantId)
   if (!config.iaAgenda) {
@@ -332,71 +316,6 @@ export async function ejecutarToolDeAgenda(
   }
 
   switch (nombre) {
-    case 'ver_horarios': {
-      // El parámetro se USA. En la primera versión estaba declarado y no se
-      // leía: el modelo pedía "la semana que viene", recibía los primeros
-      // huecos —que eran del día siguiente— y los presentaba como si fueran
-      // de la semana que viene. Un parámetro que se acepta y se ignora es
-      // peor que no tenerlo: el modelo cree que lo tuvieron en cuenta.
-      const pedido = String(input.desde_dia ?? '').trim()
-      const desde = pedido ? instanteDe(pedido, '00:00', config.zona) : null
-      if (pedido && !desde) {
-        return 'Ese día no es válido. Usá AAAA-MM-DD, sacándolo del calendario de tus instrucciones.'
-      }
-
-      const huecos = await huecosLibres({
-        tenantId: ctx.tenantId,
-        config,
-        cuantos: MAX_HUECOS,
-        desde: desde ?? undefined,
-      })
-      if (!huecos.length) {
-        // Si buscó a partir de una fecha, puede que más adelante haya y
-        // antes también: decirle las dos cosas evita que corte la
-        // conversación con un "no hay nada".
-        const alternativa = desde
-          ? ' a partir de ese día. Probá `ver_horarios` sin `desde_dia` para ver lo primero que haya'
-          : ` en los próximos ${config.horizonteDias} días`
-        return (
-          `No hay horarios libres${alternativa}. Si tampoco hay, decile que ` +
-          'en este momento no hay disponibilidad y derivá a una persona.'
-        )
-      }
-
-      /**
-       * Agrupado por día y con el día COMPLETO, no seis horarios sueltos.
-       *
-       * Antes devolvía los primeros seis en total: con turnos de media hora
-       * eso llegaba hasta las 11:30 del primer día con lugar. Si alguien
-       * preguntaba por la tarde, o por otro día, el modelo no lo tenía en la
-       * lista y contestaba que no había. Es lo que pasó de verdad con un
-       * "¿tenés el lunes a las 11?" sobre un horario que estaba libre.
-       */
-      const porDia = new Map<string, string[]>()
-      for (const h of huecos) {
-        const dia = diaEnZona(h, config.zona)
-        const lista = porDia.get(dia) ?? []
-        if (lista.length < HORAS_POR_DIA) lista.push(horaEnZona(h, config.zona))
-        porDia.set(dia, lista)
-      }
-
-      const bloques = [...porDia.entries()]
-        .slice(0, DIAS_A_MOSTRAR)
-        .map(([dia, horas]) => {
-          const ancla = instanteDe(dia, '12:00', config.zona)
-          const rotulo = ancla ? comoSeLeeDia(ancla, config.zona) : dia
-          return `${rotulo}  (dia=${dia})\n  ${horas.join('  ')}`
-        })
-
-      return (
-        `Horarios libres:\n\n${bloques.join('\n\n')}\n\n` +
-        'Ofrecé dos o tres, con las palabras de siempre. Para agendar, usá ' +
-        'el `dia` de la línea y la hora tal cual figura. Si te preguntan por ' +
-        'un horario que no está en esta lista, NO supongas que está ocupado: ' +
-        'consultá `esta_libre`.'
-      )
-    }
-
     case 'esta_libre': {
       const dia = String(input.dia ?? '').trim()
       const hora = String(input.hora ?? '').trim()
@@ -409,8 +328,6 @@ export async function ejecutarToolDeAgenda(
       switch (motivo) {
         case 'libre':
           return `SÍ, el ${cuando} está libre. Podés agendarlo con dia=${dia} hora=${hora}.`
-        case 'ocupado':
-          return `NO, el ${cuando} ya está tomado. Ofrecé otro horario de \`ver_horarios\`.`
         case 'fuera-de-horario':
           return `NO, el ${cuando} queda fuera del horario de atención. Decile cuáles son los horarios y ofrecé alternativas.`
         case 'muy-pronto':
@@ -427,7 +344,7 @@ export async function ejecutarToolDeAgenda(
       }
       const inicia = instanteDe(String(input.dia ?? ''), String(input.hora ?? ''), config.zona)
       if (!inicia) {
-        return 'Ese día u hora no son válidos. Volvé a consultar `ver_horarios` y usá los valores tal cual vienen.'
+        return 'Ese día u hora no son válidos. Usá AAAA-MM-DD y HH:MM, sacando el día del calendario de tus instrucciones.'
       }
       const termina = new Date(inicia.getTime() + config.duracionIaMin * 60_000)
       const motivo = String(input.motivo ?? '').trim() || 'Turno'
@@ -445,11 +362,13 @@ export async function ejecutarToolDeAgenda(
         validarHorario: true,
       })
       if (!res.ok) {
-        return `No se pudo agendar: ${res.error} Consultá \`ver_horarios\` de nuevo y ofrecé otro horario.`
+        return `No se pudo agendar: ${res.error} Decíselo con tus palabras y pedile otro día u horario.`
       }
+      marca.agendo = true
       return (
         `Turno confirmado para el ${comoSeLee(inicia, config.zona)}. ` +
-        'Decíselo con esas mismas palabras, día y hora incluidos.'
+        'Decíselo con esas mismas palabras, día y hora incluidos, y cerrá ' +
+        'ahí: a partir de este mensaje sigue un asesor.'
       )
     }
 
@@ -470,7 +389,7 @@ export async function ejecutarToolDeAgenda(
 
       const inicia = instanteDe(String(input.dia ?? ''), String(input.hora ?? ''), config.zona)
       if (!inicia) {
-        return 'Ese día u hora no son válidos. Consultá `ver_horarios` y usá los valores tal cual vienen.'
+        return 'Ese día u hora no son válidos. Usá AAAA-MM-DD y HH:MM, sacando el día del calendario de tus instrucciones.'
       }
       // Se conserva cuánto duraba: si era una visita de una hora, sigue
       // siendo de una hora aunque la IA agende de a treinta minutos.
@@ -484,7 +403,7 @@ export async function ejecutarToolDeAgenda(
         validarHorario: true,
       })
       if (!res.ok) {
-        return `No se pudo mover: ${res.error} Consultá \`ver_horarios\` y ofrecé otro horario.`
+        return `No se pudo mover: ${res.error} Decíselo con tus palabras y pedile otro día u horario.`
       }
       return (
         `Turno movido al ${comoSeLee(inicia, config.zona)}. ` +

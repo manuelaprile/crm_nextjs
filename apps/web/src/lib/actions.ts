@@ -226,11 +226,28 @@ export async function updateContact(formData: FormData): Promise<void> {
   const city = String(formData.get('city') ?? '').trim().slice(0, 120)
   const province = String(formData.get('province') ?? '').trim().slice(0, 120)
   const asunto = String(formData.get('asunto') ?? '').trim().slice(0, 200)
+  /*
+   * El teléfono se edita, pero NO es la identidad del contacto.
+   *
+   * La identidad vive en `contact_identities` (ver CLAUDE.md, regla 3): en
+   * WhatsApp puede venir nulo o cambiar. Acá es un dato de la ficha, y por
+   * eso tocarlo no reencamina ninguna conversación: solo cambia lo que se
+   * lee y con qué número sale una campaña.
+   *
+   * Se guardan solo dígitos y un `+` inicial. Un "11 2345-6789" escrito a
+   * mano no se puede usar para mandar nada, y el error aparecería recién al
+   * enviar la campaña.
+   */
+  const telCrudo = String(formData.get('phone') ?? '').trim().slice(0, 40)
+  const phone = telCrudo
+    ? (telCrudo.startsWith('+') ? '+' : '') + telCrudo.replace(/\D/g, '')
+    : ''
 
   await withTenant(session, (tx) =>
     tx.execute(sql`
       update contacts set
         display_name = coalesce(nullif(${name}, ''), display_name),
+        phone        = nullif(${phone}, ''),
         city         = nullif(${city}, ''),
         province     = nullif(${province}, ''),
         asunto       = nullif(${asunto}, '')
@@ -359,6 +376,21 @@ export async function eliminarContacto(formData: FormData): Promise<void> {
     // caen en cascada al borrar la conversación.
     await tx.execute(sql`
       delete from conversations where contact_id = ${contactId}
+    `)
+    /*
+     * Los turnos, por lo mismo y por la misma razón.
+     *
+     * `appointments.contact_id` también es ON DELETE SET NULL —hay reuniones
+     * que no son con un contacto, como una con un proveedor—, así que
+     * borrando solo el contacto la visita quedaba en la agenda con el nombre
+     * en la nada. Alguien la veía el martes y no tenía forma de saber con
+     * quién era.
+     *
+     * Se borran solo los que ESTÁN atados a este contacto. Una reunión sin
+     * contacto no la toca nadie acá.
+     */
+    await tx.execute(sql`
+      delete from appointments where contact_id = ${contactId}
     `)
     // El resto (identidades, notas, etiquetas, historial) sí es en cascada.
     await tx.execute(sql`delete from contacts where id = ${contactId}`)

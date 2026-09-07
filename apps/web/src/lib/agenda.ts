@@ -335,103 +335,25 @@ export async function proximoTurnoDe(
 }
 
 // ---------------------------------------------------------------------
-// Huecos libres
+// Comprobar un horario
 // ---------------------------------------------------------------------
 
 /**
- * Los horarios que la IA puede ofrecer.
+ * Por qué un horario no se puede dar.
  *
- * Cruza tres cosas: los horarios de atención cargados, los turnos que ya
- * están, y los límites de anticipación y horizonte. Devuelve instantes, no
- * texto: la conversión a la hora del negocio se hace al final, una sola vez.
+ * YA NO EXISTE 'ocupado'. Que a esa hora haya otro turno dejó de ser un
+ * motivo: la disponibilidad real la define un asesor, no el sistema, y
+ * contestar "no hay lugar el martes" cuando el martes se acomoda es perder
+ * una visita por una regla que el negocio no tiene. Ver la migración 0043.
  *
- * Barre día por día en la zona del negocio y no sumando 24 horas, porque el
- * día que cambia el horario de verano dura 23 o 25.
+ * Lo que sigue valiendo es el calendario del negocio: el horario de
+ * atención, la anticipación mínima y no agendar en el pasado.
  */
-export async function huecosLibres(params: {
-  tenantId: string
-  config: ConfigAgenda
-  cuantos?: number
-  /**
-   * No ofrecer nada antes de este momento. Es lo que permite contestar "la
-   * semana que viene" con horarios de la semana que viene.
-   *
-   * Va SEPARADO de `ahora` a propósito. Antes era el mismo valor, y correr el
-   * arranque corría también la anticipación mínima y el horizonte: pedir
-   * turnos para dentro de diez días devolvía huecos del día veinte.
-   */
-  desde?: Date
-  /** Solo para pruebas: qué momento se considera "ahora". */
-  ahora?: Date
-}): Promise<Date[]> {
-  const { tenantId, config } = params
-  const cuantos = params.cuantos ?? 6
-  const ahora = params.ahora ?? new Date()
-  const duracionMs = config.duracionIaMin * 60_000
-
-  const minimo = new Date(ahora.getTime() + config.anticipacionHoras * 3_600_000)
-  const inicioValido =
-    params.desde && params.desde.getTime() > minimo.getTime()
-      ? params.desde
-      : minimo
-  const fin = new Date(
-    ahora.getTime() + config.horizonteDias * 24 * 3_600_000,
-  )
-  if (inicioValido >= fin) return []
-
-  const ocupados = await turnosEntre({
-    tenantId,
-    desde: inicioValido,
-    hasta: fin,
-  })
-  const rangos: [number, number][] = ocupados
-    .filter((t) => t.estado === 'programada' || t.estado === 'cumplida')
-    .map((t) => [new Date(t.inicia).getTime(), new Date(t.termina).getTime()])
-
-  const libres: Date[] = []
-  let dia = diaEnZona(inicioValido, config.zona)
-
-  for (let n = 0; n < config.horizonteDias + 1 && libres.length < cuantos; n++) {
-    // El mediodía del día que estamos mirando: sirve de ancla para saber qué
-    // día de la semana es y para avanzar al siguiente sin caer en el borde.
-    const ancla = instanteDe(dia, '12:00', config.zona)
-    if (!ancla) break
-    const { diaSemana } = partesEnZona(ancla, config.zona)
-    const tramos = config.horarios[String(diaSemana)] ?? []
-
-    for (const [abre, cierra] of tramos) {
-      const tIni = instanteDe(dia, abre, config.zona)
-      const tFin = instanteDe(dia, cierra, config.zona)
-      if (!tIni || !tFin || tFin <= tIni) continue
-
-      for (
-        let t = tIni.getTime();
-        t + duracionMs <= tFin.getTime() && libres.length < cuantos;
-        t += duracionMs
-      ) {
-        // El horizonte también corta acá. Empezando a barrer desde una fecha
-        // pedida, el recorrido por días podía pasarse del último día que el
-        // cliente quiere ofrecer.
-        if (t > fin.getTime()) break
-        if (t < inicioValido.getTime()) continue
-        const choca = rangos.some(([a, b]) => t < b && t + duracionMs > a)
-        if (!choca) libres.push(new Date(t))
-      }
-    }
-
-    dia = diaEnZona(new Date(ancla.getTime() + 24 * 3_600_000), config.zona)
-  }
-
-  return libres
-}
-
-/** Por qué un horario no se puede dar. */
 export type MotivoOcupado =
   | 'libre'
   | 'pasado'
   | 'muy-pronto'
   | 'fuera-de-horario'
-  | 'ocupado'
 
 /**
  * ¿Está libre ESTE horario puntual?
@@ -467,19 +389,7 @@ export async function estaLibre(params: {
   }
   if (!dentroDeHorario(inicio, fin, config)) return 'fuera-de-horario'
 
-  const delDia = await turnosEntre({
-    tenantId,
-    desde: new Date(inicio.getTime() - 12 * 3_600_000),
-    hasta: fin,
-  })
-  const choca = delDia
-    .filter((t) => t.estado === 'programada' || t.estado === 'cumplida')
-    .some(
-      (t) =>
-        inicio.getTime() < new Date(t.termina).getTime() &&
-        fin.getTime() > new Date(t.inicia).getTime(),
-    )
-  return choca ? 'ocupado' : 'libre'
+  return 'libre'
 }
 
 /**
