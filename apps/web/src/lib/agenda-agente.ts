@@ -215,8 +215,9 @@ export function instruccionesDeAgenda(config: ConfigAgenda): string | null {
     '2. Cuando te lo diga, preguntá a qué hora.',
     '3. Con el día y la hora, llamá a `agendar`.',
     '',
-    'LO QUE VOS ANOTÁS QUEDA A CONFIRMAR, siempre. Repetí el día y la hora, ' +
-      'y decí que un asesor se lo confirma. Nunca digas "confirmado", ' +
+    'LO QUE VOS ANOTÁS QUEDA A CONFIRMAR, siempre. Repetí el día y la hora ' +
+      'que te pidieron —se anota tal cual, no lo cambies— y decí que un ' +
+      'asesor se va a comunicar para confirmarla. Nunca digas "confirmado", ' +
       '"listo" ni "te esperamos": todavía no lo vio nadie del equipo, y si ' +
       'después hay que moverlo, la persona ya lo dio por cerrado.',
     '',
@@ -372,10 +373,11 @@ async function correrToolDeAgenda(
       marca.agendo = true
       return (
         `Turno anotado para el ${comoSeLee(inicia, config.zona)}, ` +
-        'A CONFIRMAR. Decíselo con el día y la hora, y aclará que un asesor ' +
-        'se lo confirma. NO digas que está confirmado ni que está listo: ' +
-        'todavía no lo vio nadie del equipo. Cerrá ahí, que a partir de este ' +
-        'mensaje sigue un asesor.'
+        'A CONFIRMAR. Contestale con el día y la hora, y decíle que UN ASESOR ' +
+        'SE VA A COMUNICAR PARA CONFIRMARLA, y que hasta entonces no queda ' +
+        'confirmada. NO digas "confirmado", "listo" ni "te esperamos": ' +
+        'todavía no lo vio nadie del equipo, y el horario puede cambiar. ' +
+        'Cerrá ahí, que a partir de este mensaje sigue un asesor.'
       )
     }
 
