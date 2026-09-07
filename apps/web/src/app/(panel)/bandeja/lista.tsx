@@ -8,7 +8,6 @@ import {
   IconBot,
   IconPersona,
   IconCalendar,
-  IconAlerta,
   IconAgenda,
 } from '@/components/icons'
 import { cuandoViene, horaOFecha } from '@/lib/fechas'
@@ -106,7 +105,7 @@ export async function ListaConversaciones({
   const FILTROS = [
     { valor: undefined, label: 'Todas', Icono: IconCapas, tono: '' },
     { valor: 'ia' as const, label: 'IA', Icono: IconBot, tono: ' t-blue' },
-    { valor: 'humano' as const, label: 'Humano', Icono: IconPersona, tono: ' t-amber' },
+    { valor: 'humano' as const, label: 'Asesor', Icono: IconPersona, tono: ' t-amber' },
     { valor: 'visita' as const, label: 'Visita', Icono: IconCalendar, tono: ' t-green' },
   ]
 
@@ -190,11 +189,13 @@ export async function ListaConversaciones({
                   <span className="lm">{c.lastBody ?? 'Sin mensajes'}</span>
                   <span className="wa-conv-tags">
                     {/*
-                      "Asesor" en ámbar y no en gris, y con el triángulo de
-                      aviso. Que un hilo haya pasado a una persona es lo único
-                      de esta lista que pide una acción: alguien está
-                      esperando que le contesten. En gris se confundía con el
-                      resto y se pasaba de largo.
+                      "Asesor" en ámbar: que un hilo haya pasado a una persona
+                      es lo único de esta lista que pide una acción —alguien
+                      está esperando que le contesten— y en gris se confundía
+                      con el resto.
+
+                      El icono es la persona y no el triángulo de peligro: no
+                      hay nada roto, hay alguien a quien le toca contestar.
 
                       Antes decía "Necesita humano", que describe el estado
                       del sistema. "Asesor" es la palabra que usa el negocio
@@ -204,7 +205,7 @@ export async function ListaConversaciones({
                       <span className="badge b-blue">IA</span>
                     ) : (
                       <span className="badge b-amber">
-                        <IconAlerta />
+                        <IconPersona />
                         Asesor
                       </span>
                     )}
@@ -221,7 +222,7 @@ export async function ListaConversaciones({
                     {c.proximoTurno ? (
                       <span className="badge b-green">
                         <IconAgenda />
-                        Agenda registrada · {cuandoViene(c.proximoTurno, zona)}
+                        Visita · {cuandoViene(c.proximoTurno, zona)}
                       </span>
                     ) : null}
                     {/*

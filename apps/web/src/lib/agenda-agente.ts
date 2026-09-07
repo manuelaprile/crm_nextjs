@@ -213,7 +213,12 @@ export function instruccionesDeAgenda(config: ConfigAgenda): string | null {
     '',
     '1. Preguntá qué día le viene bien. Una sola pregunta.',
     '2. Cuando te lo diga, preguntá a qué hora.',
-    '3. Con el día y la hora, llamá a `agendar` y confirmá repitiendo los dos.',
+    '3. Con el día y la hora, llamá a `agendar`.',
+    '',
+    'LO QUE VOS ANOTÁS QUEDA A CONFIRMAR, siempre. Repetí el día y la hora, ' +
+      'y decí que un asesor se lo confirma. Nunca digas "confirmado", ' +
+      '"listo" ni "te esperamos": todavía no lo vio nadie del equipo, y si ' +
+      'después hay que moverlo, la persona ya lo dio por cerrado.',
     '',
     'Que a esa hora ya haya otra visita NO es un problema y no hace falta ' +
       'que lo mires: se acomoda después.',
@@ -366,9 +371,11 @@ async function correrToolDeAgenda(
       }
       marca.agendo = true
       return (
-        `Turno confirmado para el ${comoSeLee(inicia, config.zona)}. ` +
-        'Decíselo con esas mismas palabras, día y hora incluidos, y cerrá ' +
-        'ahí: a partir de este mensaje sigue un asesor.'
+        `Turno anotado para el ${comoSeLee(inicia, config.zona)}, ` +
+        'A CONFIRMAR. Decíselo con el día y la hora, y aclará que un asesor ' +
+        'se lo confirma. NO digas que está confirmado ni que está listo: ' +
+        'todavía no lo vio nadie del equipo. Cerrá ahí, que a partir de este ' +
+        'mensaje sigue un asesor.'
       )
     }
 
@@ -406,8 +413,9 @@ async function correrToolDeAgenda(
         return `No se pudo mover: ${res.error} Decíselo con tus palabras y pedile otro día u horario.`
       }
       return (
-        `Turno movido al ${comoSeLee(inicia, config.zona)}. ` +
-        'Confirmáselo con el día y la hora.'
+        `Turno movido al ${comoSeLee(inicia, config.zona)}, A CONFIRMAR. ` +
+        'Decíselo con el día y la hora, y aclará que un asesor se lo ' +
+        'confirma. NO digas que está confirmado.'
       )
     }
 
