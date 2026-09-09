@@ -14,6 +14,9 @@ import { crearCuenta, type Rubro } from '@/lib/usuarios'
 export function FormNuevaCuenta({ rubros }: { rubros: Rubro[] }) {
   const [rubro, setRubro] = useState(rubros[0]?.code ?? 'generico')
   const [nombre, setNombre] = useState('')
+  // El singular del rubro nuevo, para poder mostrarlo en el desplegable del
+  // artículo. Ver ahí abajo por qué.
+  const [rubroSingular, setRubroSingular] = useState('')
   const [slug, setSlug] = useState('')
   const [slugTocado, setSlugTocado] = useState(false)
 
@@ -89,7 +92,9 @@ export function FormNuevaCuenta({ rubros }: { rubros: Rubro[] }) {
                 id="rubroSingular"
                 name="rubroSingular"
                 className="input"
-                placeholder="Gimnasio"
+                placeholder="Complejo"
+                value={rubroSingular}
+                onChange={(e) => setRubroSingular(e.target.value)}
               />
             </div>
             <div className="field">
@@ -98,10 +103,25 @@ export function FormNuevaCuenta({ rubros }: { rubros: Rubro[] }) {
                 id="rubroPlural"
                 name="rubroPlural"
                 className="input"
-                placeholder="Gimnasios"
+                placeholder="Complejos"
               />
             </div>
           </div>
+          {/*
+            Acá se elige el GÉNERO, no el rubro.
+
+            El nombre del rubro es el campo de arriba y siempre fue texto
+            libre. Esto guarda «el» o «la», que es lo que después arma
+            «del complejo» contra «de la inmobiliaria» en las frases del
+            panel.
+
+            Las opciones decían «el gimnasio» y «la inmobiliaria», y eso se
+            leía como una lista de DOS RUBROS para elegir: alguien que iba a
+            dar de alta un complejo no encontraba el suyo y no tenía forma de
+            saber que el nombre ya lo había escrito arriba. Ahora la opción
+            muestra la palabra que acaba de tipear, y la pregunta se contesta
+            sola.
+          */}
           <div className="field">
             <label htmlFor="rubroArticulo">Se dice…</label>
             <select
@@ -111,8 +131,8 @@ export function FormNuevaCuenta({ rubros }: { rubros: Rubro[] }) {
               defaultValue="el"
               style={{ width: 'auto' }}
             >
-              <option value="el">el gimnasio</option>
-              <option value="la">la inmobiliaria</option>
+              <option value="el">el {palabra(rubroSingular)}</option>
+              <option value="la">la {palabra(rubroSingular)}</option>
             </select>
             <span className="tiny muted">
               Solo para que las frases del panel queden bien escritas.
@@ -181,4 +201,15 @@ function sluguear(texto: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
+}
+
+/**
+ * La palabra del rubro para mostrarla en el desplegable del artículo.
+ *
+ * En minúscula porque va dentro de una frase, y con un ejemplo mientras el
+ * campo esté vacío: un «el» y un «la» pelados no dejan ver para qué sirve
+ * la pregunta.
+ */
+function palabra(singular: string): string {
+  return singular.trim().toLowerCase() || 'complejo'
 }
