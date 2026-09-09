@@ -142,12 +142,43 @@ export async function bloqueNegocio(tenantId: string): Promise<string | null> {
     '# INFORMACIÓN DEL NEGOCIO\n\n' +
     'Esto es lo que sabés con certeza y podés responder sin consultar con ' +
     'nadie.\n\n' +
-    texto.trimEnd() +
-    '\n\nSi te preguntan algo que NO está acá arriba, no lo inventes ni lo ' +
-    'deduzcas: decí que lo consultás y derivá. Un precio o un horario ' +
-    'inventado es un compromiso que alguien va a tener que sostener.'
+    texto.trimEnd()
   )
 }
+
+/**
+ * De qué puede hablar el asistente. SIEMPRE va, pase lo que pase.
+ *
+ * Antes esta regla vivía pegada al final del bloque de información del
+ * negocio, y ese bloque NO EXISTE si la cuenta todavía no cargó nada
+ * (`bloqueNegocio` devuelve null sin entradas). O sea que la única defensa
+ * contra inventar desaparecía justo en las cuentas recién dadas de alta, que
+ * son las que menos información tienen.
+ *
+ * Y no alcanzaba con decir «no inventes». Lo que pasó en producción fue otra
+ * cosa: alguien escribió para mandar un currículum y el asistente, en vez de
+ * inventar algo sobre búsquedas laborales, LLEVÓ LA CONVERSACIÓN a un tema
+ * del que sí sabía —el prompt le indica arrancar preguntando por cuál de los
+ * dos proyectos consulta—. Cada frase era cierta y la conversación entera
+ * estaba mal. Por eso la regla nombra ese movimiento, y no solo la
+ * invención.
+ */
+export const REGLA_DE_ALCANCE =
+  '# DE QUÉ PODÉS HABLAR\n\n' +
+  'De dos cosas y nada más: lo que dicen tus instrucciones, y lo que está ' +
+  'en la información del negocio de más arriba. Si algo no está en ninguna ' +
+  'de las dos, NO LO SABÉS.\n\n' +
+  'Cuando te pregunten algo que no está ahí —trabajo, currículums, ' +
+  'proveedores, prensa, reclamos, o cualquier tema ajeno al negocio—:\n' +
+  '- No lo contestes de memoria ni lo deduzcas de algo parecido.\n' +
+  '- NO lleves la charla a un tema del que sí sabés. Si alguien escribe por ' +
+  'algo que no manejás, preguntarle por los productos es cambiarle de tema, ' +
+  'no ayudarlo.\n' +
+  '- Llamá a `handoff` y decile, con tus palabras, que eso lo ve una persona ' +
+  'del equipo y que le van a responder.\n\n' +
+  'Lo mismo vale cuando la consulta SÍ es del negocio pero el dato puntual ' +
+  'no está cargado: un precio, una medida, una fecha, una disponibilidad. Un ' +
+  'dato inventado es un compromiso que después alguien tiene que sostener.'
 
 /**
  * Lo que sabemos de esta persona.

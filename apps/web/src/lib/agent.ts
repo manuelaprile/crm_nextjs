@@ -30,7 +30,7 @@
  */
 import 'server-only'
 import { sql } from 'drizzle-orm'
-import { promptCompleto } from './conocimiento'
+import { promptCompleto, REGLA_DE_ALCANCE } from './conocimiento'
 import { withSystem } from './db/client'
 import { deliverMessage } from './deliver'
 import { isSealed, open as openSecret, type SealedValue } from './crypto'
@@ -390,8 +390,11 @@ function toolsFor(
     name: 'handoff',
     description:
       'Pasa la conversación a un humano y deja de responder. Usar ante una ' +
-      'urgencia, un pedido explícito de hablar con alguien, o algo que no ' +
-      'podés resolver con la información que tenés. En `mensaje` va lo que ' +
+      'urgencia, un pedido explícito de hablar con alguien, o CUALQUIER tema ' +
+      'que no esté en tus instrucciones ni en la información del negocio ' +
+      '—un currículum, un proveedor, un reclamo—. Ante un tema ajeno esto es ' +
+      'lo PRIMERO que hacés: no lo contestes de memoria y no lo lleves a un ' +
+      'tema del que sí sabés. En `mensaje` va lo que ' +
       'le decís a la persona: es lo ÚLTIMO que va a leer, así que contestale ' +
       'lo que se pueda y recién ahí avisale que sigue alguien del equipo.' +
       (temas.length
@@ -834,6 +837,11 @@ async function run(ctx: AgentContext): Promise<void> {
       base,
       instruccionesDeTemas(temas),
       instruccionesDeAgenda(config),
+      // La regla de alcance va ÚLTIMA, y no pegada a la información del
+      // negocio como estaba antes. Es lo último que lee el modelo antes de
+      // la conversación, que es donde más pesa una instrucción; y así vale
+      // igual para una cuenta que todavía no cargó nada.
+      REGLA_DE_ALCANCE,
     ]
       .filter(Boolean)
       .join('\n\n---\n\n')
